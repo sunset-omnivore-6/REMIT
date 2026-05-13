@@ -371,6 +371,175 @@ def tech_capacity_lookup(
 
 
 # ---------------------------------------------------------------------------
+# Capacity-change detection (next N days)
+# ---------------------------------------------------------------------------
+
+def _capacity_at(
+    df: pd.DataFrame, site: str, cat: str, t: pd.Timestamp, tech: float
+) -> float:
+    """Effective available capacity at instant `t`, taking the conservative
+    minimum across overlapping events."""
+    active = df[
+        (df["__site__"] == site)
+        & (df["__category__"] == cat)
+        & (df["__eventStart__"] <= t)
+        & (df["__eventEnd__"].isna() | (df["__eventEnd__"] > t))
+    ]
+    if active.empty:
+        return tech
+    avails = active["__availCapacity__"].dropna()
+    if not avails.empty:
+        return float(avails.min())
+    unavail_sum = active["__unavailCapacity__"].fillna(0).sum()
+    return max(0.0, float(tech) - float(unavail_sum))
+
+
+def compute_capacity_changes(
+    df_op: pd.DataFrame,
+    tech_lookup: dict[tuple[str, str], float],
+    categories: list[str],
+    lookahead_days: int = 7,
+    threshold: float = 0.5,
+) -> list[dict]:
+    """Find every step change in effective available capacity within window."""
+    now = pd.Timestamp.now(tz="UTC")
+    horizon = now + pd.Timedelta(days=lookahead_days)
+    changes: list[dict] = []
+
+    for site in SITES:
+        for cat in categories:
+            tech = tech_lookup.get((site, cat))
+            if tech is None:
+                continue
+            sub = df_op[(df_op["__site__"] == site) & (df_op["__category__"] == cat)]
+            if sub.empty:
+                continue
+
+            # Candidate transition moments = event starts AND event ends in window
+            starts = sub[
+                (sub["__eventStart__"] > now)
+                & (sub["__eventStart__"] <= horizon)
+            ][["__eventStart__"]].rename(columns={"__eventStart__": "t"})
+            ends = sub[
+                sub["__eventEnd__"].notna()
+                & (sub["__eventEnd__"] > now)
+                & (sub["__eventEnd__"] <= horizon)
+            ][["__eventEnd__"]].rename(columns={"__eventEnd__": "t"})
+            moments = pd.concat([starts, ends]).sort_values("t").drop_duplicates()
+
+            if moments.empty:
+                continue
+
+            prev_avail = _capacity_at(df_op, site, cat, now, tech)
+            for t in moments["t"]:
+                # Sample just after the transition
+                t_after = t + pd.Timedelta(seconds=1)
+                new_avail = _capacity_at(df_op, site, cat, t_after, tech)
+                if abs(new_avail - prev_avail) >= threshold:
+                    # Find the dominant event driving the change at this moment
+                    driver_starts = sub[sub["__eventStart__"] == t]
+                    driver_ends = sub[sub["__eventEnd__"] == t]
+                    driver = (
+                        driver_starts.iloc[0]
+                        if not driver_starts.empty
+                        else (driver_ends.iloc[0] if not driver_ends.empty else None)
+                    )
+                    changes.append(
+                        {
+                            "site": site,
+                            "category": cat,
+                            "when": t,
+                            "from": prev_avail,
+                            "to": new_avail,
+                            "tech": tech,
+                            "is_start": not driver_starts.empty,
+                            "driver": driver,
+                        }
+                    )
+                    prev_avail = new_avail
+    changes.sort(key=lambda c: c["when"])
+    return changes
+
+
+def render_changes_banner(
+    changes: list[dict], cmap: dict[str, str | None]
+) -> None:
+    if not changes:
+        return
+
+    now = pd.Timestamp.now(tz="UTC")
+    drops = sum(1 for c in changes if c["to"] < c["from"])
+    rises = sum(1 for c in changes if c["to"] > c["from"])
+
+    border = COLOR["bad"] if drops else COLOR["info"]
+    bg = "#fef2f2" if drops else "#eff6ff"
+    summary = []
+    if drops:
+        summary.append(f"<span style='color:{COLOR['bad']};font-weight:600'>{drops} capacity drop{'s' if drops != 1 else ''}</span>")
+    if rises:
+        summary.append(f"<span style='color:{COLOR['ok']};font-weight:600'>{rises} restoration{'s' if rises != 1 else ''}</span>")
+
+    st.markdown(
+        f"<div style='background:{bg};border-left:5px solid {border};"
+        f"padding:10px 14px;margin-bottom:10px;border-radius:4px'>"
+        f"<b>Upcoming capacity changes (next 7 days)</b> · " + " · ".join(summary)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander(f"Show {len(changes)} change{'s' if len(changes) != 1 else ''}", expanded=True):
+        for c in changes:
+            site = c["site"]
+            cat = c["category"]
+            unit = DEFAULT_UNIT.get(cat, "")
+            arrow_color = COLOR["bad"] if c["to"] < c["from"] else COLOR["ok"]
+            arrow = "↓" if c["to"] < c["from"] else "↑"
+            when_dt = c["when"]
+            hours_away = (when_dt - now).total_seconds() / 3600
+            if hours_away < 24:
+                when_str = f"in {hours_away:.0f} h ({when_dt.strftime('%a %H:%M')})"
+            elif hours_away < 24 * 7:
+                when_str = when_dt.strftime("%a %d %b %H:%M")
+            else:
+                when_str = when_dt.strftime("%d %b %Y %H:%M")
+
+            driver = c["driver"]
+            planned = driver["__planned__"] if driver is not None else ""
+            reason_col = cmap.get("reason")
+            reason = (
+                str(driver[reason_col]) if driver is not None and reason_col else ""
+            )
+            cat_color = COLOR.get(cat, COLOR["muted"])
+            plan_color = COLOR.get(planned, COLOR["muted"])
+            planned_pill = pill(planned, plan_color) if planned else ""
+            reason_html = (
+                f"<div style='font-size:0.85em;color:#6b7280;margin-top:2px'>"
+                f"<i>{reason}</i></div>"
+                if reason and reason not in ("-", "nan", "None")
+                else ""
+            )
+
+            st.markdown(
+                f"<div style='border-left:4px solid {arrow_color};"
+                f"padding:8px 12px;margin:6px 0;background:#f9fafb;border-radius:4px'>"
+                f"<div style='display:flex;justify-content:space-between;gap:6px;align-items:baseline'>"
+                f"<div><b><span style='color:{cat_color}'>●</span> {site} {cat}</b> "
+                f"{planned_pill}</div>"
+                f"<div style='font-size:0.85em;color:#374151'>{when_str}</div>"
+                f"</div>"
+                f"<div style='font-size:1.15em;margin-top:4px'>"
+                f"<b style='color:#374151'>{c['from']:g} {unit}</b> "
+                f"<span style='color:{arrow_color};font-weight:700'>{arrow}</span> "
+                f"<b style='color:{arrow_color}'>{c['to']:g} {unit}</b> "
+                f"<span style='color:#6b7280'>(tech max {c['tech']:g})</span>"
+                f"</div>"
+                f"{reason_html}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+
+# ---------------------------------------------------------------------------
 # Rendering — hero cards
 # ---------------------------------------------------------------------------
 
@@ -680,16 +849,31 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
         return
 
     sub["row"] = sub["__site__"] + " — " + sub["__category__"]
-    sub["label"] = sub["__planned__"]
     sub = sub.dropna(subset=["__eventStart__", "__eventEnd__"])
     if sub.empty:
         st.info("No events with valid dates in window.")
         return
 
+    # Visual padding so sub-day bars remain at least a few pixels wide
+    # at typical zoom levels. Hover still shows the true times.
+    min_visual = pd.Timedelta(hours=2)
+    short_mask = (sub["__eventEnd__"] - sub["__eventStart__"]) < min_visual
+    sub["__displayEnd__"] = sub["__eventEnd__"]
+    sub.loc[short_mask, "__displayEnd__"] = (
+        sub.loc[short_mask, "__eventStart__"] + min_visual
+    )
+
+    # Pretty hover fields
+    sub["start_fmt"] = sub["__eventStart__"].dt.strftime("%d %b %Y %H:%M")
+    sub["end_fmt"] = sub["__eventEnd__"].dt.strftime("%d %b %Y %H:%M")
+    sub["dur_h"] = (
+        (sub["__eventEnd__"] - sub["__eventStart__"]).dt.total_seconds() / 3600
+    ).round(1)
+
     fig = px.timeline(
         sub,
         x_start="__eventStart__",
-        x_end="__eventEnd__",
+        x_end="__displayEnd__",
         y="row",
         color="__planned__",
         color_discrete_map={
@@ -697,22 +881,60 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
             "Unplanned": COLOR["Unplanned"],
             "Unknown": COLOR["muted"],
         },
-        hover_data={
-            "__site__": True,
-            "__category__": True,
-            "__unavailCapacity__": True,
-            "__eventStart__": "|%d %b %Y %H:%M",
-            "__eventEnd__": "|%d %b %Y %H:%M",
-            "row": False,
-            "__planned__": False,
-        },
+        custom_data=[
+            "__site__", "__category__", "__planned__",
+            "__unavailCapacity__", "start_fmt", "end_fmt", "dur_h",
+        ],
     )
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{customdata[0]} — %{customdata[1]}</b><br>"
+            "%{customdata[2]}<br>"
+            "Unavailable: %{customdata[3]}<br>"
+            "Start: %{customdata[4]}<br>"
+            "End: %{customdata[5]} (%{customdata[6]} h)"
+            "<extra></extra>"
+        )
+    )
+
+    # Always-visible markers at event start so short events are never lost
+    marker_color = sub["__planned__"].map(
+        {
+            "Planned": COLOR["Planned"],
+            "Unplanned": COLOR["Unplanned"],
+            "Unknown": COLOR["muted"],
+        }
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=sub["__eventStart__"],
+            y=sub["row"],
+            mode="markers",
+            marker=dict(symbol="diamond", size=8, color=marker_color, line=dict(color="white", width=1)),
+            name="event start",
+            showlegend=False,
+            customdata=sub[["__site__", "__category__", "__planned__", "__unavailCapacity__", "start_fmt", "end_fmt", "dur_h"]].values,
+            hovertemplate=(
+                "<b>%{customdata[0]} — %{customdata[1]}</b><br>"
+                "%{customdata[2]}<br>"
+                "Unavailable: %{customdata[3]}<br>"
+                "Start: %{customdata[4]}<br>"
+                "End: %{customdata[5]} (%{customdata[6]} h)"
+                "<extra></extra>"
+            ),
+        )
+    )
+
     fig.update_yaxes(autorange="reversed")
     _add_now_line(fig, now)
+    fig.update_xaxes(
+        rangeslider=dict(visible=True, thickness=0.05),
+        tickformat="%d %b\n%H:%M",
+    )
     fig.update_layout(
-        height=400,
+        height=440,
         margin=dict(l=20, r=20, t=20, b=20),
-        legend=dict(orientation="h", y=-0.15),
+        legend=dict(orientation="h", y=-0.25),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -864,6 +1086,11 @@ df_op = df[
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
 df_upcoming = upcoming(df_op, now, horizon_days)
+
+# Upcoming capacity-change alerts (banner above the hero)
+_tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
+_changes = compute_capacity_changes(df_op, _tech_lookup, ACTIVE_CATEGORIES, lookahead_days=7)
+render_changes_banner(_changes, cmap)
 
 # Hero
 hero_l, hero_r = st.columns(2, gap="large")
