@@ -23,6 +23,24 @@ HEADERS = {
     "Referer": "https://thermaloutages.sse.com/gas-uof",
 }
 
+# Nameplate technical capacities — used as a fallback when no current REMIT
+# carries a technicalCapacity figure for a given (site, category). Values
+# from SSE's published facility data.
+TECH_CAPACITY_FALLBACK: dict[tuple[str, str], float] = {
+    ("Aldbrough", "Withdrawal"): 342.3,   # GWh/d
+    ("Aldbrough", "Injection"): 311.56,   # GWh/d
+    ("Aldbrough", "Storage"): 3.3,        # TWh
+    ("Atwick", "Withdrawal"): 130.0,      # GWh/d
+    ("Atwick", "Injection"): 30.0,        # GWh/d
+    ("Atwick", "Storage"): 3.47,          # TWh
+}
+
+DEFAULT_UNIT: dict[str, str] = {
+    "Withdrawal": "GWh/d",
+    "Injection": "GWh/d",
+    "Storage": "TWh",
+}
+
 COLOR = {
     "ok": "#16a34a",
     "warn": "#f59e0b",
@@ -300,16 +318,31 @@ def upcoming(df: pd.DataFrame, now: pd.Timestamp, horizon_days: int) -> pd.DataF
 
 
 def site_category_headline(
-    df_active: pd.DataFrame, site: str, category: str
+    df_active: pd.DataFrame,
+    df_all_site: pd.DataFrame,
+    site: str,
+    category: str,
 ) -> tuple[float, float, float, bool, int]:
-    """Return (tech, available, unavailable, has_unplanned, n_events)."""
+    """Return (tech, available, unavailable, has_unplanned, n_events).
+
+    Technical capacity is sourced in order of preference:
+      1. max from currently-active events for this (site, cat)
+      2. max from any (latest-revision) event for this (site, cat)
+      3. hard-coded nameplate fallback (TECH_CAPACITY_FALLBACK)
+    """
     sub = df_active[
         (df_active["__site__"] == site) & (df_active["__category__"] == category)
     ]
+    tech = sub["__techCapacity__"].dropna().max() if not sub.empty else float("nan")
+    if pd.isna(tech):
+        all_sub = df_all_site[df_all_site["__category__"] == category]
+        tech = all_sub["__techCapacity__"].dropna().max() if not all_sub.empty else float("nan")
+    if pd.isna(tech):
+        tech = TECH_CAPACITY_FALLBACK.get((site, category), float("nan"))
+
     if sub.empty:
-        return (float("nan"), float("nan"), 0.0, False, 0)
-    tech = sub["__techCapacity__"].dropna().max()
-    # Conservative: actual available = minimum reported by any concurrent event
+        return (float(tech), float("nan"), 0.0, False, 0)
+
     available = sub["__availCapacity__"].dropna().min()
     unavailable = sub["__unavailCapacity__"].dropna().sum()
     has_unplanned = (sub["__planned__"] == "Unplanned").any()
@@ -329,9 +362,11 @@ def tech_capacity_lookup(
     for site in SITES:
         for cat in categories:
             sub = df[(df["__site__"] == site) & (df["__category__"] == cat)]
-            tech = sub["__techCapacity__"].dropna().max()
-            if pd.notna(tech):
+            tech = sub["__techCapacity__"].dropna().max() if not sub.empty else float("nan")
+            if pd.notna(tech) and tech > 0:
                 out[(site, cat)] = float(tech)
+            elif (site, cat) in TECH_CAPACITY_FALLBACK:
+                out[(site, cat)] = TECH_CAPACITY_FALLBACK[(site, cat)]
     return out
 
 
@@ -387,7 +422,7 @@ def render_site_column(
     # Headline cards
     for cat in categories:
         tech, avail, unavail, has_unplanned, n = site_category_headline(
-            df_active_site, site, cat
+            df_active_site, df_all_site_future, site, cat
         )
         if pd.notna(tech) and tech > 0:
             if pd.isna(avail):
@@ -410,7 +445,9 @@ def render_site_column(
             if not unit_vals.empty:
                 unit_str = str(unit_vals.mode().iloc[0])
             else:
-                unit_str = "TWh" if cat == "Storage" else "GWh/d"
+                unit_str = DEFAULT_UNIT.get(cat, "")
+        else:
+            unit_str = DEFAULT_UNIT.get(cat, "")
 
         with st.container():
             st.markdown(
@@ -463,6 +500,30 @@ def render_site_column(
 # ---------------------------------------------------------------------------
 # Tabs: upcoming, timeline, gantt, all data
 # ---------------------------------------------------------------------------
+
+def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
+    """Vertical 'now' marker that survives plotly's tz-aware datetime quirks."""
+    x = now.isoformat()
+    fig.add_shape(
+        type="line",
+        xref="x",
+        yref="paper",
+        x0=x,
+        x1=x,
+        y0=0,
+        y1=1,
+        line=dict(color="#111827", width=1, dash="dot"),
+    )
+    fig.add_annotation(
+        x=x,
+        xref="x",
+        y=1.02,
+        yref="paper",
+        text="now",
+        showarrow=False,
+        font=dict(size=11, color="#111827"),
+    )
+
 
 def render_upcoming(
     df_up: pd.DataFrame, cmap: dict[str, str | None], categories: list[str]
@@ -597,13 +658,7 @@ def render_timeline(
                         hoverinfo="skip",
                     )
                 )
-        fig.add_vline(
-            x=now.to_pydatetime(),
-            line_dash="dot",
-            line_color="#111827",
-            annotation_text="now",
-            annotation_position="top",
-        )
+        _add_now_line(fig, now)
         fig.update_layout(
             title=f"{site} — available capacity",
             height=320,
@@ -653,13 +708,7 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
         },
     )
     fig.update_yaxes(autorange="reversed")
-    fig.add_vline(
-        x=now.to_pydatetime(),
-        line_dash="dot",
-        line_color="#111827",
-        annotation_text="now",
-        annotation_position="top",
-    )
+    _add_now_line(fig, now)
     fig.update_layout(
         height=400,
         margin=dict(l=20, r=20, t=20, b=20),
