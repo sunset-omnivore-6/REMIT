@@ -27,8 +27,8 @@ HEADERS = {
 # carries a technicalCapacity figure for a given (site, category). Values
 # from SSE's published facility data.
 TECH_CAPACITY_FALLBACK: dict[tuple[str, str], float] = {
-    ("Aldbrough", "Withdrawal"): 342.3,   # GWh/d
-    ("Aldbrough", "Injection"): 311.56,   # GWh/d
+    ("Aldbrough", "Withdrawal"): 287.78,  # GWh/d
+    ("Aldbrough", "Injection"): 293.33,   # GWh/d
     ("Aldbrough", "Storage"): 3.3,        # TWh
     ("Atwick", "Withdrawal"): 130.0,      # GWh/d
     ("Atwick", "Injection"): 30.0,        # GWh/d
