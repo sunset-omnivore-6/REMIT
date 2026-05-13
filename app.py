@@ -120,10 +120,17 @@ def detect_columns(df: pd.DataFrame) -> dict[str, str | None]:
         "asset": find("assetName", "asset", "unitName", "facilityName",
                       "facility", "affectedAssetName", "storageFacility"),
         "unitEic": find("unitEicCode", "unitEic", "eicCode", "assetEic"),
-        "eventStart": find("eventStart", "outageStart", "startTime",
-                           "startDateTime", "unavailabilityStart", "fromDate"),
-        "eventEnd": find("eventEnd", "outageEnd", "endTime", "endDateTime",
-                         "unavailabilityEnd", "toDate"),
+        "eventStart": find(
+            "eventStartDateTime", "eventStart", "outageStart", "startTime",
+            "startDateTime", "startDate", "unavailabilityStart", "fromDate",
+            "fromDateTime", "eventStartTime", "from", "begin", "beginDateTime",
+        ),
+        "eventEnd": find(
+            "eventEndDateTime", "eventEnd", "outageEnd", "endTime",
+            "endDateTime", "endDate", "unavailabilityEnd", "toDate",
+            "toDateTime", "eventEndTime", "to", "stop", "stopDateTime",
+            "expectedEnd", "expectedEndDate",
+        ),
         "publication": find("publicationDateTime", "publicationDate",
                             "publishedDate", "publishDateTime", "published"),
         "status": find("eventStatus", "status", "state"),
@@ -191,14 +198,15 @@ def normalise(df: pd.DataFrame, cmap: dict[str, str | None]) -> pd.DataFrame:
     else:
         out["__category__"] = None
 
-    # Dates
+    # Dates — always store as a datetime-typed Series so comparisons work
+    # even when the source column wasn't detected.
+    nat_series = pd.Series(pd.NaT, index=out.index, dtype="datetime64[ns, UTC]")
     for logical in ("eventStart", "eventEnd", "publication"):
         col = cmap[logical]
-        out[f"__{logical}__"] = (
-            pd.to_datetime(out[col], errors="coerce", utc=True)
-            if col is not None
-            else pd.NaT
-        )
+        if col is not None:
+            out[f"__{logical}__"] = pd.to_datetime(out[col], errors="coerce", utc=True)
+        else:
+            out[f"__{logical}__"] = nat_series.copy()
 
     # Numeric capacities
     for logical in ("techCapacity", "availCapacity", "unavailCapacity"):
