@@ -121,15 +121,18 @@ def detect_columns(df: pd.DataFrame) -> dict[str, str | None]:
                       "facility", "affectedAssetName", "storageFacility"),
         "unitEic": find("unitEicCode", "unitEic", "eicCode", "assetEic"),
         "eventStart": find(
-            "eventStartDateTime", "eventStart", "outageStart", "startTime",
-            "startDateTime", "startDate", "unavailabilityStart", "fromDate",
-            "fromDateTime", "eventStartTime", "from", "begin", "beginDateTime",
+            "eventStartDateTime", "eventStartTime", "eventStart",
+            "outageStart", "startTime", "startDateTime", "startDate",
+            "unavailabilityStart", "fromDate", "fromDateTime",
+            "from", "begin", "beginDateTime",
         ),
         "eventEnd": find(
-            "eventEndDateTime", "eventEnd", "outageEnd", "endTime",
-            "endDateTime", "endDate", "unavailabilityEnd", "toDate",
-            "toDateTime", "eventEndTime", "to", "stop", "stopDateTime",
-            "expectedEnd", "expectedEndDate",
+            "eventStopDateTime", "eventStopTime", "eventStop",
+            "eventEndDateTime", "eventEndTime", "eventEnd",
+            "outageEnd", "outageStop", "endTime", "endDateTime", "endDate",
+            "stopTime", "stopDateTime", "stopDate",
+            "unavailabilityEnd", "toDate", "toDateTime",
+            "expectedEnd", "expectedEndDate", "to",
         ),
         "publication": find("publicationDateTime", "publicationDate",
                             "publishedDate", "publishDateTime", "published"),
@@ -319,10 +322,12 @@ def site_category_headline(
     )
 
 
-def tech_capacity_lookup(df: pd.DataFrame) -> dict[tuple[str, str], float]:
+def tech_capacity_lookup(
+    df: pd.DataFrame, categories: list[str]
+) -> dict[tuple[str, str], float]:
     out: dict[tuple[str, str], float] = {}
     for site in SITES:
-        for cat in CATEGORIES:
+        for cat in categories:
             sub = df[(df["__site__"] == site) & (df["__category__"] == cat)]
             tech = sub["__techCapacity__"].dropna().max()
             if pd.notna(tech):
@@ -375,11 +380,12 @@ def render_site_column(
     df_active_site: pd.DataFrame,
     df_all_site_future: pd.DataFrame,
     cmap: dict[str, str | None],
+    categories: list[str],
 ) -> None:
     st.markdown(f"### {site}")
 
     # Headline cards
-    for cat in CATEGORIES:
+    for cat in categories:
         tech, avail, unavail, has_unplanned, n = site_category_headline(
             df_active_site, site, cat
         )
@@ -392,6 +398,19 @@ def render_site_column(
 
         color = headline_color(pct if pd.notna(pct) else 100, has_unplanned, cat)
         cat_color = COLOR.get(cat, COLOR["muted"])
+
+        # Unit string for this site×category, taken from the data
+        unit_col = cmap.get("unit")
+        unit_str = ""
+        if unit_col:
+            unit_vals = df_active_site[
+                (df_active_site["__site__"] == site)
+                & (df_active_site["__category__"] == cat)
+            ][unit_col].dropna()
+            if not unit_vals.empty:
+                unit_str = str(unit_vals.mode().iloc[0])
+            else:
+                unit_str = "TWh" if cat == "Storage" else "GWh/d"
 
         with st.container():
             st.markdown(
@@ -411,7 +430,7 @@ def render_site_column(
                     f"<div style='font-size:1.4em;font-weight:700;color:{color}'>"
                     f"{pct:.0f}% available</div>"
                     f"<div style='font-size:0.85em;color:#374151'>"
-                    f"{avail_str} of {tech_str}</div>"
+                    f"{avail_str} of {tech_str} {unit_str}</div>"
                     f"{progress_bar(pct, color)}",
                     unsafe_allow_html=True,
                 )
@@ -424,7 +443,7 @@ def render_site_column(
     st.markdown("---")
     st.markdown("**Active now**")
 
-    for cat in CATEGORIES:
+    for cat in categories:
         sub = df_active_site[df_active_site["__category__"] == cat]
         if sub.empty:
             continue
@@ -445,11 +464,13 @@ def render_site_column(
 # Tabs: upcoming, timeline, gantt, all data
 # ---------------------------------------------------------------------------
 
-def render_upcoming(df_up: pd.DataFrame, cmap: dict[str, str | None]) -> None:
+def render_upcoming(
+    df_up: pd.DataFrame, cmap: dict[str, str | None], categories: list[str]
+) -> None:
     if df_up.empty:
         st.info("No upcoming REMITs in window.")
         return
-    for cat in CATEGORIES:
+    for cat in categories:
         sub = df_up[df_up["__category__"] == cat]
         if sub.empty:
             continue
@@ -486,12 +507,13 @@ def compute_capacity_series(
     start: pd.Timestamp,
     end: pd.Timestamp,
     tech_lookup: dict[tuple[str, str], float],
+    categories: list[str],
 ) -> pd.DataFrame:
     """For each day, each (site, cat), compute available capacity."""
     days = pd.date_range(start.normalize(), end.normalize(), freq="D", tz="UTC")
     records = []
     for site in SITES:
-        for cat in CATEGORIES:
+        for cat in categories:
             tech = tech_lookup.get((site, cat))
             if tech is None:
                 continue
@@ -525,13 +547,15 @@ def compute_capacity_series(
     return pd.DataFrame(records)
 
 
-def render_timeline(df_op: pd.DataFrame, horizon_days: int) -> None:
+def render_timeline(
+    df_op: pd.DataFrame, horizon_days: int, categories: list[str]
+) -> None:
     now = pd.Timestamp.now(tz="UTC")
     start = now - pd.Timedelta(days=7)
     end = now + pd.Timedelta(days=horizon_days)
 
-    tech_lookup = tech_capacity_lookup(df_op)
-    series = compute_capacity_series(df_op, start, end, tech_lookup)
+    tech_lookup = tech_capacity_lookup(df_op, categories)
+    series = compute_capacity_series(df_op, start, end, tech_lookup, categories)
     if series.empty:
         st.info("Not enough data to plot capacity timeline.")
         return
@@ -541,7 +565,7 @@ def render_timeline(df_op: pd.DataFrame, horizon_days: int) -> None:
         if site_series.empty:
             continue
         fig = go.Figure()
-        for cat in CATEGORIES:
+        for cat in categories:
             cs = site_series[site_series["category"] == cat]
             if cs.empty:
                 continue
@@ -728,20 +752,31 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-ctrl_l, ctrl_m, ctrl_r = st.columns([2, 2, 1])
+ctrl_l, ctrl_m, ctrl_s, ctrl_r = st.columns([2, 2, 1.4, 0.8])
 with ctrl_l:
     horizon_days = st.slider("Upcoming horizon (days)", 7, 90, 30, step=1)
 with ctrl_m:
     include_history = st.toggle(
-        "Include older revisions (for All data / Revisions tabs)",
+        "Include older revisions (All data / Revisions tabs)",
         value=False,
         help="Adds historical revisions to the All data and Revisions tabs only. "
         "Operational views always use the latest revision per thread.",
+    )
+with ctrl_s:
+    include_storage = st.toggle(
+        "Include storage REMITs",
+        value=False,
+        help="Storage events are typically less operationally critical than "
+        "Withdrawal/Injection. Off by default to reduce noise.",
     )
 with ctrl_r:
     if st.button("⟳ Refresh"):
         st.cache_data.clear()
         st.rerun()
+
+ACTIVE_CATEGORIES = [
+    c for c in CATEGORIES if include_storage or c != "Storage"
+]
 
 try:
     raw = fetch_remit("Latest")
@@ -769,10 +804,12 @@ if missing:
     with st.expander("Field-detection diagnostics"):
         st.write({"detected": cmap, "columns": list(raw.columns)})
 
-# Operational dataset: latest revisions, not dismissed, with known site
+# Operational dataset: latest revisions, not dismissed, with known site,
+# and (optionally) excluding storage.
 df_op = df[
     df["__site__"].isin(SITES)
     & ~df["__status__"].str.contains("dismiss", case=False, na=False)
+    & df["__category__"].isin(ACTIVE_CATEGORIES)
 ].copy()
 
 now = pd.Timestamp.now(tz="UTC")
@@ -787,6 +824,7 @@ with hero_l:
         df_active[df_active["__site__"] == "Aldbrough"],
         df_op[df_op["__site__"] == "Aldbrough"],
         cmap,
+        ACTIVE_CATEGORIES,
     )
 with hero_r:
     render_site_column(
@@ -794,6 +832,7 @@ with hero_r:
         df_active[df_active["__site__"] == "Atwick"],
         df_op[df_op["__site__"] == "Atwick"],
         cmap,
+        ACTIVE_CATEGORIES,
     )
 
 st.markdown("---")
@@ -810,10 +849,10 @@ tab_up, tab_tl, tab_gantt, tab_data, tab_rev = st.tabs(
 )
 
 with tab_up:
-    render_upcoming(df_upcoming, cmap)
+    render_upcoming(df_upcoming, cmap, ACTIVE_CATEGORIES)
 
 with tab_tl:
-    render_timeline(df_op, horizon_days)
+    render_timeline(df_op, horizon_days, ACTIVE_CATEGORIES)
 
 with tab_gantt:
     render_gantt(df_op, horizon_days)
