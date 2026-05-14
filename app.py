@@ -938,6 +938,15 @@ def render_timeline(
         site_series = series[series["site"] == site]
         if site_series.empty:
             continue
+
+        # Lock y-axis: 0 → highest technical capacity for this site + 10%
+        site_techs = [
+            tech_lookup[(site, c)]
+            for c in categories
+            if (site, c) in tech_lookup
+        ]
+        y_max = max(site_techs) * 1.1 if site_techs else None
+
         fig = go.Figure()
         for cat in categories:
             cs = site_series[site_series["category"] == cat].sort_values("date")
@@ -952,7 +961,7 @@ def render_timeline(
                     name=f"{cat} available",
                     line=dict(
                         color=COLOR[cat],
-                        width=2,
+                        width=2.5,
                         shape="hv",  # exact step function
                         dash="dot" if cat == "Storage" else "solid",
                     ),
@@ -969,27 +978,41 @@ def render_timeline(
                         x=cs["date"],
                         y=[tech] * len(cs),
                         mode="lines",
-                        name=f"{cat} technical",
-                        line=dict(color=COLOR[cat], width=1, dash="dash"),
-                        opacity=0.3,
+                        name=f"{cat} technical max",
+                        line=dict(color=COLOR[cat], width=1.5, dash="longdash"),
+                        opacity=0.75,
                         showlegend=False,
                         hoverinfo="skip",
                     )
                 )
+                # Right-hand-side label on the technical-max line
+                fig.add_annotation(
+                    x=1.0,
+                    xref="paper",
+                    y=tech,
+                    yref="y",
+                    text=f"{cat} max {tech:g} {unit}",
+                    showarrow=False,
+                    xanchor="left",
+                    xshift=6,
+                    font=dict(size=10, color=COLOR[cat]),
+                    bgcolor="rgba(255,255,255,0.7)",
+                )
         _add_now_line(fig, now)
-        fig.update_xaxes(
-            rangeslider=dict(visible=True, thickness=0.06),
-            tickformat="%d %b\n%H:%M",
-        )
+        fig.update_xaxes(tickformat="%d %b\n%H:%M")
         fig.update_layout(
-            title=f"{site} — available capacity (step = exact event boundaries)",
+            title=f"{site} — available capacity",
             height=340,
-            margin=dict(l=20, r=20, t=40, b=20),
-            legend=dict(orientation="h", y=-0.32),
-            yaxis_title="Available",
+            margin=dict(l=20, r=120, t=40, b=20),
+            legend=dict(orientation="h", y=-0.25),
+            yaxis=dict(
+                title="Available",
+                range=[0, y_max] if y_max is not None else None,
+            ),
             hovermode="x unified",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        with st.container(border=True):
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
