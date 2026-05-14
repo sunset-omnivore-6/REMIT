@@ -1192,7 +1192,9 @@ st.markdown(
 
 ctrl_l, ctrl_m, ctrl_s, ctrl_r = st.columns([2, 2, 1.4, 0.8])
 with ctrl_l:
-    horizon_days = st.slider("Upcoming horizon (days)", 7, 90, 30, step=1)
+    horizon_days = st.number_input(
+        "Upcoming horizon (days)", min_value=7, max_value=90, value=30, step=1
+    )
 with ctrl_m:
     include_history = st.toggle(
         "Include older revisions (All data / Revisions tabs)",
