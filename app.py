@@ -81,6 +81,7 @@ def inject_css() -> None:
           --remit-surface: #f8fafc;
           --remit-border: #e2e8f0;
           --remit-radius: 8px;
+          --remit-shadow: 0 1px 3px rgba(15, 23, 42, .08);
         }
         /* Card */
         .remit-card {
@@ -115,20 +116,30 @@ def inject_css() -> None:
           height: 8px; width: 100%; overflow: hidden; margin-top: 0.25rem;
         }
         .remit-progress__fill { height: 100%; border-radius: 6px; }
-        /* Headline capacity card */
-        .remit-headline { margin-top: 0.55rem; }
-        .remit-headline__row {
+        /* KPI card — the only elevated element on the page */
+        .remit-kpi {
+          background: #ffffff;
+          border: 1px solid var(--remit-border);
+          border-radius: var(--remit-radius);
+          box-shadow: var(--remit-shadow);
+          padding: 0.85rem 1rem;
+          margin: 0.6rem 0;
+        }
+        .remit-kpi__head {
           display: flex; justify-content: space-between; align-items: baseline;
+          gap: 0.4rem; margin-bottom: 0.35rem;
         }
-        .remit-headline__cat { font-weight: 600; color: var(--remit-ink); }
-        .remit-headline__count {
-          font-size: 0.8rem; color: var(--remit-ink-soft);
+        .remit-kpi__cat {
+          font-weight: 600; color: var(--remit-ink); font-size: 0.95rem;
         }
-        .remit-headline__pct {
-          font-size: 1.5rem; font-weight: 700; line-height: 1.25;
+        .remit-kpi__count {
+          font-size: 0.78rem; color: var(--remit-ink-soft);
         }
-        .remit-headline__sub {
-          font-size: 0.85rem; color: var(--remit-ink-soft);
+        .remit-kpi__value {
+          font-size: 1.9rem; font-weight: 700; line-height: 1.15;
+        }
+        .remit-kpi__sub {
+          font-size: 0.84rem; color: var(--remit-ink-soft); margin-top: 0.1rem;
         }
         /* Banner */
         .remit-banner {
@@ -151,6 +162,19 @@ def inject_css() -> None:
         .remit-header__sub {
           color: var(--remit-ink-soft); font-size: 0.92rem;
           margin: 0.15rem 0 0.6rem 0;
+        }
+        /* Editorial section header */
+        .remit-section {
+          display: flex; justify-content: space-between; align-items: baseline;
+          gap: 0.6rem; margin: 0.2rem 0 0.1rem 0;
+        }
+        .remit-section__label {
+          font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
+          letter-spacing: 0.01em;
+          border-left: 3px solid var(--remit-info); padding-left: 0.5rem;
+        }
+        .remit-section__meta {
+          font-size: 0.82rem; color: var(--remit-ink-soft);
         }
         /* Generic rows / lines */
         .remit-row {
@@ -376,6 +400,18 @@ def progress_bar(pct: float, color: str) -> str:
         f"<div class='remit-progress'>"
         f"<div class='remit-progress__fill' "
         f"style='width:{pct:.1f}%;background:{color}'></div></div>"
+    )
+
+
+def section_header(text: str, meta: str | None = None) -> None:
+    meta_html = (
+        f"<div class='remit-section__meta'>{meta}</div>" if meta else ""
+    )
+    st.markdown(
+        f"<div class='remit-section'>"
+        f"<div class='remit-section__label'>{text}</div>"
+        f"{meta_html}</div>",
+        unsafe_allow_html=True,
     )
 
 
@@ -841,7 +877,11 @@ def render_site_headline(
     cmap: dict[str, str | None],
     categories: list[str],
 ) -> None:
-    st.markdown(f"### {site}")
+    st.markdown(
+        f"<div class='remit-kpi__cat' style='font-size:1rem;"
+        f"margin-bottom:0.2rem'>{site}</div>",
+        unsafe_allow_html=True,
+    )
 
     for cat in categories:
         tech, avail, unavail, has_unplanned, n = site_category_headline(
@@ -877,24 +917,24 @@ def render_site_headline(
             avail_str = f"{avail:g}" if pd.notna(avail) else "—"
             tech_str = f"{tech:g}" if pd.notna(tech) else "—"
             body = (
-                f"<div class='remit-headline__pct' style='color:{color}'>"
+                f"<div class='remit-kpi__value' style='color:{color}'>"
                 f"{pct:.0f}% available</div>"
-                f"<div class='remit-headline__sub'>"
+                f"<div class='remit-kpi__sub'>"
                 f"{avail_str} of {tech_str} {unit_str}</div>"
                 f"{progress_bar(pct, color)}"
             )
         else:
             body = (
-                "<div class='remit-headline__sub'><i>no capacity "
+                "<div class='remit-kpi__sub'><i>no capacity "
                 "reference</i></div>"
             )
 
         st.markdown(
-            f"<div class='remit-headline'>"
-            f"<div class='remit-headline__row'>"
-            f"<div class='remit-headline__cat'>"
+            f"<div class='remit-kpi'>"
+            f"<div class='remit-kpi__head'>"
+            f"<div class='remit-kpi__cat'>"
             f"<span style='color:{cat_color}'>●</span> {cat}</div>"
-            f"<div class='remit-headline__count'>{count_txt}</div>"
+            f"<div class='remit-kpi__count'>{count_txt}</div>"
             f"</div>{body}</div>",
             unsafe_allow_html=True,
         )
@@ -906,7 +946,11 @@ def render_site_active(
     cmap: dict[str, str | None],
     categories: list[str],
 ) -> None:
-    st.markdown(f"**{site} — active now**")
+    st.markdown(
+        f"<div class='remit-kpi__cat' style='font-size:1rem;"
+        f"margin-bottom:0.2rem'>{site}</div>",
+        unsafe_allow_html=True,
+    )
 
     for cat in categories:
         sub = df_active_site[df_active_site["__category__"] == cat]
@@ -1325,8 +1369,7 @@ def render_site_timeline(
         ),
         hovermode="x unified",
     )
-    with st.container(border=True):
-        st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
@@ -1579,6 +1622,8 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 #   1. capacity availability cards
 #   2. capacity timeline
 #   3. active-now cards
+st.divider()
+section_header("Capacity availability", "Live — latest revision per thread")
 hero_l, hero_r = st.columns(2, gap="large")
 with hero_l:
     render_site_headline(
@@ -1597,9 +1642,8 @@ with hero_r:
         ACTIVE_CATEGORIES,
     )
 
-# Spacer between the availability cards and the capacity timelines
-st.markdown("<div style='height:100px'></div>", unsafe_allow_html=True)
-
+st.divider()
+section_header("Capacity timeline", f"Next {horizon_days} days")
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
@@ -1612,6 +1656,8 @@ with tl_r:
         lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
     )
 
+st.divider()
+section_header("Active outages")
 act_l, act_r = st.columns(2, gap="large")
 with act_l:
     render_site_active(
@@ -1628,7 +1674,8 @@ with act_r:
         ACTIVE_CATEGORIES,
     )
 
-st.markdown("---")
+st.divider()
+section_header("Detail views")
 
 # Tabs
 conflict_label = (
