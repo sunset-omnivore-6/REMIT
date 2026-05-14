@@ -939,7 +939,11 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
 
 
 def render_site_timeline(
-    site: str, df_op: pd.DataFrame, horizon_days: int, categories: list[str]
+    site: str,
+    df_op: pd.DataFrame,
+    horizon_days: int,
+    categories: list[str],
+    conflicts: list[dict] | None = None,
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
     start = now - pd.Timedelta(days=7)
@@ -959,6 +963,42 @@ def render_site_timeline(
     y_max = max(site_techs) * 1.1 if site_techs else None
 
     fig = go.Figure()
+
+    # Background boxes over periods with overlapping/conflicting REMITs.
+    # Capacity in these windows already reflects the lowest (most
+    # conservative) value via _capacity_at().
+    site_conflicts = [c for c in (conflicts or []) if c["site"] == site]
+    for c in site_conflicts:
+        cs_start = max(c["overlap_start"], start)
+        cs_end = min(c["overlap_end"] or end, end)
+        if cs_start >= cs_end:
+            continue
+        fig.add_shape(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=cs_start.isoformat(),
+            x1=cs_end.isoformat(),
+            y0=0,
+            y1=1,
+            fillcolor="#f59e0b",
+            opacity=0.18,
+            layer="below",
+            line_width=0,
+        )
+    if site_conflicts:
+        # Dummy trace purely to produce a legend entry for the boxes
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(size=12, symbol="square", color="#f59e0b", opacity=0.4),
+                name="overlapping REMIT",
+                hoverinfo="skip",
+            )
+        )
+
     for cat in categories:
         cs = site_series[site_series["category"] == cat].sort_values("date")
         if cs.empty:
@@ -996,24 +1036,57 @@ def render_site_timeline(
                     hoverinfo="skip",
                 )
             )
-            fig.add_annotation(
-                x=1.0,
+
+    # Technical-max labels, vertically de-conflicted so close values
+    # (e.g. Aldbrough W 287.78 / I 293.33) stay individually readable.
+    tech_items = [
+        (cat, tech_lookup[(site, cat)], DEFAULT_UNIT.get(cat, ""))
+        for cat in categories
+        if (site, cat) in tech_lookup
+    ]
+    tech_items.sort(key=lambda x: x[1])  # ascending by value
+    min_sep = (y_max * 0.075) if y_max else 0.0
+    label_ys: list[float] = []
+    for _, tech, _ in tech_items:
+        ly = tech
+        if label_ys and ly < label_ys[-1] + min_sep:
+            ly = label_ys[-1] + min_sep
+        label_ys.append(ly)
+    for (cat, tech, unit), ly in zip(tech_items, label_ys):
+        if abs(ly - tech) > 1e-6:
+            # dotted leader connecting the offset box to the actual line
+            fig.add_shape(
+                type="line",
                 xref="paper",
-                y=tech,
                 yref="y",
-                text=f"{cat} max {tech:g} {unit}",
-                showarrow=False,
-                xanchor="left",
-                xshift=6,
-                font=dict(size=10, color=COLOR[cat]),
-                bgcolor="rgba(255,255,255,0.7)",
+                x0=1.0,
+                x1=1.0,
+                y0=tech,
+                y1=ly,
+                line=dict(color=COLOR[cat], width=1, dash="dot"),
             )
+        fig.add_annotation(
+            x=1.0,
+            xref="paper",
+            y=ly,
+            yref="y",
+            text=f"{cat} max {tech:g} {unit}",
+            showarrow=False,
+            xanchor="left",
+            xshift=8,
+            font=dict(size=10, color=COLOR[cat]),
+            bgcolor="rgba(255,255,255,0.95)",
+            bordercolor=COLOR[cat],
+            borderwidth=1,
+            borderpad=2,
+        )
+
     _add_now_line(fig, now)
     fig.update_xaxes(tickformat="%d %b\n%H:%M")
     fig.update_layout(
         title=f"{site} — available capacity",
         height=320,
-        margin=dict(l=20, r=120, t=40, b=20),
+        margin=dict(l=20, r=130, t=40, b=20),
         legend=dict(orientation="h", y=-0.25),
         yaxis=dict(
             title="Available",
@@ -1261,6 +1334,10 @@ _tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
 _changes = compute_capacity_changes(df_op, _tech_lookup, ACTIVE_CATEGORIES, lookahead_days=7)
 render_changes_banner(_changes, cmap)
 
+# Overlapping/conflicting REMITs — computed up front so the capacity
+# timelines can shade the affected periods.
+_conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
+
 # Main screen — per site, split horizontally:
 #   1. capacity availability cards
 #   2. capacity timeline
@@ -1290,12 +1367,16 @@ tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
         "Aldbrough timeline",
-        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
+        lambda: render_site_timeline(
+            "Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES, _conflicts
+        ),
     )
 with tl_r:
     _safe_block(
         "Atwick timeline",
-        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
+        lambda: render_site_timeline(
+            "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES, _conflicts
+        ),
     )
 
 act_l, act_r = st.columns(2, gap="large")
@@ -1317,7 +1398,6 @@ with act_r:
 st.markdown("---")
 
 # Tabs
-_conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 conflict_label = (
     f"Conflicts ({len(_conflicts)})" if _conflicts else "Conflicts"
 )
