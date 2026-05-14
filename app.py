@@ -81,6 +81,27 @@ def inject_css() -> None:
           --remit-surface: #f8fafc;
           --remit-border: #e2e8f0;
           --remit-radius: 8px;
+          --remit-shadow: 0 1px 3px rgba(15, 23, 42, 0.07),
+                          0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        /* Tier-1 surface: every st.container(border=True) becomes a white,
+           softly-elevated panel sitting on the grey page base. */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+          background: #ffffff;
+          box-shadow: var(--remit-shadow);
+          margin-bottom: 0.85rem;
+        }
+        /* Section header with a coloured accent bar */
+        .remit-section {
+          display: flex; align-items: center; gap: 0.5rem;
+          margin: 0 0 0.55rem 0;
+        }
+        .remit-section__bar {
+          width: 4px; height: 1.15rem; border-radius: 2px;
+          display: inline-block; flex: none;
+        }
+        .remit-section__text {
+          font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
         }
         /* Card */
         .remit-card {
@@ -365,6 +386,16 @@ def normalise(df: pd.DataFrame, cmap: dict[str, str | None]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # UI helpers
 # ---------------------------------------------------------------------------
+
+def section_header(text: str, color: str = "var(--remit-info)") -> None:
+    """A section title with a coloured accent bar, for use inside panels."""
+    st.markdown(
+        f"<div class='remit-section'>"
+        f"<span class='remit-section__bar' style='background:{color}'></span>"
+        f"<span class='remit-section__text'>{text}</span></div>",
+        unsafe_allow_html=True,
+    )
+
 
 def pill(text: str, color: str) -> str:
     return f"<span class='remit-pill' style='background:{color}'>{text}</span>"
@@ -841,63 +872,66 @@ def render_site_headline(
     cmap: dict[str, str | None],
     categories: list[str],
 ) -> None:
-    st.markdown(f"### {site}")
+    with st.container(border=True):
+        section_header(f"{site} — capacity availability", "var(--remit-ink-soft)")
 
-    for cat in categories:
-        tech, avail, unavail, has_unplanned, n = site_category_headline(
-            df_active_site, df_all_site_future, site, cat
-        )
-        if pd.notna(tech) and tech > 0:
-            if pd.isna(avail):
-                avail = tech  # nothing active → fully available
-            pct = (avail / tech) * 100
-        else:
-            pct = float("nan")
+        for cat in categories:
+            tech, avail, unavail, has_unplanned, n = site_category_headline(
+                df_active_site, df_all_site_future, site, cat
+            )
+            if pd.notna(tech) and tech > 0:
+                if pd.isna(avail):
+                    avail = tech  # nothing active → fully available
+                pct = (avail / tech) * 100
+            else:
+                pct = float("nan")
 
-        color = headline_color(pct if pd.notna(pct) else 100, has_unplanned, cat)
-        cat_color = COLOR.get(cat, COLOR["muted"])
+            color = headline_color(
+                pct if pd.notna(pct) else 100, has_unplanned, cat
+            )
+            cat_color = COLOR.get(cat, COLOR["muted"])
 
-        # Unit string for this site×category, taken from the data
-        unit_col = cmap.get("unit")
-        unit_str = ""
-        if unit_col:
-            unit_vals = df_active_site[
-                (df_active_site["__site__"] == site)
-                & (df_active_site["__category__"] == cat)
-            ][unit_col].dropna()
-            if not unit_vals.empty:
-                unit_str = str(unit_vals.mode().iloc[0])
+            # Unit string for this site×category, taken from the data
+            unit_col = cmap.get("unit")
+            unit_str = ""
+            if unit_col:
+                unit_vals = df_active_site[
+                    (df_active_site["__site__"] == site)
+                    & (df_active_site["__category__"] == cat)
+                ][unit_col].dropna()
+                if not unit_vals.empty:
+                    unit_str = str(unit_vals.mode().iloc[0])
+                else:
+                    unit_str = DEFAULT_UNIT.get(cat, "")
             else:
                 unit_str = DEFAULT_UNIT.get(cat, "")
-        else:
-            unit_str = DEFAULT_UNIT.get(cat, "")
 
-        count_txt = f"{n} active event{'s' if n != 1 else ''}"
-        if pd.notna(pct):
-            avail_str = f"{avail:g}" if pd.notna(avail) else "—"
-            tech_str = f"{tech:g}" if pd.notna(tech) else "—"
-            body = (
-                f"<div class='remit-headline__pct' style='color:{color}'>"
-                f"{pct:.0f}% available</div>"
-                f"<div class='remit-headline__sub'>"
-                f"{avail_str} of {tech_str} {unit_str}</div>"
-                f"{progress_bar(pct, color)}"
-            )
-        else:
-            body = (
-                "<div class='remit-headline__sub'><i>no capacity "
-                "reference</i></div>"
-            )
+            count_txt = f"{n} active event{'s' if n != 1 else ''}"
+            if pd.notna(pct):
+                avail_str = f"{avail:g}" if pd.notna(avail) else "—"
+                tech_str = f"{tech:g}" if pd.notna(tech) else "—"
+                body = (
+                    f"<div class='remit-headline__pct' style='color:{color}'>"
+                    f"{pct:.0f}% available</div>"
+                    f"<div class='remit-headline__sub'>"
+                    f"{avail_str} of {tech_str} {unit_str}</div>"
+                    f"{progress_bar(pct, color)}"
+                )
+            else:
+                body = (
+                    "<div class='remit-headline__sub'><i>no capacity "
+                    "reference</i></div>"
+                )
 
-        st.markdown(
-            f"<div class='remit-headline'>"
-            f"<div class='remit-headline__row'>"
-            f"<div class='remit-headline__cat'>"
-            f"<span style='color:{cat_color}'>●</span> {cat}</div>"
-            f"<div class='remit-headline__count'>{count_txt}</div>"
-            f"</div>{body}</div>",
-            unsafe_allow_html=True,
-        )
+            st.markdown(
+                f"<div class='remit-headline'>"
+                f"<div class='remit-headline__row'>"
+                f"<div class='remit-headline__cat'>"
+                f"<span style='color:{cat_color}'>●</span> {cat}</div>"
+                f"<div class='remit-headline__count'>{count_txt}</div>"
+                f"</div>{body}</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def render_site_active(
@@ -906,7 +940,8 @@ def render_site_active(
     cmap: dict[str, str | None],
     categories: list[str],
 ) -> None:
-    st.markdown(f"**{site} — active now**")
+  with st.container(border=True):
+    section_header(f"{site} — active now", "var(--remit-ink-soft)")
 
     for cat in categories:
         sub = df_active_site[df_active_site["__category__"] == cat]
@@ -1486,38 +1521,44 @@ def render_revisions(
 # Main
 # ---------------------------------------------------------------------------
 
-st.markdown(
-    "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
-    "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
-    "REMIT / UoF data from "
-    "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
-    "</div>",
-    unsafe_allow_html=True,
-)
+with st.container(border=True):
+    st.markdown(
+        "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas "
+        "storage</div>"
+        "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
+        "REMIT / UoF data from "
+        "<a href='https://thermaloutages.sse.com/gas-uof'>"
+        "thermaloutages.sse.com</a></div>",
+        unsafe_allow_html=True,
+    )
 
-ctrl_l, ctrl_m, ctrl_s, ctrl_r = st.columns([2, 2, 1.4, 0.8])
-with ctrl_l:
-    horizon_days = st.number_input(
-        "Upcoming horizon (days)", min_value=7, max_value=90, value=30, step=1
-    )
-with ctrl_m:
-    include_history = st.toggle(
-        "Include older revisions (All data / Revisions tabs)",
-        value=False,
-        help="Adds historical revisions to the All data and Revisions tabs only. "
-        "Operational views always use the latest revision per thread.",
-    )
-with ctrl_s:
-    include_storage = st.toggle(
-        "Include storage REMITs",
-        value=False,
-        help="Storage events are typically less operationally critical than "
-        "Withdrawal/Injection. Off by default to reduce noise.",
-    )
-with ctrl_r:
-    if st.button("⟳ Refresh"):
-        st.cache_data.clear()
-        st.rerun()
+with st.container(border=True):
+    section_header("View controls", "var(--remit-info)")
+    ctrl_l, ctrl_m, ctrl_s, ctrl_r = st.columns([2, 2, 1.4, 0.8])
+    with ctrl_l:
+        horizon_days = st.number_input(
+            "Upcoming horizon (days)", min_value=7, max_value=90,
+            value=30, step=1,
+        )
+    with ctrl_m:
+        include_history = st.toggle(
+            "Include older revisions (All data / Revisions tabs)",
+            value=False,
+            help="Adds historical revisions to the All data and Revisions "
+            "tabs only. Operational views always use the latest revision "
+            "per thread.",
+        )
+    with ctrl_s:
+        include_storage = st.toggle(
+            "Include storage REMITs",
+            value=False,
+            help="Storage events are typically less operationally critical "
+            "than Withdrawal/Injection. Off by default to reduce noise.",
+        )
+    with ctrl_r:
+        if st.button("⟳ Refresh"):
+            st.cache_data.clear()
+            st.rerun()
 
 ACTIVE_CATEGORIES = [
     c for c in CATEGORIES if include_storage or c != "Storage"
@@ -1597,8 +1638,8 @@ with hero_r:
         ACTIVE_CATEGORIES,
     )
 
-# Spacer between the availability cards and the capacity timelines
-st.markdown("<div style='height:100px'></div>", unsafe_allow_html=True)
+# Modest gap between the availability panels and the capacity timelines
+st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
 
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
@@ -1628,21 +1669,21 @@ with act_r:
         ACTIVE_CATEGORIES,
     )
 
-st.markdown("---")
-
-# Tabs
+# Tabs — wrapped in a panel so the tabbed area reads as one block
 conflict_label = (
     f"Conflicts ({len(_conflicts)})" if _conflicts else "Conflicts"
 )
-tab_up, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
-    [
-        f"Upcoming ({horizon_days}d)",
-        "Outage calendar",
-        conflict_label,
-        "All data",
-        "Revisions",
-    ]
-)
+with st.container(border=True):
+    section_header("Detail views", "var(--remit-info)")
+    tab_up, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
+        [
+            f"Upcoming ({horizon_days}d)",
+            "Outage calendar",
+            conflict_label,
+            "All data",
+            "Revisions",
+        ]
+    )
 
 
 with tab_up:
