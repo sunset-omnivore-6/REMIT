@@ -24,9 +24,10 @@ HEADERS = {
     "Referer": "https://thermaloutages.sse.com/gas-uof",
 }
 
-# Nameplate technical capacities — used as a fallback when no current REMIT
-# carries a technicalCapacity figure for a given (site, category). Values
-# from SSE's published facility data.
+# Nameplate technical capacities. These are AUTHORITATIVE: individual REMIT
+# records carry varying/stale technicalCapacity figures, so where a
+# (site, category) appears here this value is used in preference to anything
+# in the data. Combinations not listed fall back to the data-derived figure.
 TECH_CAPACITY_FALLBACK: dict[tuple[str, str], float] = {
     ("Aldbrough", "Withdrawal"): 287.78,  # GWh/d
     ("Aldbrough", "Injection"): 293.33,   # GWh/d
@@ -327,19 +328,19 @@ def site_category_headline(
     """Return (tech, available, unavailable, has_unplanned, n_events).
 
     Technical capacity is sourced in order of preference:
-      1. max from currently-active events for this (site, cat)
-      2. max from any (latest-revision) event for this (site, cat)
-      3. hard-coded nameplate fallback (TECH_CAPACITY_FALLBACK)
+      1. hard-coded nameplate value (TECH_CAPACITY_FALLBACK) — authoritative
+      2. max from currently-active events for this (site, cat)
+      3. max from any (latest-revision) event for this (site, cat)
     """
     sub = df_active[
         (df_active["__site__"] == site) & (df_active["__category__"] == category)
     ]
-    tech = sub["__techCapacity__"].dropna().max() if not sub.empty else float("nan")
+    tech = TECH_CAPACITY_FALLBACK.get((site, category), float("nan"))
+    if pd.isna(tech):
+        tech = sub["__techCapacity__"].dropna().max() if not sub.empty else float("nan")
     if pd.isna(tech):
         all_sub = df_all_site[df_all_site["__category__"] == category]
         tech = all_sub["__techCapacity__"].dropna().max() if not all_sub.empty else float("nan")
-    if pd.isna(tech):
-        tech = TECH_CAPACITY_FALLBACK.get((site, category), float("nan"))
 
     if sub.empty:
         return (float(tech), float("nan"), 0.0, False, 0)
@@ -362,12 +363,14 @@ def tech_capacity_lookup(
     out: dict[tuple[str, str], float] = {}
     for site in SITES:
         for cat in categories:
+            # Nameplate values are authoritative when known.
+            if (site, cat) in TECH_CAPACITY_FALLBACK:
+                out[(site, cat)] = TECH_CAPACITY_FALLBACK[(site, cat)]
+                continue
             sub = df[(df["__site__"] == site) & (df["__category__"] == cat)]
             tech = sub["__techCapacity__"].dropna().max() if not sub.empty else float("nan")
             if pd.notna(tech) and tech > 0:
                 out[(site, cat)] = float(tech)
-            elif (site, cat) in TECH_CAPACITY_FALLBACK:
-                out[(site, cat)] = TECH_CAPACITY_FALLBACK[(site, cat)]
     return out
 
 
