@@ -1281,6 +1281,9 @@ with hero_r:
         ACTIVE_CATEGORIES,
     )
 
+# Spacer between the availability cards and the capacity timelines
+st.markdown("<div style='height:100px'></div>", unsafe_allow_html=True)
+
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
