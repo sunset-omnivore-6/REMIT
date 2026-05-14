@@ -85,7 +85,7 @@ def inject_css() -> None:
         }
         /* Card */
         .remit-card {
-          background: var(--remit-surface);
+          background: #ffffff;
           border: 1px solid var(--remit-border);
           border-left: 4px solid var(--remit-muted);
           border-radius: var(--remit-radius);
@@ -153,20 +153,31 @@ def inject_css() -> None:
         .remit-banner--warn {
           border-left-color: var(--remit-warn); background: #fffbeb;
         }
+        .remit-banner--ok {
+          border-left-color: var(--remit-ok); background: #f0fdf4;
+        }
         .remit-banner__title { font-weight: 700; color: var(--remit-ink); }
         /* App header */
+        .remit-masthead {
+          background: #eff6ff;
+          border: 1px solid var(--remit-border);
+          border-left: 5px solid var(--remit-info);
+          border-radius: var(--remit-radius);
+          padding: 0.9rem 1.1rem;
+          margin-bottom: 0.9rem;
+        }
         .remit-header__title {
           font-size: 1.7rem; font-weight: 800; color: var(--remit-ink);
           margin: 0; line-height: 1.2;
         }
         .remit-header__sub {
           color: var(--remit-ink-soft); font-size: 0.92rem;
-          margin: 0.15rem 0 0.6rem 0;
+          margin: 0.15rem 0 0;
         }
         /* Editorial section header */
         .remit-section {
           display: flex; justify-content: space-between; align-items: baseline;
-          gap: 0.6rem; margin: 0.2rem 0 0.1rem 0;
+          gap: 0.6rem; margin: 0.55rem 0 0.35rem 0;
         }
         .remit-section__label {
           font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
@@ -825,6 +836,79 @@ def render_recent_banner(
                 f"</div>",
                 unsafe_allow_html=True,
             )
+
+
+def render_status_summary(
+    df_active: pd.DataFrame,
+    df_op: pd.DataFrame,
+    categories: list[str],
+) -> None:
+    """One-line overall-health headline: is anything wrong right now?"""
+    issues: list[tuple[str, str, float, str]] = []
+    worst_bad = False
+    for site in SITES:
+        da = df_active[df_active["__site__"] == site]
+        do = df_op[df_op["__site__"] == site]
+        for cat in categories:
+            tech, avail, unavail, has_unplanned, n = site_category_headline(
+                da, do, site, cat
+            )
+            if pd.notna(tech) and tech > 0:
+                if pd.isna(avail):
+                    avail = tech
+                pct = (avail / tech) * 100
+            else:
+                pct = float("nan")
+            color = headline_color(
+                pct if pd.notna(pct) else 100, has_unplanned, cat
+            )
+            if color in (COLOR["warn"], COLOR["bad"]):
+                issues.append((site, cat, pct, color))
+                if color == COLOR["bad"]:
+                    worst_bad = True
+
+    n_active = len(df_active)
+
+    if not issues:
+        if n_active:
+            tail = (
+                f"{n_active} active outage{'s' if n_active != 1 else ''}, "
+                "none materially reducing capacity."
+            )
+        else:
+            tail = "no active outages right now."
+        st.markdown(
+            "<div class='remit-banner remit-banner--ok'>"
+            "<span class='remit-banner__title' style='color:var(--remit-ok)'>"
+            "&#10003; All monitored capacity available</span> &mdash; "
+            f"{tail}</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    banner_class = (
+        "remit-banner remit-banner--alert"
+        if worst_bad
+        else "remit-banner remit-banner--warn"
+    )
+    title_color = COLOR["bad"] if worst_bad else COLOR["warn"]
+    detail = " · ".join(
+        (
+            f"<span style='color:{color};font-weight:600'>{site} {cat} "
+            f"{pct:.0f}%</span>"
+            if pd.notna(pct)
+            else f"<span style='color:{color};font-weight:600'>"
+            f"{site} {cat}</span>"
+        )
+        for site, cat, pct, color in issues
+    )
+    st.markdown(
+        f"<div class='{banner_class}'>"
+        f"<span class='remit-banner__title' style='color:{title_color}'>"
+        f"&#9888; {n_active} active outage{'s' if n_active != 1 else ''}</span>"
+        f" · {detail}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1497,6 +1581,7 @@ def render_all_data(
         df[display_cols].rename(columns=label_map),
         use_container_width=True,
         height=480,
+        hide_index=True,
     )
     st.caption(f"{len(df)} rows")
 
@@ -1522,7 +1607,7 @@ def render_revisions(
         "__unavailCapacity__", "__availCapacity__",
         cmap.get("reason"), cmap.get("remarks"), "__publication__",
     ] if c and c in sub.columns]
-    st.dataframe(sub[cols], use_container_width=True)
+    st.dataframe(sub[cols], use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1530,11 +1615,12 @@ def render_revisions(
 # ---------------------------------------------------------------------------
 
 st.markdown(
+    "<div class='remit-masthead'>"
     "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
     "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
     "REMIT / UoF data from "
     "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
-    "</div>",
+    "</div></div>",
     unsafe_allow_html=True,
 )
 
@@ -1603,6 +1689,9 @@ df_op = df[
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
 df_upcoming = upcoming(df_op, now, horizon_days)
+
+# At-a-glance overall-health headline — first thing in the body
+render_status_summary(df_active, df_op, ACTIVE_CATEGORIES)
 
 # Upcoming capacity-change alerts (banner above the hero)
 _tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
