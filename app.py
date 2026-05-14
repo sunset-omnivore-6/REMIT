@@ -580,7 +580,7 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     )
 
 
-def render_site_column(
+def render_site_headline(
     site: str,
     df_active_site: pd.DataFrame,
     df_all_site_future: pd.DataFrame,
@@ -589,7 +589,6 @@ def render_site_column(
 ) -> None:
     st.markdown(f"### {site}")
 
-    # Headline cards
     for cat in categories:
         tech, avail, unavail, has_unplanned, n = site_category_headline(
             df_active_site, df_all_site_future, site, cat
@@ -647,8 +646,14 @@ def render_site_column(
                     unsafe_allow_html=True,
                 )
 
-    st.markdown("---")
-    st.markdown("**Active now**")
+
+def render_site_active(
+    site: str,
+    df_active_site: pd.DataFrame,
+    cmap: dict[str, str | None],
+    categories: list[str],
+) -> None:
+    st.markdown(f"**{site} — active now**")
 
     for cat in categories:
         sub = df_active_site[df_active_site["__category__"] == cat]
@@ -670,6 +675,15 @@ def render_site_column(
 # ---------------------------------------------------------------------------
 # Tabs: upcoming, timeline, gantt, all data
 # ---------------------------------------------------------------------------
+
+def _safe_block(label: str, fn) -> None:
+    """Run a render function, surfacing any error instead of a blank panel."""
+    try:
+        fn()
+    except Exception as exc:
+        st.error(f"{label} failed to render: {exc}")
+        st.exception(exc)
+
 
 def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
     """Vertical 'now' marker that survives plotly's tz-aware datetime quirks."""
@@ -921,8 +935,8 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
         )
 
 
-def render_timeline(
-    df_op: pd.DataFrame, horizon_days: int, categories: list[str]
+def render_site_timeline(
+    site: str, df_op: pd.DataFrame, horizon_days: int, categories: list[str]
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
     start = now - pd.Timedelta(days=7)
@@ -930,94 +944,88 @@ def render_timeline(
 
     tech_lookup = tech_capacity_lookup(df_op, categories)
     series = compute_capacity_series(df_op, start, end, tech_lookup, categories)
-    if series.empty:
-        st.info("Not enough data to plot capacity timeline.")
+    site_series = series[series["site"] == site] if not series.empty else series
+    if site_series.empty:
+        st.info(f"No capacity data for {site}.")
         return
 
-    for site in SITES:
-        site_series = series[series["site"] == site]
-        if site_series.empty:
+    # Lock y-axis: 0 → highest technical capacity for this site + 10%
+    site_techs = [
+        tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
+    ]
+    y_max = max(site_techs) * 1.1 if site_techs else None
+
+    fig = go.Figure()
+    for cat in categories:
+        cs = site_series[site_series["category"] == cat].sort_values("date")
+        if cs.empty:
             continue
-
-        # Lock y-axis: 0 → highest technical capacity for this site + 10%
-        site_techs = [
-            tech_lookup[(site, c)]
-            for c in categories
-            if (site, c) in tech_lookup
-        ]
-        y_max = max(site_techs) * 1.1 if site_techs else None
-
-        fig = go.Figure()
-        for cat in categories:
-            cs = site_series[site_series["category"] == cat].sort_values("date")
-            if cs.empty:
-                continue
-            unit = DEFAULT_UNIT.get(cat, "")
+        unit = DEFAULT_UNIT.get(cat, "")
+        fig.add_trace(
+            go.Scatter(
+                x=cs["date"],
+                y=cs["available"],
+                mode="lines",
+                name=f"{cat} available",
+                line=dict(
+                    color=COLOR[cat],
+                    width=2.5,
+                    shape="hv",  # exact step function
+                    dash="dot" if cat == "Storage" else "solid",
+                ),
+                hovertemplate=(
+                    f"%{{x|%d %b %Y %H:%M}}<br>{cat}: "
+                    f"%{{y:.2f}} {unit}<extra></extra>"
+                ),
+            )
+        )
+        tech = tech_lookup.get((site, cat))
+        if tech is not None:
             fig.add_trace(
                 go.Scatter(
                     x=cs["date"],
-                    y=cs["available"],
+                    y=[tech] * len(cs),
                     mode="lines",
-                    name=f"{cat} available",
-                    line=dict(
-                        color=COLOR[cat],
-                        width=2.5,
-                        shape="hv",  # exact step function
-                        dash="dot" if cat == "Storage" else "solid",
-                    ),
-                    hovertemplate=(
-                        f"%{{x|%d %b %Y %H:%M}}<br>{cat}: "
-                        f"%{{y:.2f}} {unit}<extra></extra>"
-                    ),
+                    name=f"{cat} technical max",
+                    line=dict(color=COLOR[cat], width=1.5, dash="longdash"),
+                    opacity=0.75,
+                    showlegend=False,
+                    hoverinfo="skip",
                 )
             )
-            tech = tech_lookup.get((site, cat))
-            if tech is not None:
-                fig.add_trace(
-                    go.Scatter(
-                        x=cs["date"],
-                        y=[tech] * len(cs),
-                        mode="lines",
-                        name=f"{cat} technical max",
-                        line=dict(color=COLOR[cat], width=1.5, dash="longdash"),
-                        opacity=0.75,
-                        showlegend=False,
-                        hoverinfo="skip",
-                    )
-                )
-                # Right-hand-side label on the technical-max line
-                fig.add_annotation(
-                    x=1.0,
-                    xref="paper",
-                    y=tech,
-                    yref="y",
-                    text=f"{cat} max {tech:g} {unit}",
-                    showarrow=False,
-                    xanchor="left",
-                    xshift=6,
-                    font=dict(size=10, color=COLOR[cat]),
-                    bgcolor="rgba(255,255,255,0.7)",
-                )
-        _add_now_line(fig, now)
-        fig.update_xaxes(tickformat="%d %b\n%H:%M")
-        fig.update_layout(
-            title=f"{site} — available capacity",
-            height=340,
-            margin=dict(l=20, r=120, t=40, b=20),
-            legend=dict(orientation="h", y=-0.25),
-            yaxis=dict(
-                title="Available",
-                range=[0, y_max] if y_max is not None else None,
-            ),
-            hovermode="x unified",
-        )
-        with st.container(border=True):
-            st.plotly_chart(fig, use_container_width=True)
+            fig.add_annotation(
+                x=1.0,
+                xref="paper",
+                y=tech,
+                yref="y",
+                text=f"{cat} max {tech:g} {unit}",
+                showarrow=False,
+                xanchor="left",
+                xshift=6,
+                font=dict(size=10, color=COLOR[cat]),
+                bgcolor="rgba(255,255,255,0.7)",
+            )
+    _add_now_line(fig, now)
+    fig.update_xaxes(tickformat="%d %b\n%H:%M")
+    fig.update_layout(
+        title=f"{site} — available capacity",
+        height=320,
+        margin=dict(l=20, r=120, t=40, b=20),
+        legend=dict(orientation="h", y=-0.25),
+        yaxis=dict(
+            title="Available",
+            range=[0, y_max] if y_max is not None else None,
+        ),
+        hovermode="x unified",
+    )
+    with st.container(border=True):
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     now = pd.Timestamp.now(tz="UTC")
-    start = now - pd.Timedelta(days=7)
+    # Calendar window: at most 1 month back, horizon days forward.
+    start = now - pd.Timedelta(days=30)
     end = now + pd.Timedelta(days=horizon_days)
 
     sub = df_op.dropna(subset=["__eventStart__"]).copy()
@@ -1031,23 +1039,29 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
 
     sub["row"] = sub["__site__"] + " — " + sub["__category__"]
 
-    # Minimum visual width so a couple-hour outage is still a visible block.
-    # Hover always shows the true start/end/duration.
-    min_visual = pd.Timedelta(hours=6)
-    dur = sub["__endFill__"] - sub["__eventStart__"]
-    sub["__displayEnd__"] = sub["__endFill__"]
-    short = dur < min_visual
-    sub.loc[short, "__displayEnd__"] = sub.loc[short, "__eventStart__"] + min_visual
+    # Clip bar display to the window so multi-year REMITs don't blow out the
+    # axis — hover still reports the true start/end/duration.
+    sub["__displayStart__"] = sub["__eventStart__"].clip(lower=start)
+    sub["__displayEnd__"] = sub["__endFill__"].clip(upper=end)
 
+    # Minimum visual width so a couple-hour outage is still a visible block.
+    min_visual = pd.Timedelta(hours=6)
+    disp_dur = sub["__displayEnd__"] - sub["__displayStart__"]
+    short = disp_dur < min_visual
+    sub.loc[short, "__displayEnd__"] = (
+        sub.loc[short, "__displayStart__"] + min_visual
+    )
+
+    true_dur = sub["__endFill__"] - sub["__eventStart__"]
     sub["Start"] = sub["__eventStart__"].dt.strftime("%d %b %Y %H:%M")
     sub["End"] = sub["__eventEnd__"].dt.strftime("%d %b %Y %H:%M")
     sub["End"] = sub["End"].fillna("open-ended")
-    sub["Hours"] = (dur.dt.total_seconds() / 3600).round(1)
+    sub["Hours"] = (true_dur.dt.total_seconds() / 3600).round(1)
     sub["Unavailable"] = sub["__unavailCapacity__"]
 
     fig = px.timeline(
         sub,
-        x_start="__eventStart__",
+        x_start="__displayStart__",
         x_end="__displayEnd__",
         y="row",
         color="__planned__",
@@ -1063,7 +1077,7 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
             "End": True,
             "Hours": True,
             "Unavailable": True,
-            "__eventStart__": False,
+            "__displayStart__": False,
             "__displayEnd__": False,
             "row": False,
         },
@@ -1071,6 +1085,7 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     )
     fig.update_yaxes(autorange="reversed", title="")
     fig.update_xaxes(
+        range=[start, end],
         rangeslider=dict(visible=True, thickness=0.06),
         tickformat="%d %b\n%H:%M",
     )
@@ -1082,8 +1097,9 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     )
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
-        "Bars shorter than 6 h are widened for visibility — hover shows true "
-        "start, end and duration. Drag the slider below the chart to zoom."
+        "Window: 1 month back to the selected horizon. Bars are clipped to "
+        "this window and widened to a 6 h minimum for visibility — hover "
+        "shows the true start, end and duration."
     )
 
 
@@ -1240,10 +1256,13 @@ _tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
 _changes = compute_capacity_changes(df_op, _tech_lookup, ACTIVE_CATEGORIES, lookahead_days=7)
 render_changes_banner(_changes, cmap)
 
-# Hero
+# Main screen — per site, split horizontally:
+#   1. capacity availability cards
+#   2. capacity timeline
+#   3. active-now cards
 hero_l, hero_r = st.columns(2, gap="large")
 with hero_l:
-    render_site_column(
+    render_site_headline(
         "Aldbrough",
         df_active[df_active["__site__"] == "Aldbrough"],
         df_op[df_op["__site__"] == "Aldbrough"],
@@ -1251,10 +1270,38 @@ with hero_l:
         ACTIVE_CATEGORIES,
     )
 with hero_r:
-    render_site_column(
+    render_site_headline(
         "Atwick",
         df_active[df_active["__site__"] == "Atwick"],
         df_op[df_op["__site__"] == "Atwick"],
+        cmap,
+        ACTIVE_CATEGORIES,
+    )
+
+tl_l, tl_r = st.columns(2, gap="large")
+with tl_l:
+    _safe_block(
+        "Aldbrough timeline",
+        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
+    )
+with tl_r:
+    _safe_block(
+        "Atwick timeline",
+        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
+    )
+
+act_l, act_r = st.columns(2, gap="large")
+with act_l:
+    render_site_active(
+        "Aldbrough",
+        df_active[df_active["__site__"] == "Aldbrough"],
+        cmap,
+        ACTIVE_CATEGORIES,
+    )
+with act_r:
+    render_site_active(
+        "Atwick",
+        df_active[df_active["__site__"] == "Atwick"],
         cmap,
         ACTIVE_CATEGORIES,
     )
@@ -1266,10 +1313,9 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 conflict_label = (
     f"Conflicts ({len(_conflicts)})" if _conflicts else "Conflicts"
 )
-tab_up, tab_tl, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
+tab_up, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
     [
         f"Upcoming ({horizon_days}d)",
-        "Capacity timeline",
         "Outage calendar",
         conflict_label,
         "All data",
@@ -1278,25 +1324,14 @@ tab_up, tab_tl, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
 )
 
 
-def _safe(label: str, fn) -> None:
-    try:
-        fn()
-    except Exception as exc:  # surface the real error instead of a blank tab
-        st.error(f"{label} failed to render: {exc}")
-        st.exception(exc)
-
-
 with tab_up:
-    _safe("Upcoming", lambda: render_upcoming(df_upcoming, cmap, ACTIVE_CATEGORIES))
-
-with tab_tl:
-    _safe("Capacity timeline", lambda: render_timeline(df_op, horizon_days, ACTIVE_CATEGORIES))
+    _safe_block("Upcoming", lambda: render_upcoming(df_upcoming, cmap, ACTIVE_CATEGORIES))
 
 with tab_gantt:
-    _safe("Outage calendar", lambda: render_gantt(df_op, horizon_days))
+    _safe_block("Outage calendar", lambda: render_gantt(df_op, horizon_days))
 
 with tab_conf:
-    _safe("Conflicts", lambda: render_conflicts(_conflicts, cmap))
+    _safe_block("Conflicts", lambda: render_conflicts(_conflicts, cmap))
 
 history_df: pd.DataFrame | None = None
 if include_history:
