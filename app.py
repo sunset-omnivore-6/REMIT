@@ -648,6 +648,149 @@ def render_changes_banner(
             )
 
 
+def compute_recent_changes(
+    df: pd.DataFrame, cmap: dict[str, str | None], lookback_hours: int = 24
+) -> list[dict]:
+    """REMITs created, revised, ended or dismissed within the lookback window.
+
+    Works from latest-revision data: every revision carries a fresh
+    publication timestamp, so a publication inside the window means the
+    notice changed since then. `df` (not `df_op`) is used so dismissed
+    REMITs are visible here.
+    """
+    now = pd.Timestamp.now(tz="UTC")
+    cutoff = now - pd.Timedelta(hours=lookback_hours)
+    rev_col = cmap.get("revisionNumber")
+
+    recent = df[
+        df["__site__"].isin(SITES)
+        & df["__publication__"].notna()
+        & (df["__publication__"] >= cutoff)
+    ]
+    items: list[dict] = []
+    for _, row in recent.iterrows():
+        status = str(row["__status__"]).lower()
+        end = row["__eventEnd__"]
+        rev = row[rev_col] if rev_col else None
+        try:
+            rev_num = int(float(rev)) if rev is not None and pd.notna(rev) else 1
+        except (ValueError, TypeError):
+            rev_num = 1
+
+        if "dismiss" in status:
+            kind, kind_color = "Dismissed", COLOR["bad"]
+        elif pd.notna(end) and end < now:
+            kind, kind_color = "Ended", COLOR["muted"]
+        elif rev_num > 1:
+            kind, kind_color = "Revised", COLOR["warn"]
+        else:
+            kind, kind_color = "New", COLOR["info"]
+
+        items.append(
+            {
+                "site": row["__site__"],
+                "category": row["__category__"] or "—",
+                "kind": kind,
+                "kind_color": kind_color,
+                "publication": row["__publication__"],
+                "rev_num": rev_num,
+                "row": row,
+            }
+        )
+    items.sort(key=lambda x: x["publication"], reverse=True)
+    return items
+
+
+def render_recent_banner(
+    items: list[dict], cmap: dict[str, str | None], lookback_hours: int = 24
+) -> None:
+    if not items:
+        return
+
+    now = pd.Timestamp.now(tz="UTC")
+    order = ["Dismissed", "Ended", "Revised", "New"]
+    counts: dict[str, int] = {}
+    for it in items:
+        counts[it["kind"]] = counts.get(it["kind"], 0) + 1
+    summary = " · ".join(
+        f"<span style='color:{next(i['kind_color'] for i in items if i['kind'] == k)};"
+        f"font-weight:600'>{counts[k]} {k.lower()}</span>"
+        for k in order
+        if k in counts
+    )
+    # Alert styling if anything dropped out of the active picture
+    alert = any(it["kind"] in ("Dismissed", "Ended") for it in items)
+    banner_class = "remit-banner remit-banner--warn" if alert else "remit-banner"
+
+    st.markdown(
+        f"<div class='{banner_class}'>"
+        f"<span class='remit-banner__title'>Recent REMIT changes "
+        f"(last {lookback_hours} h)</span> · " + summary + "</div>",
+        unsafe_allow_html=True,
+    )
+
+    reason_col = cmap.get("reason")
+    unit_col = cmap.get("unit")
+    thread_col = cmap.get("threadId")
+
+    with st.expander(
+        f"Show {len(items)} change{'s' if len(items) != 1 else ''}", expanded=True
+    ):
+        for it in items:
+            row = it["row"]
+            cat = it["category"]
+            cat_color = COLOR.get(cat, COLOR["muted"])
+            unit = (
+                str(row[unit_col])
+                if unit_col and pd.notna(row[unit_col])
+                else DEFAULT_UNIT.get(cat, "")
+            )
+            unavail = row["__unavailCapacity__"]
+            avail = row["__availCapacity__"]
+            thread = row[thread_col] if thread_col else ""
+            pub = it["publication"]
+            hrs = (now - pub).total_seconds() / 3600
+            pub_str = (
+                f"{hrs:.0f} h ago"
+                if hrs >= 1
+                else f"{(now - pub).total_seconds() / 60:.0f} min ago"
+            )
+            reason = str(row[reason_col]) if reason_col else ""
+            reason_html = (
+                f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
+                if reason and reason not in ("-", "nan", "None")
+                else ""
+            )
+            cap_html = ""
+            if pd.notna(unavail):
+                avail_txt = (
+                    f" · available {avail:g} {unit}" if pd.notna(avail) else ""
+                )
+                cap_html = (
+                    f"<div class='remit-card__body'>"
+                    f"<b>{unavail:g} {unit}</b> unavailable{avail_txt}</div>"
+                )
+
+            st.markdown(
+                f"<div class='remit-card' "
+                f"style='border-left-color:{it['kind_color']}'>"
+                f"<div class='remit-card__head'>"
+                f"<div>{pill(it['kind'], it['kind_color'])} "
+                f"<b><span style='color:{cat_color}'>●</span> "
+                f"{it['site']} {cat}</b></div>"
+                f"<div class='remit-card__meta'>Thread {thread} · "
+                f"rev {it['rev_num']} · published {pub_str}</div>"
+                f"</div>"
+                f"{cap_html}"
+                f"<div class='remit-card__sub'>"
+                f"{fmt_dt(row['__eventStart__'])} → "
+                f"{fmt_dt(row['__eventEnd__'])}</div>"
+                f"{reason_html}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Rendering — hero cards
 # ---------------------------------------------------------------------------
@@ -1064,6 +1207,14 @@ def render_site_timeline(
     start = now - pd.Timedelta(days=7)
     end = now + pd.Timedelta(days=horizon_days)
 
+    # Storage is excluded from the timeline: it is in TWh while
+    # Withdrawal/Injection are in GWh/d, so a shared y-axis would flatten
+    # it. Storage availability is still shown in the headline cards.
+    categories = [c for c in categories if c != "Storage"]
+    if not categories:
+        st.info("No Withdrawal/Injection categories to plot.")
+        return
+
     tech_lookup = tech_capacity_lookup(df_op, categories)
     series = compute_capacity_series(df_op, start, end, tech_lookup, categories)
     site_series = series[series["site"] == site] if not series.empty else series
@@ -1414,6 +1565,11 @@ df_upcoming = upcoming(df_op, now, horizon_days)
 _tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
 _changes = compute_capacity_changes(df_op, _tech_lookup, ACTIVE_CATEGORIES, lookahead_days=7)
 render_changes_banner(_changes, cmap)
+
+# Recent changes — what moved in the last 24 h (uses df, so dismissed
+# REMITs are included)
+_recent = compute_recent_changes(df, cmap, lookback_hours=24)
+render_recent_banner(_recent, cmap, lookback_hours=24)
 
 # Overlapping/conflicting REMITs — computed up front so the capacity
 # timelines can shade the affected periods.
