@@ -943,7 +943,6 @@ def render_site_timeline(
     df_op: pd.DataFrame,
     horizon_days: int,
     categories: list[str],
-    conflicts: list[dict] | None = None,
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
     start = now - pd.Timedelta(days=7)
@@ -963,41 +962,6 @@ def render_site_timeline(
     y_max = max(site_techs) * 1.1 if site_techs else None
 
     fig = go.Figure()
-
-    # Background boxes over periods with overlapping/conflicting REMITs.
-    # Capacity in these windows already reflects the lowest (most
-    # conservative) value via _capacity_at().
-    site_conflicts = [c for c in (conflicts or []) if c["site"] == site]
-    for c in site_conflicts:
-        cs_start = max(c["overlap_start"], start)
-        cs_end = min(c["overlap_end"] or end, end)
-        if cs_start >= cs_end:
-            continue
-        fig.add_shape(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=cs_start.isoformat(),
-            x1=cs_end.isoformat(),
-            y0=0,
-            y1=1,
-            fillcolor="#f59e0b",
-            opacity=0.18,
-            layer="below",
-            line_width=0,
-        )
-    if site_conflicts:
-        # Dummy trace purely to produce a legend entry for the boxes
-        fig.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                mode="markers",
-                marker=dict(size=12, symbol="square", color="#f59e0b", opacity=0.4),
-                name="overlapping REMIT",
-                hoverinfo="skip",
-            )
-        )
 
     for cat in categories:
         cs = site_series[site_series["category"] == cat].sort_values("date")
@@ -1367,16 +1331,12 @@ tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
         "Aldbrough timeline",
-        lambda: render_site_timeline(
-            "Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES, _conflicts
-        ),
+        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
     )
 with tl_r:
     _safe_block(
         "Atwick timeline",
-        lambda: render_site_timeline(
-            "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES, _conflicts
-        ),
+        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
     )
 
 act_l, act_r = st.columns(2, gap="large")
