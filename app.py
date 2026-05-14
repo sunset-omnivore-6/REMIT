@@ -43,15 +43,17 @@ DEFAULT_UNIT: dict[str, str] = {
     "Storage": "TWh",
 }
 
+# Palette. Greys are deliberately darkened from the typical Tailwind values
+# so body text clears WCAG AA contrast on the light surface.
 COLOR = {
     "ok": "#16a34a",
-    "warn": "#f59e0b",
+    "warn": "#d97706",
     "bad": "#dc2626",
     "info": "#2563eb",
-    "muted": "#9ca3af",
+    "muted": "#64748b",
     "Withdrawal": "#dc2626",
     "Injection": "#2563eb",
-    "Storage": "#9ca3af",
+    "Storage": "#64748b",
     "Planned": "#2563eb",
     "Unplanned": "#dc2626",
 }
@@ -61,6 +63,111 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+
+def inject_css() -> None:
+    """Single source of styling for all custom HTML in the app."""
+    st.markdown(
+        """
+        <style>
+        :root {
+          --remit-ok: #16a34a;
+          --remit-warn: #d97706;
+          --remit-bad: #dc2626;
+          --remit-info: #2563eb;
+          --remit-muted: #64748b;
+          --remit-ink: #1e293b;
+          --remit-ink-soft: #475569;
+          --remit-surface: #f8fafc;
+          --remit-border: #e2e8f0;
+          --remit-radius: 8px;
+        }
+        /* Card */
+        .remit-card {
+          background: var(--remit-surface);
+          border: 1px solid var(--remit-border);
+          border-left: 4px solid var(--remit-muted);
+          border-radius: var(--remit-radius);
+          padding: 0.6rem 0.85rem;
+          margin: 0.5rem 0;
+        }
+        .remit-card__head {
+          display: flex; justify-content: space-between;
+          align-items: center; gap: 0.4rem;
+        }
+        .remit-card__meta { font-size: 0.78rem; color: var(--remit-ink-soft); }
+        .remit-card__body {
+          margin-top: 0.4rem; font-size: 0.92rem; color: var(--remit-ink);
+        }
+        .remit-card__sub {
+          font-size: 0.85rem; color: var(--remit-ink-soft); margin-top: 0.25rem;
+        }
+        .remit-card__sub--em { font-style: italic; }
+        /* Pill */
+        .remit-pill {
+          display: inline-block; padding: 0.12rem 0.55rem;
+          border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+          color: #fff; white-space: nowrap;
+        }
+        /* Progress */
+        .remit-progress {
+          background: var(--remit-border); border-radius: 6px;
+          height: 8px; width: 100%; overflow: hidden; margin-top: 0.25rem;
+        }
+        .remit-progress__fill { height: 100%; border-radius: 6px; }
+        /* Headline capacity card */
+        .remit-headline { margin-top: 0.55rem; }
+        .remit-headline__row {
+          display: flex; justify-content: space-between; align-items: baseline;
+        }
+        .remit-headline__cat { font-weight: 600; color: var(--remit-ink); }
+        .remit-headline__count {
+          font-size: 0.8rem; color: var(--remit-ink-soft);
+        }
+        .remit-headline__pct {
+          font-size: 1.5rem; font-weight: 700; line-height: 1.25;
+        }
+        .remit-headline__sub {
+          font-size: 0.85rem; color: var(--remit-ink-soft);
+        }
+        /* Banner */
+        .remit-banner {
+          border-radius: var(--remit-radius); padding: 0.7rem 1rem;
+          margin-bottom: 0.6rem; border-left: 5px solid var(--remit-info);
+          background: #eff6ff;
+        }
+        .remit-banner--alert {
+          border-left-color: var(--remit-bad); background: #fef2f2;
+        }
+        .remit-banner--warn {
+          border-left-color: var(--remit-warn); background: #fffbeb;
+        }
+        .remit-banner__title { font-weight: 700; color: var(--remit-ink); }
+        /* App header */
+        .remit-header__title {
+          font-size: 1.7rem; font-weight: 800; color: var(--remit-ink);
+          margin: 0; line-height: 1.2;
+        }
+        .remit-header__sub {
+          color: var(--remit-ink-soft); font-size: 0.92rem;
+          margin: 0.15rem 0 0.6rem 0;
+        }
+        /* Generic rows / lines */
+        .remit-row {
+          display: flex; justify-content: space-between;
+          align-items: baseline; gap: 0.4rem;
+        }
+        .remit-line {
+          font-size: 0.88rem; color: var(--remit-ink); margin: 0.15rem 0;
+        }
+        .remit-line__meta { color: var(--remit-ink-soft); }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+inject_css()
 
 
 # ---------------------------------------------------------------------------
@@ -260,19 +367,15 @@ def normalise(df: pd.DataFrame, cmap: dict[str, str | None]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def pill(text: str, color: str) -> str:
-    return (
-        f"<span style='background:{color};color:white;padding:2px 8px;"
-        f"border-radius:10px;font-size:0.78em;font-weight:600;"
-        f"white-space:nowrap'>{text}</span>"
-    )
+    return f"<span class='remit-pill' style='background:{color}'>{text}</span>"
 
 
 def progress_bar(pct: float, color: str) -> str:
     pct = max(0.0, min(100.0, pct))
     return (
-        f"<div style='background:#e5e7eb;border-radius:6px;height:10px;width:100%'>"
-        f"<div style='background:{color};width:{pct:.1f}%;height:100%;border-radius:6px'></div>"
-        f"</div>"
+        f"<div class='remit-progress'>"
+        f"<div class='remit-progress__fill' "
+        f"style='width:{pct:.1f}%;background:{color}'></div></div>"
     )
 
 
@@ -475,19 +578,23 @@ def render_changes_banner(
     drops = sum(1 for c in changes if c["to"] < c["from"])
     rises = sum(1 for c in changes if c["to"] > c["from"])
 
-    border = COLOR["bad"] if drops else COLOR["info"]
-    bg = "#fef2f2" if drops else "#eff6ff"
+    banner_class = "remit-banner remit-banner--alert" if drops else "remit-banner"
     summary = []
     if drops:
-        summary.append(f"<span style='color:{COLOR['bad']};font-weight:600'>{drops} capacity drop{'s' if drops != 1 else ''}</span>")
+        summary.append(
+            f"<span style='color:{COLOR['bad']};font-weight:600'>"
+            f"{drops} capacity drop{'s' if drops != 1 else ''}</span>"
+        )
     if rises:
-        summary.append(f"<span style='color:{COLOR['ok']};font-weight:600'>{rises} restoration{'s' if rises != 1 else ''}</span>")
+        summary.append(
+            f"<span style='color:{COLOR['ok']};font-weight:600'>"
+            f"{rises} restoration{'s' if rises != 1 else ''}</span>"
+        )
 
     st.markdown(
-        f"<div style='background:{bg};border-left:5px solid {border};"
-        f"padding:10px 14px;margin-bottom:10px;border-radius:4px'>"
-        f"<b>Upcoming capacity changes (next 7 days)</b> · " + " · ".join(summary)
-        + "</div>",
+        f"<div class='{banner_class}'>"
+        f"<span class='remit-banner__title'>Upcoming capacity changes "
+        f"(next 7 days)</span> · " + " · ".join(summary) + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -517,25 +624,23 @@ def render_changes_banner(
             plan_color = COLOR.get(planned, COLOR["muted"])
             planned_pill = pill(planned, plan_color) if planned else ""
             reason_html = (
-                f"<div style='font-size:0.85em;color:#6b7280;margin-top:2px'>"
-                f"<i>{reason}</i></div>"
+                f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
                 if reason and reason not in ("-", "nan", "None")
                 else ""
             )
 
             st.markdown(
-                f"<div style='border-left:4px solid {arrow_color};"
-                f"padding:8px 12px;margin:6px 0;background:#f9fafb;border-radius:4px'>"
-                f"<div style='display:flex;justify-content:space-between;gap:6px;align-items:baseline'>"
-                f"<div><b><span style='color:{cat_color}'>●</span> {site} {cat}</b> "
-                f"{planned_pill}</div>"
-                f"<div style='font-size:0.85em;color:#374151'>{when_str}</div>"
+                f"<div class='remit-card' style='border-left-color:{arrow_color}'>"
+                f"<div class='remit-card__head'>"
+                f"<div><b><span style='color:{cat_color}'>●</span> "
+                f"{site} {cat}</b> {planned_pill}</div>"
+                f"<div class='remit-card__meta'>{when_str}</div>"
                 f"</div>"
-                f"<div style='font-size:1.15em;margin-top:4px'>"
-                f"<b style='color:#374151'>{c['from']:g} {unit}</b> "
+                f"<div class='remit-card__body' style='font-size:1.1rem'>"
+                f"<b>{c['from']:g} {unit}</b> "
                 f"<span style='color:{arrow_color};font-weight:700'>{arrow}</span> "
                 f"<b style='color:{arrow_color}'>{c['to']:g} {unit}</b> "
-                f"<span style='color:#6b7280'>(tech max {c['tech']:g})</span>"
+                f"<span class='remit-card__meta'>(tech max {c['tech']:g})</span>"
                 f"</div>"
                 f"{reason_html}"
                 f"</div>",
@@ -563,22 +668,25 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     rev = row[cmap["revisionNumber"]] if cmap["revisionNumber"] else ""
 
     pct_unavail = (unavail / tech * 100) if pd.notna(tech) and tech else 0
+    remarks_str = (
+        f" — {remarks}"
+        if remarks and str(remarks) not in ("-", "nan", "None", "")
+        else ""
+    )
 
     return (
-        f"<div style='border-left:4px solid {cat_color};padding:8px 12px;"
-        f"margin:6px 0;background:#f9fafb;border-radius:4px'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;gap:6px'>"
+        f"<div class='remit-card' style='border-left-color:{cat_color}'>"
+        f"<div class='remit-card__head'>"
         f"<div>{pill(cat, cat_color)} {pill(planned, planned_color)}</div>"
-        f"<div style='font-size:0.78em;color:#6b7280'>Thread {thread} · rev {rev}</div>"
+        f"<div class='remit-card__meta'>Thread {thread} · rev {rev}</div>"
         f"</div>"
-        f"<div style='margin-top:6px;font-size:0.92em'>"
+        f"<div class='remit-card__body'>"
         f"<b>{unavail:g} {unit}</b> unavailable "
-        f"({pct_unavail:.0f}% of {tech:g}) · "
-        f"available {avail:g} {unit}</div>"
-        f"<div style='font-size:0.85em;color:#374151;margin-top:4px'>"
+        f"({pct_unavail:.0f}% of {tech:g}) · available {avail:g} {unit}</div>"
+        f"<div class='remit-card__sub'>"
         f"{fmt_dt(row['__eventStart__'])} → {fmt_dt(row['__eventEnd__'])}</div>"
-        f"<div style='font-size:0.85em;color:#374151;margin-top:4px'>"
-        f"<i>{reason}</i>{(' — ' + str(remarks)) if remarks and str(remarks) not in ('-', 'nan', 'None', '') else ''}</div>"
+        f"<div class='remit-card__sub remit-card__sub--em'>"
+        f"{reason}{remarks_str}</div>"
         f"</div>"
     )
 
@@ -621,33 +729,32 @@ def render_site_headline(
         else:
             unit_str = DEFAULT_UNIT.get(cat, "")
 
-        with st.container():
-            st.markdown(
-                f"<div style='display:flex;justify-content:space-between;"
-                f"align-items:baseline;margin-top:4px'>"
-                f"<div style='font-weight:600'>"
-                f"<span style='color:{cat_color}'>●</span> {cat}</div>"
-                f"<div style='font-size:0.85em;color:#6b7280'>"
-                f"{n} active event{'s' if n != 1 else ''}</div>"
-                f"</div>",
-                unsafe_allow_html=True,
+        count_txt = f"{n} active event{'s' if n != 1 else ''}"
+        if pd.notna(pct):
+            avail_str = f"{avail:g}" if pd.notna(avail) else "—"
+            tech_str = f"{tech:g}" if pd.notna(tech) else "—"
+            body = (
+                f"<div class='remit-headline__pct' style='color:{color}'>"
+                f"{pct:.0f}% available</div>"
+                f"<div class='remit-headline__sub'>"
+                f"{avail_str} of {tech_str} {unit_str}</div>"
+                f"{progress_bar(pct, color)}"
             )
-            if pd.notna(pct):
-                avail_str = f"{avail:g}" if pd.notna(avail) else "—"
-                tech_str = f"{tech:g}" if pd.notna(tech) else "—"
-                st.markdown(
-                    f"<div style='font-size:1.4em;font-weight:700;color:{color}'>"
-                    f"{pct:.0f}% available</div>"
-                    f"<div style='font-size:0.85em;color:#374151'>"
-                    f"{avail_str} of {tech_str} {unit_str}</div>"
-                    f"{progress_bar(pct, color)}",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    "<div style='color:#6b7280;font-style:italic'>no capacity reference</div>",
-                    unsafe_allow_html=True,
-                )
+        else:
+            body = (
+                "<div class='remit-headline__sub'><i>no capacity "
+                "reference</i></div>"
+            )
+
+        st.markdown(
+            f"<div class='remit-headline'>"
+            f"<div class='remit-headline__row'>"
+            f"<div class='remit-headline__cat'>"
+            f"<span style='color:{cat_color}'>●</span> {cat}</div>"
+            f"<div class='remit-headline__count'>{count_txt}</div>"
+            f"</div>{body}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_site_active(
@@ -669,8 +776,10 @@ def render_site_active(
 
     if df_active_site.empty:
         st.markdown(
-            f"<div style='color:{COLOR['ok']};font-weight:600'>"
-            f"All capacity available — no active outages.</div>",
+            "<div class='remit-banner' style='border-left-color:var(--remit-ok);"
+            "background:#f0fdf4'><span class='remit-banner__title' "
+            "style='color:var(--remit-ok)'>All capacity available</span> — "
+            "no active outages.</div>",
             unsafe_allow_html=True,
         )
 
@@ -723,28 +832,30 @@ def render_upcoming(
         if sub.empty:
             continue
         muted = cat == "Storage"
-        header_style = (
-            "color:#6b7280;font-size:1.0em" if muted else "font-size:1.1em;font-weight:700"
-        )
+        cat_color = COLOR.get(cat, COLOR["muted"])
+        header_color = "var(--remit-ink-soft)" if muted else "var(--remit-ink)"
+        header_weight = "600" if muted else "700"
         st.markdown(
-            f"<div style='{header_style};margin-top:8px'>{cat} — {len(sub)}</div>",
+            f"<div style='color:{header_color};font-weight:{header_weight};"
+            f"font-size:1.05rem;margin-top:0.6rem'>"
+            f"<span style='color:{cat_color}'>●</span> {cat} — {len(sub)}</div>",
             unsafe_allow_html=True,
         )
         for _, row in sub.iterrows():
-            opacity = "0.7" if muted else "1.0"
+            opacity = "0.75" if muted else "1.0"
             site = row["__site__"]
             unit = row[cmap["unit"]] if cmap["unit"] else ""
             unavail = row["__unavailCapacity__"]
             reason = row[cmap["reason"]] if cmap["reason"] else ""
             st.markdown(
-                f"<div style='opacity:{opacity};padding:4px 8px;"
-                f"border-left:3px solid {COLOR.get(cat, COLOR['muted'])};margin:3px 0;"
-                f"background:#f9fafb'>"
-                f"<b>{site}</b> · "
-                f"{fmt_dt(row['__eventStart__'])} → {fmt_dt(row['__eventEnd__'])} · "
+                f"<div class='remit-card' style='border-left-color:{cat_color};"
+                f"opacity:{opacity};margin:0.3rem 0;padding:0.45rem 0.7rem'>"
+                f"<span class='remit-line'><b>{site}</b> · "
+                f"{fmt_dt(row['__eventStart__'])} → "
+                f"{fmt_dt(row['__eventEnd__'])} · "
                 f"<b>{unavail:g} {unit}</b> unavailable · "
                 f"{pill(row['__planned__'], COLOR.get(row['__planned__'], COLOR['muted']))} "
-                f"<span style='color:#6b7280'>{reason}</span>"
+                f"<span class='remit-line__meta'>{reason}</span></span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -883,12 +994,11 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
         return
 
     st.markdown(
-        f"<div style='background:#fffbeb;border-left:5px solid {COLOR['warn']};"
-        f"padding:10px 14px;margin-bottom:10px;border-radius:4px'>"
-        f"<b>{len(conflicts)} overlapping REMIT pair"
-        f"{'s' if len(conflicts) != 1 else ''}</b> active for the same period "
-        f"with differing availability or end time — review for data-quality "
-        f"issues or competing notices.</div>",
+        f"<div class='remit-banner remit-banner--warn'>"
+        f"<span class='remit-banner__title'>{len(conflicts)} overlapping "
+        f"REMIT pair{'s' if len(conflicts) != 1 else ''}</span> active for the "
+        f"same period with differing availability or end time — review for "
+        f"data-quality issues or competing notices.</div>",
         unsafe_allow_html=True,
     )
 
@@ -915,22 +1025,28 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
             av = row["__availCapacity__"]
             un = row["__unavailCapacity__"]
             reason = str(row[reason_col]) if reason_col else ""
-            reason = "" if reason in ("-", "nan", "None", "") else f" — <i>{reason}</i>"
+            reason = (
+                ""
+                if reason in ("-", "nan", "None", "")
+                else f" — <i>{reason}</i>"
+            )
             return (
-                f"<div style='font-size:0.88em;margin:2px 0'>"
+                f"<div class='remit-line'>"
                 f"<b>{_ident(row)}</b> · "
-                f"{fmt_dt(row['__eventStart__'])} → {fmt_dt(row['__eventEnd__'])} · "
+                f"{fmt_dt(row['__eventStart__'])} → "
+                f"{fmt_dt(row['__eventEnd__'])} · "
                 f"avail <b>{av:g}</b> / unavail <b>{un:g}</b> · "
-                f"{row['__planned__']}{reason}</div>"
+                f"<span class='remit-line__meta'>{row['__planned__']}"
+                f"{reason}</span></div>"
             )
 
         st.markdown(
-            f"<div style='border-left:4px solid {cat_color};padding:8px 12px;"
-            f"margin:6px 0;background:#f9fafb;border-radius:4px'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
-            f"<b><span style='color:{cat_color}'>●</span> {c['site']} {c['category']}</b>"
+            f"<div class='remit-card' style='border-left-color:{cat_color}'>"
+            f"<div class='remit-row'>"
+            f"<b><span style='color:{cat_color}'>●</span> "
+            f"{c['site']} {c['category']}</b>"
             f"<span>{' '.join(tags)}</span></div>"
-            f"<div style='font-size:0.82em;color:#6b7280;margin:3px 0'>"
+            f"<div class='remit-card__sub'>"
             f"Overlap: {fmt_dt(c['overlap_start'])} → {ov_end}</div>"
             f"{_line(a)}{_line(b)}"
             f"</div>",
@@ -1220,10 +1336,11 @@ def render_revisions(
 # ---------------------------------------------------------------------------
 
 st.markdown(
-    "<h2 style='margin-bottom:0'>REMIT — SSE Hornsea gas storage</h2>"
-    "<div style='color:#6b7280;margin-bottom:12px'>Aldbrough &amp; Atwick — "
-    "live REMIT/UoF data from "
-    "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a></div>",
+    "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
+    "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
+    "REMIT / UoF data from "
+    "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
+    "</div>",
     unsafe_allow_html=True,
 )
 
