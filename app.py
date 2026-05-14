@@ -13,6 +13,7 @@ API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 SITES = ["Aldbrough", "Atwick"]
 CATEGORIES = ["Withdrawal", "Injection", "Storage"]
 PAGE_SIZE = 100
+FAR_FUTURE = pd.Timestamp("2099-01-01", tz="UTC")
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -739,8 +740,12 @@ def compute_capacity_series(
     tech_lookup: dict[tuple[str, str], float],
     categories: list[str],
 ) -> pd.DataFrame:
-    """For each day, each (site, cat), compute available capacity."""
-    days = pd.date_range(start.normalize(), end.normalize(), freq="D", tz="UTC")
+    """Exact step-function of available capacity per (site, category).
+
+    Capacity only changes at an event start or end, so we evaluate it on
+    those breakpoints rather than on a fixed daily/hourly grid. This makes a
+    2-hour outage show as a precise 2-hour dip, at any zoom level.
+    """
     records = []
     for site in SITES:
         for cat in categories:
@@ -748,33 +753,172 @@ def compute_capacity_series(
             if tech is None:
                 continue
             sub = df[(df["__site__"] == site) & (df["__category__"] == cat)]
-            for day in days:
-                active = sub[
-                    (sub["__eventStart__"] <= day)
-                    & (
-                        sub["__eventEnd__"].isna()
-                        | (sub["__eventEnd__"] >= day)
-                    )
-                ]
-                if active.empty:
-                    avail = tech
-                else:
-                    # conservative: smallest reported availability across active events
-                    a = active["__availCapacity__"].dropna()
-                    avail = float(a.min()) if not a.empty else max(
-                        tech - float(active["__unavailCapacity__"].fillna(0).sum()),
-                        0.0,
-                    )
+            sub = sub.dropna(subset=["__eventStart__"])
+
+            # Breakpoints = window edges + every event start/end inside it
+            bps: set[pd.Timestamp] = {start, end}
+            for _, r in sub.iterrows():
+                s = r["__eventStart__"]
+                e = r["__eventEnd__"]
+                if start <= s <= end:
+                    bps.add(s)
+                if pd.notna(e) and start <= e <= end:
+                    bps.add(e)
+            ordered = sorted(bps)
+
+            # For each segment [bp_i, bp_i+1) evaluate capacity at its midpoint;
+            # emit the value at the segment's left edge. line_shape="hv" then
+            # draws a flat step. A trailing point closes the last segment.
+            for i in range(len(ordered) - 1):
+                seg_start = ordered[i]
+                seg_end = ordered[i + 1]
+                mid = seg_start + (seg_end - seg_start) / 2
+                avail = _capacity_at(df, site, cat, mid, tech)
                 records.append(
                     {
-                        "date": day,
+                        "date": seg_start,
                         "site": site,
                         "category": cat,
                         "available": avail,
                         "technical": tech,
                     }
                 )
+            if len(ordered) >= 2:
+                last_mid = ordered[-2] + (ordered[-1] - ordered[-2]) / 2
+                records.append(
+                    {
+                        "date": ordered[-1],
+                        "site": site,
+                        "category": cat,
+                        "available": _capacity_at(df, site, cat, last_mid, tech),
+                        "technical": tech,
+                    }
+                )
     return pd.DataFrame(records)
+
+
+def detect_conflicts(
+    df_op: pd.DataFrame, categories: list[str], cmap: dict[str, str | None]
+) -> list[dict]:
+    """Find overlapping REMITs for the same (site, category) that disagree on
+    available capacity or end time — i.e. potential data-quality issues or
+    competing notices that need a human to reconcile."""
+    now = pd.Timestamp.now(tz="UTC")
+    conflicts: list[dict] = []
+    thread_col = cmap.get("threadId")
+
+    for site in SITES:
+        for cat in categories:
+            sub = df_op[
+                (df_op["__site__"] == site) & (df_op["__category__"] == cat)
+            ].dropna(subset=["__eventStart__"])
+            rows = list(sub.iterrows())
+            for i in range(len(rows)):
+                for j in range(i + 1, len(rows)):
+                    _, a = rows[i]
+                    _, b = rows[j]
+                    a_e = a["__eventEnd__"] if pd.notna(a["__eventEnd__"]) else FAR_FUTURE
+                    b_e = b["__eventEnd__"] if pd.notna(b["__eventEnd__"]) else FAR_FUTURE
+                    ov_start = max(a["__eventStart__"], b["__eventStart__"])
+                    ov_end = min(a_e, b_e)
+                    if ov_start >= ov_end:
+                        continue  # no overlap
+                    if ov_end < now:
+                        continue  # overlap is entirely in the past
+
+                    a_av = a["__availCapacity__"]
+                    b_av = b["__availCapacity__"]
+                    avail_differs = (
+                        pd.notna(a_av)
+                        and pd.notna(b_av)
+                        and abs(float(a_av) - float(b_av)) > 0.5
+                    )
+                    end_differs = (
+                        pd.notna(a["__eventEnd__"])
+                        and pd.notna(b["__eventEnd__"])
+                        and a["__eventEnd__"] != b["__eventEnd__"]
+                    ) or (
+                        pd.isna(a["__eventEnd__"]) != pd.isna(b["__eventEnd__"])
+                    )
+                    if not (avail_differs or end_differs):
+                        continue
+
+                    conflicts.append(
+                        {
+                            "site": site,
+                            "category": cat,
+                            "overlap_start": ov_start,
+                            "overlap_end": ov_end if ov_end != FAR_FUTURE else None,
+                            "avail_differs": avail_differs,
+                            "end_differs": end_differs,
+                            "a": a,
+                            "b": b,
+                            "thread_col": thread_col,
+                        }
+                    )
+    conflicts.sort(key=lambda c: c["overlap_start"])
+    return conflicts
+
+
+def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None:
+    if not conflicts:
+        st.success("No overlapping REMITs with conflicting capacity or end times.")
+        return
+
+    st.markdown(
+        f"<div style='background:#fffbeb;border-left:5px solid {COLOR['warn']};"
+        f"padding:10px 14px;margin-bottom:10px;border-radius:4px'>"
+        f"<b>{len(conflicts)} overlapping REMIT pair"
+        f"{'s' if len(conflicts) != 1 else ''}</b> active for the same period "
+        f"with differing availability or end time — review for data-quality "
+        f"issues or competing notices.</div>",
+        unsafe_allow_html=True,
+    )
+
+    rev_col = cmap.get("revisionNumber")
+    thread_col = cmap.get("threadId")
+    reason_col = cmap.get("reason")
+
+    def _ident(row: pd.Series) -> str:
+        t = str(row[thread_col]) if thread_col else "?"
+        r = f" rev {row[rev_col]}" if rev_col else ""
+        return f"{t}{r}"
+
+    for c in conflicts:
+        a, b = c["a"], c["b"]
+        tags = []
+        if c["avail_differs"]:
+            tags.append(pill("availability mismatch", COLOR["bad"]))
+        if c["end_differs"]:
+            tags.append(pill("end-time mismatch", COLOR["warn"]))
+        ov_end = fmt_dt(c["overlap_end"]) if c["overlap_end"] is not None else "open-ended"
+        cat_color = COLOR.get(c["category"], COLOR["muted"])
+
+        def _line(row: pd.Series) -> str:
+            av = row["__availCapacity__"]
+            un = row["__unavailCapacity__"]
+            reason = str(row[reason_col]) if reason_col else ""
+            reason = "" if reason in ("-", "nan", "None", "") else f" — <i>{reason}</i>"
+            return (
+                f"<div style='font-size:0.88em;margin:2px 0'>"
+                f"<b>{_ident(row)}</b> · "
+                f"{fmt_dt(row['__eventStart__'])} → {fmt_dt(row['__eventEnd__'])} · "
+                f"avail <b>{av:g}</b> / unavail <b>{un:g}</b> · "
+                f"{row['__planned__']}{reason}</div>"
+            )
+
+        st.markdown(
+            f"<div style='border-left:4px solid {cat_color};padding:8px 12px;"
+            f"margin:6px 0;background:#f9fafb;border-radius:4px'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
+            f"<b><span style='color:{cat_color}'>●</span> {c['site']} {c['category']}</b>"
+            f"<span>{' '.join(tags)}</span></div>"
+            f"<div style='font-size:0.82em;color:#6b7280;margin:3px 0'>"
+            f"Overlap: {fmt_dt(c['overlap_start'])} → {ov_end}</div>"
+            f"{_line(a)}{_line(b)}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_timeline(
@@ -796,9 +940,10 @@ def render_timeline(
             continue
         fig = go.Figure()
         for cat in categories:
-            cs = site_series[site_series["category"] == cat]
+            cs = site_series[site_series["category"] == cat].sort_values("date")
             if cs.empty:
                 continue
+            unit = DEFAULT_UNIT.get(cat, "")
             fig.add_trace(
                 go.Scatter(
                     x=cs["date"],
@@ -808,9 +953,13 @@ def render_timeline(
                     line=dict(
                         color=COLOR[cat],
                         width=2,
+                        shape="hv",  # exact step function
                         dash="dot" if cat == "Storage" else "solid",
                     ),
-                    hovertemplate="%{x|%d %b %Y}: %{y:.2f}<extra></extra>",
+                    hovertemplate=(
+                        f"%{{x|%d %b %Y %H:%M}}<br>{cat}: "
+                        f"%{{y:.2f}} {unit}<extra></extra>"
+                    ),
                 )
             )
             tech = tech_lookup.get((site, cat))
@@ -828,12 +977,17 @@ def render_timeline(
                     )
                 )
         _add_now_line(fig, now)
+        fig.update_xaxes(
+            rangeslider=dict(visible=True, thickness=0.06),
+            tickformat="%d %b\n%H:%M",
+        )
         fig.update_layout(
-            title=f"{site} — available capacity",
-            height=320,
+            title=f"{site} — available capacity (step = exact event boundaries)",
+            height=340,
             margin=dict(l=20, r=20, t=40, b=20),
-            legend=dict(orientation="h", y=-0.2),
+            legend=dict(orientation="h", y=-0.32),
             yaxis_title="Available",
+            hovermode="x unified",
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -842,33 +996,31 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     now = pd.Timestamp.now(tz="UTC")
     start = now - pd.Timedelta(days=7)
     end = now + pd.Timedelta(days=horizon_days)
-    mask = (df_op["__eventEnd__"] >= start) & (df_op["__eventStart__"] <= end)
-    sub = df_op[mask].copy()
+
+    sub = df_op.dropna(subset=["__eventStart__"]).copy()
+    # Treat open-ended events as running to the window edge for display
+    sub["__endFill__"] = sub["__eventEnd__"].fillna(end)
+    mask = (sub["__endFill__"] >= start) & (sub["__eventStart__"] <= end)
+    sub = sub[mask]
     if sub.empty:
-        st.info("No events in window.")
+        st.info("No events with valid dates in this window.")
         return
 
     sub["row"] = sub["__site__"] + " — " + sub["__category__"]
-    sub = sub.dropna(subset=["__eventStart__", "__eventEnd__"])
-    if sub.empty:
-        st.info("No events with valid dates in window.")
-        return
 
-    # Visual padding so sub-day bars remain at least a few pixels wide
-    # at typical zoom levels. Hover still shows the true times.
-    min_visual = pd.Timedelta(hours=2)
-    short_mask = (sub["__eventEnd__"] - sub["__eventStart__"]) < min_visual
-    sub["__displayEnd__"] = sub["__eventEnd__"]
-    sub.loc[short_mask, "__displayEnd__"] = (
-        sub.loc[short_mask, "__eventStart__"] + min_visual
-    )
+    # Minimum visual width so a couple-hour outage is still a visible block.
+    # Hover always shows the true start/end/duration.
+    min_visual = pd.Timedelta(hours=6)
+    dur = sub["__endFill__"] - sub["__eventStart__"]
+    sub["__displayEnd__"] = sub["__endFill__"]
+    short = dur < min_visual
+    sub.loc[short, "__displayEnd__"] = sub.loc[short, "__eventStart__"] + min_visual
 
-    # Pretty hover fields
-    sub["start_fmt"] = sub["__eventStart__"].dt.strftime("%d %b %Y %H:%M")
-    sub["end_fmt"] = sub["__eventEnd__"].dt.strftime("%d %b %Y %H:%M")
-    sub["dur_h"] = (
-        (sub["__eventEnd__"] - sub["__eventStart__"]).dt.total_seconds() / 3600
-    ).round(1)
+    sub["Start"] = sub["__eventStart__"].dt.strftime("%d %b %Y %H:%M")
+    sub["End"] = sub["__eventEnd__"].dt.strftime("%d %b %Y %H:%M")
+    sub["End"] = sub["End"].fillna("open-ended")
+    sub["Hours"] = (dur.dt.total_seconds() / 3600).round(1)
+    sub["Unavailable"] = sub["__unavailCapacity__"]
 
     fig = px.timeline(
         sub,
@@ -881,62 +1033,35 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
             "Unplanned": COLOR["Unplanned"],
             "Unknown": COLOR["muted"],
         },
-        custom_data=[
-            "__site__", "__category__", "__planned__",
-            "__unavailCapacity__", "start_fmt", "end_fmt", "dur_h",
-        ],
+        hover_name="row",
+        hover_data={
+            "__planned__": True,
+            "Start": True,
+            "End": True,
+            "Hours": True,
+            "Unavailable": True,
+            "__eventStart__": False,
+            "__displayEnd__": False,
+            "row": False,
+        },
+        labels={"__planned__": "Type"},
     )
-    fig.update_traces(
-        hovertemplate=(
-            "<b>%{customdata[0]} — %{customdata[1]}</b><br>"
-            "%{customdata[2]}<br>"
-            "Unavailable: %{customdata[3]}<br>"
-            "Start: %{customdata[4]}<br>"
-            "End: %{customdata[5]} (%{customdata[6]} h)"
-            "<extra></extra>"
-        )
-    )
-
-    # Always-visible markers at event start so short events are never lost
-    marker_color = sub["__planned__"].map(
-        {
-            "Planned": COLOR["Planned"],
-            "Unplanned": COLOR["Unplanned"],
-            "Unknown": COLOR["muted"],
-        }
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=sub["__eventStart__"],
-            y=sub["row"],
-            mode="markers",
-            marker=dict(symbol="diamond", size=8, color=marker_color, line=dict(color="white", width=1)),
-            name="event start",
-            showlegend=False,
-            customdata=sub[["__site__", "__category__", "__planned__", "__unavailCapacity__", "start_fmt", "end_fmt", "dur_h"]].values,
-            hovertemplate=(
-                "<b>%{customdata[0]} — %{customdata[1]}</b><br>"
-                "%{customdata[2]}<br>"
-                "Unavailable: %{customdata[3]}<br>"
-                "Start: %{customdata[4]}<br>"
-                "End: %{customdata[5]} (%{customdata[6]} h)"
-                "<extra></extra>"
-            ),
-        )
-    )
-
-    fig.update_yaxes(autorange="reversed")
-    _add_now_line(fig, now)
+    fig.update_yaxes(autorange="reversed", title="")
     fig.update_xaxes(
-        rangeslider=dict(visible=True, thickness=0.05),
+        rangeslider=dict(visible=True, thickness=0.06),
         tickformat="%d %b\n%H:%M",
     )
+    _add_now_line(fig, now)
     fig.update_layout(
-        height=440,
-        margin=dict(l=20, r=20, t=20, b=20),
-        legend=dict(orientation="h", y=-0.25),
+        height=460,
+        margin=dict(l=20, r=20, t=20, b=40),
+        legend=dict(orientation="h", y=-0.35, title=""),
     )
     st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Bars shorter than 6 h are widened for visibility — hover shows true "
+        "start, end and duration. Drag the slider below the chart to zoom."
+    )
 
 
 def render_all_data(
@@ -1114,24 +1239,41 @@ with hero_r:
 st.markdown("---")
 
 # Tabs
-tab_up, tab_tl, tab_gantt, tab_data, tab_rev = st.tabs(
+_conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
+conflict_label = (
+    f"Conflicts ({len(_conflicts)})" if _conflicts else "Conflicts"
+)
+tab_up, tab_tl, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
     [
         f"Upcoming ({horizon_days}d)",
         "Capacity timeline",
         "Outage calendar",
+        conflict_label,
         "All data",
         "Revisions",
     ]
 )
 
+
+def _safe(label: str, fn) -> None:
+    try:
+        fn()
+    except Exception as exc:  # surface the real error instead of a blank tab
+        st.error(f"{label} failed to render: {exc}")
+        st.exception(exc)
+
+
 with tab_up:
-    render_upcoming(df_upcoming, cmap, ACTIVE_CATEGORIES)
+    _safe("Upcoming", lambda: render_upcoming(df_upcoming, cmap, ACTIVE_CATEGORIES))
 
 with tab_tl:
-    render_timeline(df_op, horizon_days, ACTIVE_CATEGORIES)
+    _safe("Capacity timeline", lambda: render_timeline(df_op, horizon_days, ACTIVE_CATEGORIES))
 
 with tab_gantt:
-    render_gantt(df_op, horizon_days)
+    _safe("Outage calendar", lambda: render_gantt(df_op, horizon_days))
+
+with tab_conf:
+    _safe("Conflicts", lambda: render_conflicts(_conflicts, cmap))
 
 history_df: pd.DataFrame | None = None
 if include_history:
