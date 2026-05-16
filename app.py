@@ -1744,7 +1744,9 @@ def _discover_feed_url(page_url: str, attempts: list[str]) -> str | None:
 def _try_feed_url(url: str, attempts: list[str]) -> list:
     """Fetch a URL and run it through feedparser. Logs status code,
     content-type, entry count and any bozo exception. Returns entries (may be
-    empty)."""
+    empty). When the response was a 200 with zero entries, the first 600
+    chars of the body are dumped to attempts so we can see what the server
+    actually sent."""
     if feedparser is None:
         return []
     try:
@@ -1766,6 +1768,10 @@ def _try_feed_url(url: str, attempts: list[str]) -> list:
             f"GET {url} → {resp.status_code} · {ctype or '?'} · "
             f"{n} entries{bozo_note}"
         )
+        if resp.status_code == 200 and n == 0:
+            snippet = " ".join(resp.text[:600].split())
+            if snippet:
+                attempts.append(f"  Body[:600]: {snippet}")
         return list(feed.entries)
     except Exception as exc:
         attempts.append(f"GET {url} → error: {exc}")
