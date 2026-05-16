@@ -2269,15 +2269,51 @@ def render_nonsse_facility_section(
             f"{gap_note}</div>",
             unsafe_allow_html=True,
         )
+
+    # If the fetch returned nothing at all, surface a warning and the
+    # diagnostics so we can debug. Otherwise stay quiet — the user only sees
+    # the cards.
     if not records and not gap_note:
         st.warning(f"Couldn't load any UMMs for {facility}.")
-    if attempts:
-        with st.expander(f"Fetch diagnostics ({len(attempts)} step(s))", expanded=False):
-            for line in attempts:
-                st.text(line)
-    if not records:
+        if attempts:
+            with st.expander(
+                f"Fetch diagnostics ({len(attempts)} step(s))", expanded=False
+            ):
+                for line in attempts:
+                    st.text(line)
         return
-    for rec in records:
+
+    # Filter to current and upcoming events only — drop entries whose end is
+    # in the past. Open-ended entries (event_end = None) are treated as
+    # ongoing and kept.
+    now = pd.Timestamp.now(tz="UTC")
+
+    def _is_current_or_future(rec: dict) -> bool:
+        end = rec.get("event_end")
+        if end is None:
+            return True
+        try:
+            return end >= now
+        except TypeError:
+            return True
+
+    visible = [r for r in records if _is_current_or_future(r)]
+    hidden = len(records) - len(visible)
+
+    if not visible:
+        if records:
+            st.caption(
+                f"No current or upcoming UMMs ({hidden} already ended)."
+            )
+        return
+
+    if hidden:
+        st.caption(
+            f"Showing {len(visible)} current / upcoming UMM(s) — "
+            f"{hidden} already-ended hidden."
+        )
+
+    for rec in visible:
         render_nonsse_card(rec)
 
 
