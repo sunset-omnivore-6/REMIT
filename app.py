@@ -17,18 +17,25 @@ PAGE_SIZE = 100
 FAR_FUTURE = pd.Timestamp("2099-01-01", tz="UTC")
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0"
     ),
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-GB,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Origin": "https://thermaloutages.sse.com",
+    # Mirror the live browser request exactly. In particular: no Origin header
+    # (browsers omit it on same-origin GETs — sending it is a Python tell that
+    # SSE's WAF flags) and Accept: */* rather than the axios default.
+    "Accept": "*/*",
+    "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
     "Referer": "https://thermaloutages.sse.com/gas-uof",
     "Sec-Fetch-Site": "same-origin",
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Dest": "empty",
-    "Connection": "keep-alive",
+    "Sec-CH-UA": (
+        '"Chromium";v="148", "Microsoft Edge";v="148", "Not/A)Brand";v="99"'
+    ),
+    "Sec-CH-UA-Mobile": "?0",
+    "Sec-CH-UA-Platform": '"Windows"',
+    "Priority": "u=1, i",
 }
 
 # Nameplate technical capacities. These are AUTHORITATIVE: individual REMIT
