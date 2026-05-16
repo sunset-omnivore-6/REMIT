@@ -15,6 +15,11 @@ try:
 except ImportError:
     feedparser = None
 
+try:
+    from bs4 import BeautifulSoup  # used by the Stublach HTML scraper
+except ImportError:
+    BeautifulSoup = None  # type: ignore[assignment]
+
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
 SITES = ["Aldbrough", "Atwick"]
@@ -1778,42 +1783,219 @@ def _try_feed_url(url: str, attempts: list[str]) -> list:
         return []
 
 
+_STORENGY_DT_FORMATS = (
+    "%A %d %B %Y at %I:%M%p",
+    "%A %d %B %Y %I:%M%p",
+)
+_STORENGY_TITLE_RE = re.compile(
+    r"(Planned|Unplanned)\s+(Injection|Withdrawal|Storage)\s+"
+    r"unavailability\s+at\s+(.+)",
+    re.IGNORECASE,
+)
+_STORENGY_NUM_RE = re.compile(r"([\d,]+(?:\.\d+)?)\s*(\S+)?")
+
+
+def _parse_storengy_dt(s: str) -> pd.Timestamp | None:
+    """Parse Storengy's 'Saturday 8th November 2025 at 12:32pm' format."""
+    if not s:
+        return None
+    cleaned = re.sub(r"(\d+)(st|nd|rd|th)\b", r"\1", s.strip())
+    cleaned = cleaned.replace("am", "AM").replace("pm", "PM")
+    for fmt in _STORENGY_DT_FORMATS:
+        try:
+            return pd.Timestamp(datetime.strptime(cleaned, fmt), tz="UTC")
+        except ValueError:
+            continue
+    return None
+
+
+def _scrape_storengy_html(html: str) -> list[dict]:
+    """Parse the Storengy UMM page. Each UMM is a server-rendered block of
+    <h3 id> + metadata <p> + Time period + Reason + capacity <table>. We
+    dedupe to the latest revision per thread for parity with the SSE side."""
+    if BeautifulSoup is None:
+        raise RuntimeError(
+            "beautifulsoup4 not installed — pip install -r requirements.txt"
+        )
+
+    soup = BeautifulSoup(html, "html.parser")
+    records: list[dict] = []
+
+    for h3 in soup.find_all("h3", id=True):
+        msg_id = h3.get("id", "")
+        title = h3.get_text(" ", strip=True)
+        m = _STORENGY_TITLE_RE.search(title)
+        if not m:
+            continue
+        unavail_type = m.group(1).capitalize()
+        interruption = m.group(2).capitalize()
+        facility = m.group(3).strip()
+
+        thread_id, rev_num = msg_id, 1
+        if "-" in msg_id:
+            base, _, rev = msg_id.rpartition("-")
+            if rev.isdigit():
+                thread_id, rev_num = base, int(rev)
+
+        # Header paragraph: published-on text + status label
+        meta_p = h3.find_next_sibling("p")
+        published_str = ""
+        status = ""
+        if meta_p:
+            label_el = meta_p.find("span", class_="label")
+            if label_el:
+                status = label_el.get_text(strip=True)
+            text = meta_p.get_text(" ", strip=True)
+            pub_match = re.search(
+                r"Published on\s+(.+?)(?:\s+Storengy|\s+(?:Active|Inactive|Dismissed)|$)",
+                text,
+            )
+            if pub_match:
+                published_str = pub_match.group(1).strip()
+
+        # Time period
+        event_start = event_end = None
+        period_h4 = meta_p.find_next_sibling("h4") if meta_p else None
+        reason_h4 = None
+        if period_h4 and "Time period" in period_h4.get_text():
+            period_p = period_h4.find_next_sibling("p")
+            if period_p:
+                spans = period_p.find_all("span")
+                if len(spans) >= 2:
+                    event_start = _parse_storengy_dt(
+                        spans[0].get_text(strip=True)
+                    )
+                    event_end = _parse_storengy_dt(
+                        spans[1].get_text(strip=True)
+                    )
+            reason_h4 = period_h4.find_next_sibling("h4")
+
+        # Reason + capacity table
+        reason = ""
+        table = None
+        if reason_h4 and "Reason" in reason_h4.get_text():
+            reason_p = reason_h4.find_next_sibling("p")
+            if reason_p:
+                reason = reason_p.get_text(" ", strip=True)
+            table = reason_h4.find_next_sibling("table")
+        if table is None:
+            table = h3.find_next_sibling("table")
+
+        unavail_cap = avail_cap = tech_cap = None
+        unit = ""
+        if table:
+            for tr in table.find_all("tr"):
+                th = tr.find("th")
+                td = tr.find("td")
+                if not th or not td:
+                    continue
+                lbl = th.get_text(strip=True).lower()
+                nm = _STORENGY_NUM_RE.match(td.get_text(strip=True))
+                if not nm:
+                    continue
+                try:
+                    val = float(nm.group(1).replace(",", ""))
+                except ValueError:
+                    continue
+                if nm.group(2):
+                    unit = nm.group(2)
+                if "unavailable" in lbl:
+                    unavail_cap = val
+                elif "available" in lbl:
+                    avail_cap = val
+                elif "technical" in lbl:
+                    tech_cap = val
+
+        # Storengy publishes in kWh/d; convert to GWh/d for parity with SSE.
+        if unit.lower() in ("kwh/d", "kwh/day"):
+            scale = 1_000_000
+            unavail_cap = unavail_cap / scale if unavail_cap is not None else None
+            avail_cap = avail_cap / scale if avail_cap is not None else None
+            tech_cap = tech_cap / scale if tech_cap is not None else None
+            unit = "GWh/d"
+
+        records.append(
+            {
+                "facility": facility,
+                "operator": "Storengy UK",
+                "publication": _parse_storengy_dt(published_str),
+                "event_start": event_start,
+                "event_end": event_end,
+                "event_status": status,
+                "unavailability_type": unavail_type,
+                "interruption_type": interruption,
+                "unavailable_capacity": unavail_cap,
+                "available_capacity": avail_cap,
+                "technical_capacity": tech_cap,
+                "capacity_unit": unit,
+                "title": title,
+                "summary": reason,
+                "source_url": (
+                    "https://nemo.storengy.co.uk/maintenance/umms"
+                    f"#{msg_id}"
+                ),
+                "thread_id": thread_id,
+                "rev_num": rev_num,
+            }
+        )
+
+    # Dedupe to the latest revision per thread, like SSE.
+    latest: dict[str, dict] = {}
+    for r in records:
+        prev = latest.get(r["thread_id"])
+        if prev is None or r["rev_num"] > prev["rev_num"]:
+            latest[r["thread_id"]] = r
+    deduped = list(latest.values())
+    deduped.sort(
+        key=lambda r: r["publication"] or pd.Timestamp(0, tz="UTC"),
+        reverse=True,
+    )
+    return deduped
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_storengy_stublach() -> tuple[list[dict], list[str]]:
-    """Stublach UMMs from Storengy. Discovers the RSS link in the landing
-    page, then falls back to a list of likely paths."""
+    """Stublach UMMs by scraping the Storengy UMM HTML page. The page is
+    server-rendered with each UMM as a structured block — simpler and more
+    reliable than the underlying RSS feed."""
     attempts: list[str] = []
-    if feedparser is None:
-        attempts.append("feedparser not installed — pip install -r requirements.txt")
+    if BeautifulSoup is None:
+        attempts.append(
+            "beautifulsoup4 not installed — pip install -r requirements.txt"
+        )
         return [], attempts
 
-    page_url = "https://nemo.storengy.co.uk/maintenance/umms"
-    candidates: list[str] = []
-    discovered = _discover_feed_url(page_url, attempts)
-    if discovered:
-        candidates.append(discovered)
-    candidates.extend(
-        [
-            f"{page_url}/rss",
-            f"{page_url}.rss",
-            f"{page_url}/feed",
-            f"{page_url}.xml",
-            f"{page_url}?format=rss",
-            "https://nemo.storengy.co.uk/rss",
-            "https://nemo.storengy.co.uk/feed",
-        ]
-    )
-    seen: set[str] = set()
-    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+    url = "https://nemo.storengy.co.uk/maintenance/umms"
+    try:
+        resp = requests.get(
+            url,
+            timeout=20,
+            headers={
+                "User-Agent": HEADERS["User-Agent"],
+                "Accept": "text/html,application/xhtml+xml,*/*;q=0.5",
+            },
+        )
+        attempts.append(
+            f"GET {url} → {resp.status_code} · "
+            f"{resp.headers.get('Content-Type', '?')}"
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        attempts.append(f"Storengy HTML fetch error: {exc}")
+        return [], attempts
 
-    for url in candidates:
-        entries = _try_feed_url(url, attempts)
-        if entries:
-            return [
-                _rss_entry_to_record(e, "Stublach", "Storengy UK", url)
-                for e in entries
-            ], attempts
-    return [], attempts
+    try:
+        records = _scrape_storengy_html(resp.text)
+    except Exception as exc:
+        attempts.append(f"Storengy HTML parse error: {exc}")
+        return [], attempts
+
+    n_threads = len({r["thread_id"] for r in records})
+    attempts.append(
+        f"Parsed {len(records)} UMMs across {n_threads} unique threads "
+        f"(deduped to latest revision per thread)."
+    )
+    return records, attempts
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -1948,38 +2130,116 @@ def fetch_uniper_holford() -> tuple[list[dict], list[str]]:
 
 
 def render_nonsse_card(rec: dict) -> None:
-    pub = fmt_dt(rec.get("publication"))
+    """Render one UMM card. Uses the structured fields (status, capacities,
+    dates) when the source provided them — matching the SSE event-card
+    layout — and falls back to a simple title+summary card for RSS-only
+    entries where the structured fields aren't present."""
+    facility = rec.get("facility", "")
     title = rec.get("title") or "(untitled)"
+    pub = rec.get("publication")
+    pub_str = fmt_dt(pub) if pub else ""
+    status = rec.get("event_status") or ""
+    interruption = rec.get("interruption_type") or ""
+    unavail_type = rec.get("unavailability_type") or ""
+    start = rec.get("event_start")
+    end = rec.get("event_end")
+    unavail_cap = rec.get("unavailable_capacity")
+    avail_cap = rec.get("available_capacity")
+    tech_cap = rec.get("technical_capacity")
+    unit = rec.get("capacity_unit") or ""
     summary = rec.get("summary") or ""
     link = rec.get("source_url") or ""
-    facility = rec.get("facility", "")
-    operator = rec.get("operator", "")
+    thread = rec.get("thread_id") or ""
+    rev = rec.get("rev_num")
 
-    summary_html = (
-        f"<div class='remit-card__body'>{summary}</div>" if summary else ""
-    )
-    link_html = (
-        f"<div class='remit-card__sub'>"
-        f"<a href='{link}' target='_blank' rel='noopener'>open source ↗</a>"
-        f"</div>"
-        if link
-        else ""
-    )
-    op_html = (
-        f"<div class='remit-card__meta'>{operator}</div>" if operator else ""
-    )
-    pub_html = (
-        f"<div class='remit-card__meta'>{pub}</div>" if pub != "—" else ""
-    )
+    # Accent: red for active+unplanned, amber for active+planned, grey for
+    # closed (inactive/dismissed), info-blue for entries without status.
+    if status == "Active" and unavail_type == "Unplanned":
+        accent = COLOR["bad"]
+    elif status == "Active":
+        accent = COLOR["warn"]
+    elif status in ("Inactive", "Dismissed"):
+        accent = COLOR["muted"]
+    else:
+        accent = COLOR["info"]
+
+    cat_color = COLOR.get(interruption, COLOR["muted"])
+    plan_color = COLOR.get(unavail_type, COLOR["muted"])
+
+    pills = []
+    if unavail_type:
+        pills.append(pill(unavail_type, plan_color))
+
+    if interruption:
+        head_title = (
+            f"<span style='color:{cat_color}'>●</span> "
+            f"<b>{facility} {interruption}</b>"
+        )
+    else:
+        head_title = f"<b>{facility}</b> — {title}" if facility else title
+
+    head_left = " ".join(pills + [head_title])
+
+    meta_bits = []
+    if thread:
+        meta_bits.append(f"Thread {thread[:8]}")
+    if rev:
+        meta_bits.append(f"rev {rev}")
+    if pub_str:
+        meta_bits.append(f"published {pub_str}")
+    if status:
+        meta_bits.append(status)
+    meta_html = " · ".join(meta_bits)
+
+    body_html = ""
+    if unavail_cap is not None or avail_cap is not None or tech_cap is not None:
+        parts: list[str] = []
+        if unavail_cap is not None:
+            parts.append(f"<b>{unavail_cap:g} {unit}</b> unavailable")
+        if avail_cap is not None:
+            parts.append(f"available {avail_cap:g} {unit}")
+        if tech_cap is not None:
+            parts.append(
+                f"<span class='remit-card__meta'>"
+                f"tech max {tech_cap:g} {unit}</span>"
+            )
+        body_html = f"<div class='remit-card__body'>{' · '.join(parts)}</div>"
+
+    period_html = ""
+    if start or end:
+        period_html = (
+            f"<div class='remit-card__sub'>"
+            f"{fmt_dt(start)} → {fmt_dt(end)}</div>"
+        )
+
+    summary_html = ""
+    if summary:
+        # If we already produced a structured body, the summary is the reason;
+        # render it italic. For RSS-only cards (no structured body) it's the
+        # main content, so render it plain.
+        cls = (
+            "remit-card__sub remit-card__sub--em"
+            if body_html
+            else "remit-card__body"
+        )
+        summary_html = f"<div class='{cls}'>{summary}</div>"
+
+    link_html = ""
+    if link:
+        link_html = (
+            f"<div class='remit-card__sub'>"
+            f"<a href='{link}' target='_blank' rel='noopener'>source ↗</a>"
+            f"</div>"
+        )
 
     st.markdown(
-        f"<div class='remit-card' "
-        f"style='border-left-color:var(--remit-info)'>"
+        f"<div class='remit-card' style='border-left-color:{accent}'>"
         f"<div class='remit-card__head'>"
-        f"<div><b>{facility}</b> — {title}</div>"
-        f"{pub_html}"
+        f"<div>{head_left}</div>"
+        f"<div class='remit-card__meta'>{meta_html}</div>"
         f"</div>"
-        f"{op_html}"
+        f"{body_html}"
+        f"{period_html}"
         f"{summary_html}"
         f"{link_html}"
         f"</div>",
