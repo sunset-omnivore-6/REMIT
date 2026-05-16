@@ -2,3 +2,4 @@ streamlit>=1.32
 pandas>=2.0
 requests>=2.31
 plotly>=5.18
+streamlit-autorefresh>=1.0

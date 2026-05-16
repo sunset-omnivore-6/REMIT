@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
@@ -217,6 +218,11 @@ def inject_css() -> None:
 
 
 inject_css()
+
+# Wall-display mode: rerun the script every 5 min so the 5-min cache TTL on
+# fetch_remit expires on the same cycle and live data comes through.
+REFRESH_INTERVAL_MS = 5 * 60 * 1000
+st_autorefresh(interval=REFRESH_INTERVAL_MS, key="remit_auto_refresh")
 
 
 # ---------------------------------------------------------------------------
@@ -1847,5 +1853,5 @@ with tab_rev:
 
 st.caption(
     f"Data refreshed at {now.strftime('%d %b %Y %H:%M UTC')}. "
-    f"Cache TTL 5 min — use ⟳ Refresh to force reload."
+    f"Auto-refresh every 5 min — use ⟳ Refresh to force reload."
 )
