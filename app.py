@@ -1698,88 +1698,182 @@ def _rss_entry_to_record(entry, facility: str, operator: str, source_url: str) -
     }
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_storengy_stublach() -> tuple[list[dict], str | None]:
-    """Stublach UMMs from Storengy's RSS feed. Tries a few plausible paths and
-    relies on feedparser's HTML link autodiscovery as the final fallback."""
+def _discover_feed_url(page_url: str, attempts: list[str]) -> str | None:
+    """GET the landing page and look for <link rel='alternate'> RSS/Atom URLs,
+    or detect that the page itself is the feed (XML content-type). Always logs
+    the probe outcome to `attempts`."""
+    try:
+        resp = requests.get(
+            page_url,
+            timeout=20,
+            headers={
+                "User-Agent": HEADERS["User-Agent"],
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+        )
+        ctype = resp.headers.get("Content-Type", "")
+        attempts.append(
+            f"HTML probe {page_url} → {resp.status_code} · {ctype or '?'}"
+        )
+        if resp.status_code != 200:
+            return None
+        # Page itself might be the feed (some sites serve RSS at the canonical URL).
+        if any(t in ctype.lower() for t in ("rss", "atom", "xml")):
+            return page_url
+        # Look for <link rel="alternate" type="application/(rss|atom)+xml" href="...">
+        import re
+        from urllib.parse import urljoin
+        pattern = re.compile(
+            r"<link[^>]+(?:"
+            r"rel=['\"]alternate['\"][^>]+type=['\"]application/(?:rss|atom)\+xml['\"]"
+            r"|"
+            r"type=['\"]application/(?:rss|atom)\+xml['\"][^>]+rel=['\"]alternate['\"]"
+            r")[^>]+href=['\"]([^'\"]+)['\"]",
+            re.IGNORECASE,
+        )
+        m = pattern.search(resp.text)
+        if m:
+            href = urljoin(page_url, m.group(1))
+            attempts.append(f"Discovered feed link: {href}")
+            return href
+    except Exception as exc:
+        attempts.append(f"HTML probe error: {exc}")
+    return None
+
+
+def _try_feed_url(url: str, attempts: list[str]) -> list:
+    """Fetch a URL and run it through feedparser. Logs status code,
+    content-type, entry count and any bozo exception. Returns entries (may be
+    empty)."""
     if feedparser is None:
-        return [], "feedparser not installed — pip install -r requirements.txt"
-    candidates = [
-        "https://nemo.storengy.co.uk/maintenance/umms/rss",
-        "https://nemo.storengy.co.uk/maintenance/umms.rss",
-        "https://nemo.storengy.co.uk/maintenance/umms?format=rss",
-        "https://nemo.storengy.co.uk/maintenance/umms",
-    ]
-    last_err: str | None = None
-    for url in candidates:
-        try:
-            feed = feedparser.parse(
-                url,
-                request_headers={"User-Agent": HEADERS["User-Agent"]},
-            )
-            if getattr(feed, "bozo", 0) and not feed.entries:
-                last_err = str(getattr(feed, "bozo_exception", "parse error"))
-                continue
-            if feed.entries:
-                return [
-                    _rss_entry_to_record(e, "Stublach", "Storengy UK", url)
-                    for e in feed.entries
-                ], None
-        except Exception as exc:
-            last_err = str(exc)
-            continue
-    return [], last_err or "no RSS entries discovered"
+        return []
+    try:
+        resp = requests.get(
+            url,
+            timeout=20,
+            headers={
+                "User-Agent": HEADERS["User-Agent"],
+                "Accept": "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.5",
+            },
+        )
+        ctype = resp.headers.get("Content-Type", "")
+        feed = feedparser.parse(resp.content)
+        n = len(feed.entries)
+        bozo_note = ""
+        if getattr(feed, "bozo", 0):
+            bozo_note = f" · bozo: {getattr(feed, 'bozo_exception', '?')}"
+        attempts.append(
+            f"GET {url} → {resp.status_code} · {ctype or '?'} · "
+            f"{n} entries{bozo_note}"
+        )
+        return list(feed.entries)
+    except Exception as exc:
+        attempts.append(f"GET {url} → error: {exc}")
+        return []
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_kistos_remit() -> tuple[list[dict], str | None]:
-    """Kistos / EDF Energy UMMs from remit.gb.net's ACER RSS feed. The platform
-    has no per-facility filter, so we keep entries whose text mentions Kistos,
-    EDF Energy, Hill Top or Hole House and classify by facility from the title."""
+def fetch_storengy_stublach() -> tuple[list[dict], list[str]]:
+    """Stublach UMMs from Storengy. Discovers the RSS link in the landing
+    page, then falls back to a list of likely paths."""
+    attempts: list[str] = []
     if feedparser is None:
-        return [], "feedparser not installed — pip install -r requirements.txt"
-    candidates = [
-        "https://www.remit.gb.net/acer_rss",
-        "https://remit.gb.net/acer_rss",
-    ]
-    last_err: str | None = None
+        attempts.append("feedparser not installed — pip install -r requirements.txt")
+        return [], attempts
+
+    page_url = "https://nemo.storengy.co.uk/maintenance/umms"
+    candidates: list[str] = []
+    discovered = _discover_feed_url(page_url, attempts)
+    if discovered:
+        candidates.append(discovered)
+    candidates.extend(
+        [
+            f"{page_url}/rss",
+            f"{page_url}.rss",
+            f"{page_url}/feed",
+            f"{page_url}.xml",
+            f"{page_url}?format=rss",
+            "https://nemo.storengy.co.uk/rss",
+            "https://nemo.storengy.co.uk/feed",
+        ]
+    )
+    seen: set[str] = set()
+    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
     for url in candidates:
-        try:
-            feed = feedparser.parse(
-                url,
-                request_headers={"User-Agent": HEADERS["User-Agent"]},
-            )
-            if getattr(feed, "bozo", 0) and not feed.entries:
-                last_err = str(getattr(feed, "bozo_exception", "parse error"))
-                continue
-            records: list[dict] = []
-            for entry in feed.entries:
-                blob = " ".join(
-                    str(entry.get(k, "")) for k in ("title", "summary", "description")
-                ).lower()
-                if not any(k in blob for k in NONSSE_KEYWORDS_KISTOS):
-                    continue
-                facility = "Hole House" if "hole house" in blob else "Hill Top"
-                operator = (
-                    "EDF Energy (pre-Apr 2024)"
-                    if "edf energy" in blob and "kistos" not in blob
-                    else "Kistos Energy Storage Ltd"
-                )
-                records.append(
-                    _rss_entry_to_record(entry, facility, operator, url)
-                )
-            if records or feed.entries:
-                return records, None
-        except Exception as exc:
-            last_err = str(exc)
-            continue
-    return [], last_err or "no RSS entries discovered"
+        entries = _try_feed_url(url, attempts)
+        if entries:
+            return [
+                _rss_entry_to_record(e, "Stublach", "Storengy UK", url)
+                for e in entries
+            ], attempts
+    return [], attempts
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_uniper_holford() -> tuple[list[dict], str | None]:
-    """Holford maintenance entries from the Uniper Storage Portal API. These
-    arrays are typically empty; the coverage-gap notice is shown regardless."""
+def fetch_kistos_remit() -> tuple[list[dict], list[str]]:
+    """Kistos / EDF Energy UMMs from remit.gb.net's ACER RSS feed. No
+    per-participant filter exists, so we keep entries whose text mentions
+    Kistos, EDF Energy, Hill Top or Hole House and classify by facility."""
+    attempts: list[str] = []
+    if feedparser is None:
+        attempts.append("feedparser not installed — pip install -r requirements.txt")
+        return [], attempts
+
+    page_url = "https://www.remit.gb.net/"
+    candidates: list[str] = []
+    discovered = _discover_feed_url(page_url, attempts)
+    if discovered:
+        candidates.append(discovered)
+    candidates.extend(
+        [
+            "https://www.remit.gb.net/acer_rss",
+            "https://www.remit.gb.net/acer_rss.xml",
+            "https://www.remit.gb.net/rss",
+            "https://www.remit.gb.net/feed",
+            "https://www.remit.gb.net/umm/rss",
+            "https://www.remit.gb.net/umms/rss",
+            "https://www.remit.gb.net/api/rss",
+            "https://remit.gb.net/acer_rss",
+        ]
+    )
+    seen: set[str] = set()
+    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
+    for url in candidates:
+        entries = _try_feed_url(url, attempts)
+        if not entries:
+            continue
+        records: list[dict] = []
+        for entry in entries:
+            blob = " ".join(
+                str(entry.get(k, "")) for k in ("title", "summary", "description")
+            ).lower()
+            if not any(k in blob for k in NONSSE_KEYWORDS_KISTOS):
+                continue
+            facility = "Hole House" if "hole house" in blob else "Hill Top"
+            operator = (
+                "EDF Energy (pre-Apr 2024)"
+                if "edf energy" in blob and "kistos" not in blob
+                else "Kistos Energy Storage Ltd"
+            )
+            records.append(
+                _rss_entry_to_record(entry, facility, operator, url)
+            )
+        # We hit a working feed at this URL; return even if filter dropped
+        # everything (zero Kistos entries is a valid signal).
+        attempts.append(
+            f"Filter kept {len(records)} of {len(entries)} entries "
+            f"(Kistos / EDF / Hill Top / Hole House)."
+        )
+        return records, attempts
+    return [], attempts
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_uniper_holford() -> tuple[list[dict], list[str]]:
+    """Holford maintenance entries from the Uniper Storage Portal API."""
+    attempts: list[str] = []
     url = "https://storage-portal.uniper.energy/api/facilities/106"
     try:
         resp = requests.get(
@@ -1790,12 +1884,18 @@ def fetch_uniper_holford() -> tuple[list[dict], str | None]:
                 "Accept": "application/json",
             },
         )
+        attempts.append(
+            f"GET {url} → {resp.status_code} · "
+            f"{resp.headers.get('Content-Type', '?')}"
+        )
         resp.raise_for_status()
         payload = resp.json()
     except Exception as exc:
-        return [], f"Uniper Storage Portal API: {exc}"
+        attempts.append(f"Uniper Storage Portal API error: {exc}")
+        return [], attempts
 
     records: list[dict] = []
+    counts: list[str] = []
     for key in (
         "maintenances",
         "in_course_maintenances",
@@ -1805,6 +1905,7 @@ def fetch_uniper_holford() -> tuple[list[dict], str | None]:
         items = payload.get(key) or []
         if not isinstance(items, list):
             continue
+        counts.append(f"{key}={len(items)}")
         for item in items:
             pub = _coerce_ts(
                 item.get("published_at")
@@ -1835,7 +1936,9 @@ def fetch_uniper_holford() -> tuple[list[dict], str | None]:
                     ),
                 }
             )
-    return records, None
+    if counts:
+        attempts.append("Array sizes: " + ", ".join(counts))
+    return records, attempts
 
 
 def render_nonsse_card(rec: dict) -> None:
@@ -1883,7 +1986,7 @@ def render_nonsse_facility_section(
     operator: str,
     source_url: str,
     records: list[dict],
-    error: str | None = None,
+    attempts: list[str] | None = None,
     gap_note: str | None = None,
 ) -> None:
     section_header(facility, meta=operator)
@@ -1900,11 +2003,13 @@ def render_nonsse_facility_section(
             f"{gap_note}</div>",
             unsafe_allow_html=True,
         )
-    if error:
-        st.warning(f"Couldn't load {facility} feed: {error}")
+    if not records and not gap_note:
+        st.warning(f"Couldn't load any UMMs for {facility}.")
+    if attempts:
+        with st.expander(f"Fetch diagnostics ({len(attempts)} step(s))", expanded=False):
+            for line in attempts:
+                st.text(line)
     if not records:
-        if not error and not gap_note:
-            st.caption("No recent UMMs published.")
         return
     for rec in records:
         render_nonsse_card(rec)
@@ -1917,18 +2022,18 @@ def render_nonsse_tab() -> None:
         "cache; a failure in one source does not block the others."
     )
 
-    stublach_records, stublach_err = fetch_storengy_stublach()
+    stublach_records, stublach_attempts = fetch_storengy_stublach()
     render_nonsse_facility_section(
         "Stublach",
         "Storengy UK",
         "https://nemo.storengy.co.uk/maintenance/umms",
         stublach_records,
-        error=stublach_err,
+        attempts=stublach_attempts,
     )
 
     st.divider()
 
-    kistos_records, kistos_err = fetch_kistos_remit()
+    kistos_records, kistos_attempts = fetch_kistos_remit()
     hill_top = [r for r in kistos_records if r["facility"] == "Hill Top"]
     hole_house = [r for r in kistos_records if r["facility"] == "Hole House"]
     render_nonsse_facility_section(
@@ -1936,7 +2041,7 @@ def render_nonsse_tab() -> None:
         "Kistos Energy Storage Ltd",
         "https://www.remit.gb.net/",
         hill_top,
-        error=kistos_err,
+        attempts=kistos_attempts,
     )
     if hole_house:
         st.divider()
@@ -1949,13 +2054,13 @@ def render_nonsse_tab() -> None:
 
     st.divider()
 
-    holford_records, holford_err = fetch_uniper_holford()
+    holford_records, holford_attempts = fetch_uniper_holford()
     render_nonsse_facility_section(
         "Holford",
         "Uniper Energy Storage Ltd",
         "https://storage-portal.uniper.energy/#/facility/holford/106",
         holford_records,
-        error=holford_err,
+        attempts=holford_attempts,
         gap_note=(
             "No publicly accessible REMIT feed identified post-Brexit. UK "
             "gas storage assets have no obligation to publish on EU IIPs "
