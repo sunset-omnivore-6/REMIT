@@ -10,6 +10,11 @@ import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+try:
+    import feedparser  # used by the Non-SSE Sites tab
+except ImportError:
+    feedparser = None
+
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
 SITES = ["Aldbrough", "Atwick"]
@@ -1651,6 +1656,324 @@ def render_revisions(
 
 
 # ---------------------------------------------------------------------------
+# Non-SSE Sites — external REMIT/UMM feeds for UK gas storage facilities
+# outside SSE's publication. Each source fetched independently with hourly
+# caching; a failure in one source does not block the others.
+# ---------------------------------------------------------------------------
+
+NONSSE_KEYWORDS_KISTOS = ("kistos", "edf energy", "hill top", "hole house")
+
+
+def _parsed_struct_to_ts(parsed) -> pd.Timestamp | None:
+    """Convert feedparser's struct_time to a UTC pandas Timestamp."""
+    if not parsed:
+        return None
+    try:
+        return pd.Timestamp(datetime(*parsed[:6]), tz="UTC")
+    except Exception:
+        return None
+
+
+def _coerce_ts(value) -> pd.Timestamp | None:
+    if value in (None, "", "null"):
+        return None
+    try:
+        ts = pd.to_datetime(value, utc=True, errors="coerce")
+        return None if pd.isna(ts) else ts
+    except Exception:
+        return None
+
+
+def _rss_entry_to_record(entry, facility: str, operator: str, source_url: str) -> dict:
+    pub = _parsed_struct_to_ts(
+        entry.get("published_parsed") or entry.get("updated_parsed")
+    )
+    return {
+        "facility": facility,
+        "operator": operator,
+        "publication": pub,
+        "title": (entry.get("title") or "").strip(),
+        "summary": (entry.get("summary") or entry.get("description") or "").strip(),
+        "source_url": entry.get("link") or source_url,
+    }
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_storengy_stublach() -> tuple[list[dict], str | None]:
+    """Stublach UMMs from Storengy's RSS feed. Tries a few plausible paths and
+    relies on feedparser's HTML link autodiscovery as the final fallback."""
+    if feedparser is None:
+        return [], "feedparser not installed — pip install -r requirements.txt"
+    candidates = [
+        "https://nemo.storengy.co.uk/maintenance/umms/rss",
+        "https://nemo.storengy.co.uk/maintenance/umms.rss",
+        "https://nemo.storengy.co.uk/maintenance/umms?format=rss",
+        "https://nemo.storengy.co.uk/maintenance/umms",
+    ]
+    last_err: str | None = None
+    for url in candidates:
+        try:
+            feed = feedparser.parse(
+                url,
+                request_headers={"User-Agent": HEADERS["User-Agent"]},
+            )
+            if getattr(feed, "bozo", 0) and not feed.entries:
+                last_err = str(getattr(feed, "bozo_exception", "parse error"))
+                continue
+            if feed.entries:
+                return [
+                    _rss_entry_to_record(e, "Stublach", "Storengy UK", url)
+                    for e in feed.entries
+                ], None
+        except Exception as exc:
+            last_err = str(exc)
+            continue
+    return [], last_err or "no RSS entries discovered"
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_kistos_remit() -> tuple[list[dict], str | None]:
+    """Kistos / EDF Energy UMMs from remit.gb.net's ACER RSS feed. The platform
+    has no per-facility filter, so we keep entries whose text mentions Kistos,
+    EDF Energy, Hill Top or Hole House and classify by facility from the title."""
+    if feedparser is None:
+        return [], "feedparser not installed — pip install -r requirements.txt"
+    candidates = [
+        "https://www.remit.gb.net/acer_rss",
+        "https://remit.gb.net/acer_rss",
+    ]
+    last_err: str | None = None
+    for url in candidates:
+        try:
+            feed = feedparser.parse(
+                url,
+                request_headers={"User-Agent": HEADERS["User-Agent"]},
+            )
+            if getattr(feed, "bozo", 0) and not feed.entries:
+                last_err = str(getattr(feed, "bozo_exception", "parse error"))
+                continue
+            records: list[dict] = []
+            for entry in feed.entries:
+                blob = " ".join(
+                    str(entry.get(k, "")) for k in ("title", "summary", "description")
+                ).lower()
+                if not any(k in blob for k in NONSSE_KEYWORDS_KISTOS):
+                    continue
+                facility = "Hole House" if "hole house" in blob else "Hill Top"
+                operator = (
+                    "EDF Energy (pre-Apr 2024)"
+                    if "edf energy" in blob and "kistos" not in blob
+                    else "Kistos Energy Storage Ltd"
+                )
+                records.append(
+                    _rss_entry_to_record(entry, facility, operator, url)
+                )
+            if records or feed.entries:
+                return records, None
+        except Exception as exc:
+            last_err = str(exc)
+            continue
+    return [], last_err or "no RSS entries discovered"
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_uniper_holford() -> tuple[list[dict], str | None]:
+    """Holford maintenance entries from the Uniper Storage Portal API. These
+    arrays are typically empty; the coverage-gap notice is shown regardless."""
+    url = "https://storage-portal.uniper.energy/api/facilities/106"
+    try:
+        resp = requests.get(
+            url,
+            timeout=20,
+            headers={
+                "User-Agent": HEADERS["User-Agent"],
+                "Accept": "application/json",
+            },
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception as exc:
+        return [], f"Uniper Storage Portal API: {exc}"
+
+    records: list[dict] = []
+    for key in (
+        "maintenances",
+        "in_course_maintenances",
+        "upcoming_maintenance",
+        "running_maintenance",
+    ):
+        items = payload.get(key) or []
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            pub = _coerce_ts(
+                item.get("published_at")
+                or item.get("created_at")
+                or item.get("updated_at")
+            )
+            start = _coerce_ts(item.get("start_at") or item.get("event_start"))
+            end = _coerce_ts(item.get("end_at") or item.get("event_stop"))
+            title = (
+                item.get("title")
+                or item.get("name")
+                or key.replace("_", " ").title()
+            )
+            summary_bits = [
+                item.get("description") or item.get("message") or "",
+                f"{fmt_dt(start)} → {fmt_dt(end)}" if start or end else "",
+            ]
+            records.append(
+                {
+                    "facility": "Holford",
+                    "operator": "Uniper Energy Storage Ltd",
+                    "publication": pub,
+                    "title": str(title),
+                    "summary": " · ".join(s for s in summary_bits if s),
+                    "source_url": (
+                        "https://storage-portal.uniper.energy"
+                        "/#/facility/holford/106"
+                    ),
+                }
+            )
+    return records, None
+
+
+def render_nonsse_card(rec: dict) -> None:
+    pub = fmt_dt(rec.get("publication"))
+    title = rec.get("title") or "(untitled)"
+    summary = rec.get("summary") or ""
+    link = rec.get("source_url") or ""
+    facility = rec.get("facility", "")
+    operator = rec.get("operator", "")
+
+    summary_html = (
+        f"<div class='remit-card__body'>{summary}</div>" if summary else ""
+    )
+    link_html = (
+        f"<div class='remit-card__sub'>"
+        f"<a href='{link}' target='_blank' rel='noopener'>open source ↗</a>"
+        f"</div>"
+        if link
+        else ""
+    )
+    op_html = (
+        f"<div class='remit-card__meta'>{operator}</div>" if operator else ""
+    )
+    pub_html = (
+        f"<div class='remit-card__meta'>{pub}</div>" if pub != "—" else ""
+    )
+
+    st.markdown(
+        f"<div class='remit-card' "
+        f"style='border-left-color:var(--remit-info)'>"
+        f"<div class='remit-card__head'>"
+        f"<div><b>{facility}</b> — {title}</div>"
+        f"{pub_html}"
+        f"</div>"
+        f"{op_html}"
+        f"{summary_html}"
+        f"{link_html}"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_nonsse_facility_section(
+    facility: str,
+    operator: str,
+    source_url: str,
+    records: list[dict],
+    error: str | None = None,
+    gap_note: str | None = None,
+) -> None:
+    section_header(facility, meta=operator)
+    st.markdown(
+        f"<div class='remit-line__meta' style='margin:-0.1rem 0 0.5rem 0'>"
+        f"Source: <a href='{source_url}' target='_blank' rel='noopener'>"
+        f"{source_url}</a></div>",
+        unsafe_allow_html=True,
+    )
+    if gap_note:
+        st.markdown(
+            f"<div class='remit-banner'>"
+            f"<span class='remit-banner__title'>Coverage gap</span> &mdash; "
+            f"{gap_note}</div>",
+            unsafe_allow_html=True,
+        )
+    if error:
+        st.warning(f"Couldn't load {facility} feed: {error}")
+    if not records:
+        if not error and not gap_note:
+            st.caption("No recent UMMs published.")
+        return
+    for rec in records:
+        render_nonsse_card(rec)
+
+
+def render_nonsse_tab() -> None:
+    st.caption(
+        "REMIT / UMM notifications for UK gas storage facilities outside "
+        "SSE's publication. Each feed fetched independently with a 1-hour "
+        "cache; a failure in one source does not block the others."
+    )
+
+    stublach_records, stublach_err = fetch_storengy_stublach()
+    render_nonsse_facility_section(
+        "Stublach",
+        "Storengy UK",
+        "https://nemo.storengy.co.uk/maintenance/umms",
+        stublach_records,
+        error=stublach_err,
+    )
+
+    st.divider()
+
+    kistos_records, kistos_err = fetch_kistos_remit()
+    hill_top = [r for r in kistos_records if r["facility"] == "Hill Top"]
+    hole_house = [r for r in kistos_records if r["facility"] == "Hole House"]
+    render_nonsse_facility_section(
+        "Hill Top",
+        "Kistos Energy Storage Ltd",
+        "https://www.remit.gb.net/",
+        hill_top,
+        error=kistos_err,
+    )
+    if hole_house:
+        st.divider()
+        render_nonsse_facility_section(
+            "Hole House",
+            "Kistos Energy Storage Ltd",
+            "https://www.remit.gb.net/",
+            hole_house,
+        )
+
+    st.divider()
+
+    holford_records, holford_err = fetch_uniper_holford()
+    render_nonsse_facility_section(
+        "Holford",
+        "Uniper Energy Storage Ltd",
+        "https://storage-portal.uniper.energy/#/facility/holford/106",
+        holford_records,
+        error=holford_err,
+        gap_note=(
+            "No publicly accessible REMIT feed identified post-Brexit. UK "
+            "gas storage assets have no obligation to publish on EU IIPs "
+            "since 2021; Uniper has not established a public GB-specific "
+            "channel for Holford. The Storage Portal API is probed for "
+            "current maintenance entries but these arrays are typically "
+            "empty."
+        ),
+    )
+
+    st.caption(
+        f"Non-SSE feeds last fetched at "
+        f"{pd.Timestamp.utcnow().strftime('%d %b %Y %H:%M UTC')} "
+        "(cache TTL 1 hour)."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1810,13 +2133,14 @@ section_header("Detail views")
 conflict_label = (
     f"Conflicts ({len(_conflicts)})" if _conflicts else "Conflicts"
 )
-tab_up, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
+tab_up, tab_gantt, tab_conf, tab_data, tab_rev, tab_nonsse = st.tabs(
     [
         f"Upcoming ({horizon_days}d)",
         "Outage calendar",
         conflict_label,
         "All data",
         "Revisions",
+        "Non-SSE Sites",
     ]
 )
 
@@ -1850,6 +2174,9 @@ with tab_rev:
             "Enable “Include older revisions” at the top of the page to browse "
             "the revision history of each REMIT thread."
         )
+
+with tab_nonsse:
+    _safe_block("Non-SSE Sites", render_nonsse_tab)
 
 st.caption(
     f"Data refreshed at {now.strftime('%d %b %Y %H:%M UTC')}. "
