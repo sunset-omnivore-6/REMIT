@@ -10,6 +10,7 @@ import requests
 import streamlit as st
 
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
+LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
 SITES = ["Aldbrough", "Atwick"]
 CATEGORIES = ["Withdrawal", "Injection", "Storage"]
 PAGE_SIZE = 100
@@ -21,7 +22,13 @@ HEADERS = {
     ),
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-GB,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Origin": "https://thermaloutages.sse.com",
     "Referer": "https://thermaloutages.sse.com/gas-uof",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    "Connection": "keep-alive",
 }
 
 # Nameplate technical capacities. These are AUTHORITATIVE: individual REMIT
@@ -209,8 +216,23 @@ inject_css()
 # Fetch
 # ---------------------------------------------------------------------------
 
+@st.cache_resource(show_spinner=False)
+def _remit_session() -> requests.Session:
+    """A primed session: visiting the landing page first lets the SSE edge
+    set whatever cookies its bot-protection expects on API calls."""
+    s = requests.Session()
+    s.headers.update(HEADERS)
+    try:
+        s.get(LANDING_URL, timeout=30)
+    except requests.RequestException:
+        # Priming is best-effort; the API call below will surface a real error.
+        pass
+    return s
+
+
 @st.cache_data(ttl=300, show_spinner="Fetching REMIT data…")
 def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
+    session = _remit_session()
     rows: list[dict] = []
     page = 1
     while True:
@@ -222,7 +244,12 @@ def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
             "revisionsReturned": revisions,
             "outageDateMatch": "CONTAINED",
         }
-        resp = requests.get(API_URL, params=params, headers=HEADERS, timeout=30)
+        resp = session.get(API_URL, params=params, timeout=30)
+        if resp.status_code == 403 and page == 1:
+            # Cookies may have expired since the session was primed; re-prime once.
+            _remit_session.clear()
+            session = _remit_session()
+            resp = session.get(API_URL, params=params, timeout=30)
         resp.raise_for_status()
         payload = resp.json()
 
