@@ -5,3 +5,4 @@ plotly>=5.18
 streamlit-autorefresh>=1.0
 feedparser>=6.0
 beautifulsoup4>=4.12
+curl_cffi>=0.7

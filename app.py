@@ -20,6 +20,19 @@ try:
 except ImportError:
     BeautifulSoup = None  # type: ignore[assignment]
 
+# curl_cffi speaks Chrome's actual TLS handshake (JA3/JA4) so we look like
+# Chromium at the socket level, not just the HTTP layer. This is the durable
+# fix for SSE's WAF — header-matching alone is fragile because the WAF can
+# (and now does) inspect the TLS fingerprint, which plain `requests` cannot
+# disguise. We fall back to `requests` if curl_cffi is not installed.
+try:
+    from curl_cffi import requests as _impersonate_requests
+    _HAS_IMPERSONATE = True
+except ImportError:
+    _impersonate_requests = None
+    _HAS_IMPERSONATE = False
+_IMPERSONATE_TARGET = "chrome131"
+
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
 SITES = ["Aldbrough", "Atwick"]
@@ -240,14 +253,20 @@ st_autorefresh(interval=REFRESH_INTERVAL_MS, key="remit_auto_refresh")
 # ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner=False)
-def _remit_session() -> requests.Session:
-    """A primed session: visiting the landing page first lets the SSE edge
-    set whatever cookies its bot-protection expects on API calls."""
-    s = requests.Session()
+def _remit_session():
+    """A primed session for the SSE API. Uses curl_cffi to impersonate
+    Chrome's TLS handshake when available (the only defence against WAFs
+    that fingerprint at JA3/JA4 rather than headers), and falls back to
+    `requests` otherwise. The landing-page GET seeds any cookies the edge
+    sets so subsequent API calls carry them."""
+    if _HAS_IMPERSONATE:
+        s = _impersonate_requests.Session(impersonate=_IMPERSONATE_TARGET)
+    else:
+        s = requests.Session()
     s.headers.update(HEADERS)
     try:
         s.get(LANDING_URL, timeout=30)
-    except requests.RequestException:
+    except Exception:
         # Priming is best-effort; the API call below will surface a real error.
         pass
     return s
