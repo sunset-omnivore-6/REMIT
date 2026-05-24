@@ -292,6 +292,35 @@ def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
             _remit_session.clear()
             session = _remit_session()
             resp = session.get(API_URL, params=params, timeout=30)
+        if resp.status_code == 403:
+            transport = (
+                f"curl_cffi/{_IMPERSONATE_TARGET}"
+                if _HAS_IMPERSONATE
+                else "requests (no TLS impersonation)"
+            )
+            deny = resp.headers.get("x-deny-reason", "(none)")
+            server = resp.headers.get("server", "(unknown)")
+            cf_ray = resp.headers.get("cf-ray", "")
+            cookie_names = []
+            jar = getattr(session, "cookies", None)
+            if jar is not None:
+                try:
+                    cookie_names = sorted({c.name for c in jar})
+                except Exception:
+                    pass
+            try:
+                body_snippet = " ".join(resp.text[:300].split())
+            except Exception:
+                body_snippet = "(body unreadable)"
+            raise RuntimeError(
+                f"SSE returned 403 Forbidden. "
+                f"Transport: {transport}. "
+                f"x-deny-reason: {deny}. "
+                f"Server: {server}. "
+                f"cf-ray: {cf_ray or '(none)'}. "
+                f"Cookies on session: {cookie_names or '(none)'}. "
+                f"Body[:300]: {body_snippet}"
+            )
         resp.raise_for_status()
         payload = resp.json()
 
