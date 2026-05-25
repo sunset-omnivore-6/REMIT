@@ -33,6 +33,16 @@ except ImportError:
     _HAS_IMPERSONATE = False
 _IMPERSONATE_TARGET = "chrome131"
 
+# Playwright drives a real headless Chromium that can clear the JS-based WAF
+# challenge SSE now serves. This is the durable fix once header + TLS
+# impersonation stops working. Falls back to curl_cffi when not installed.
+try:
+    from playwright.sync_api import sync_playwright
+    _HAS_PLAYWRIGHT = True
+except ImportError:
+    sync_playwright = None  # type: ignore[assignment]
+    _HAS_PLAYWRIGHT = False
+
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
 SITES = ["Aldbrough", "Atwick"]
@@ -272,20 +282,46 @@ def _remit_session():
     return s
 
 
-@st.cache_data(ttl=300, show_spinner="Fetching REMIT data…")
-def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
+def _api_params(page: int, revisions: str) -> dict:
+    return {
+        "pageNumber": page,
+        "pageSize": PAGE_SIZE,
+        "sortDirection": "DESC",
+        "sortBy": "PublicationDateTime",
+        "revisionsReturned": revisions,
+        "outageDateMatch": "CONTAINED",
+    }
+
+
+def _accumulate_payload(payload, rows: list[dict]) -> tuple[int, int | None]:
+    """Common pagination handling: append items to rows, return (n_items,
+    totalCount-or-None)."""
+    if isinstance(payload, dict):
+        items = (
+            payload.get("items")
+            or payload.get("data")
+            or payload.get("results")
+            or []
+        )
+        total = payload.get("totalCount") or payload.get("total")
+    else:
+        items = payload
+        total = None
+    if items:
+        rows.extend(items)
+    return len(items), total
+
+
+def _fetch_remit_via_session(revisions: str) -> pd.DataFrame:
+    """Static fetch path via curl_cffi (TLS impersonation) or plain requests.
+    Used when Playwright is not installed. Will hit the WAF JS challenge if
+    SSE has deployed one, returning a rich 403 diagnostic so we know what's
+    blocking us."""
     session = _remit_session()
     rows: list[dict] = []
     page = 1
     while True:
-        params = {
-            "pageNumber": page,
-            "pageSize": PAGE_SIZE,
-            "sortDirection": "DESC",
-            "sortBy": "PublicationDateTime",
-            "revisionsReturned": revisions,
-            "outageDateMatch": "CONTAINED",
-        }
+        params = _api_params(page, revisions)
         resp = session.get(API_URL, params=params, timeout=30)
         if resp.status_code == 403 and page == 1:
             # Cookies may have expired since the session was primed; re-prime once.
@@ -322,33 +358,97 @@ def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
                 f"Body[:300]: {body_snippet}"
             )
         resp.raise_for_status()
-        payload = resp.json()
-
-        if isinstance(payload, dict):
-            items = (
-                payload.get("items")
-                or payload.get("data")
-                or payload.get("results")
-                or []
-            )
-            total = payload.get("totalCount") or payload.get("total")
-        else:
-            items = payload
-            total = None
-
-        if not items:
+        n_items, total = _accumulate_payload(resp.json(), rows)
+        if not n_items:
             break
-        rows.extend(items)
-
         if total is not None and len(rows) >= total:
             break
-        if len(items) < PAGE_SIZE:
+        if n_items < PAGE_SIZE:
             break
         page += 1
         if page > 200:
             break
 
     return pd.json_normalize(rows)
+
+
+def _fetch_remit_via_playwright(revisions: str) -> pd.DataFrame:
+    """Headless-Chromium fetch path: launch a fresh browser, visit the SSE
+    landing page so any JS-based WAF challenge runs and sets its cookie,
+    then issue the paginated API calls through the browser's own network
+    context (cookies + TLS fingerprint + JS-set headers all come from the
+    real browser). The browser is torn down before returning so we don't
+    leak processes between Streamlit reruns."""
+    from urllib.parse import urlencode
+
+    rows: list[dict] = []
+    with sync_playwright() as pw:
+        try:
+            browser = pw.chromium.launch(headless=True)
+        except Exception as exc:
+            msg = str(exc)
+            if "Executable doesn't exist" in msg or "playwright install" in msg.lower():
+                raise RuntimeError(
+                    "Playwright is installed but the Chromium binary is "
+                    "missing. Run `playwright install chromium` once after "
+                    "`pip install -r requirements.txt`."
+                ) from exc
+            raise
+
+        try:
+            context = browser.new_context(
+                user_agent=HEADERS["User-Agent"],
+                locale="en-GB",
+                viewport={"width": 1280, "height": 800},
+            )
+            page = context.new_page()
+            page.goto(LANDING_URL, wait_until="networkidle", timeout=60_000)
+            # Give any deferred JS challenge a moment to set its cookie.
+            page.wait_for_timeout(2000)
+
+            api_page = 1
+            while True:
+                params = _api_params(api_page, revisions)
+                full_url = f"{API_URL}?{urlencode(params)}"
+                resp = page.request.get(
+                    full_url, headers={"Accept": "application/json, */*"}
+                )
+                if not resp.ok:
+                    body = ""
+                    try:
+                        body = " ".join(resp.text()[:300].split())
+                    except Exception:
+                        pass
+                    raise RuntimeError(
+                        f"SSE returned {resp.status} via Playwright on page "
+                        f"{api_page}. Body[:300]: {body}"
+                    )
+                n_items, total = _accumulate_payload(resp.json(), rows)
+                if not n_items:
+                    break
+                if total is not None and len(rows) >= total:
+                    break
+                if n_items < PAGE_SIZE:
+                    break
+                api_page += 1
+                if api_page > 200:
+                    break
+        finally:
+            browser.close()
+
+    return pd.json_normalize(rows)
+
+
+@st.cache_data(ttl=300, show_spinner="Fetching REMIT data…")
+def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
+    """Outer dispatcher. Prefers Playwright (real browser, clears the WAF
+    JS challenge) when available; falls back to the static curl_cffi /
+    requests path otherwise. Cached for 5 minutes to match the auto-refresh
+    cycle, so Chromium launches once per cycle, not once per Streamlit
+    rerun."""
+    if _HAS_PLAYWRIGHT:
+        return _fetch_remit_via_playwright(revisions)
+    return _fetch_remit_via_session(revisions)
 
 
 # ---------------------------------------------------------------------------
