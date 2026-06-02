@@ -177,6 +177,54 @@ async def api_debug_raw_schema() -> JSONResponse:
     return JSONResponse(collect_raw_field_names(snapshot["rows"]))
 
 
+@app.get("/api/debug/site_category")
+async def api_debug_site_category(site: str = "Atwick", category: str = "Withdrawal") -> JSONResponse:
+    """Dump every normalised row for one (site, category) so the chart's
+    inputs can be inspected. Filters: site match on asset/threadId,
+    type_of_event starts with the category word.
+    """
+    snapshot = cache.load_snapshot()
+    if snapshot is None:
+        return JSONResponse({"error": "no snapshot yet"}, status_code=404)
+    normalised = normalise_rows(snapshot["rows"])
+    cat_lower = category.lower()
+    site_lower = site.lower()
+    matches = []
+    for r in normalised:
+        asset = (r.get("asset") or "").lower()
+        tid = (r.get("thread_id") or "").lower()
+        toe = (r.get("type_of_event") or "").lower()
+        # Site match: by asset name OR threadId prefix
+        site_match = (
+            asset == site_lower
+            or tid.startswith(site_lower[:3] + "_")
+        )
+        if not site_match:
+            continue
+        if not toe.startswith(cat_lower):
+            continue
+        matches.append({
+            "thread_id": r.get("thread_id"),
+            "asset": r.get("asset"),
+            "event_status": r.get("event_status"),
+            "type_of_event": r.get("type_of_event"),
+            "type_of_unavailability": r.get("type_of_unavailability"),
+            "event_start": r.get("event_start"),
+            "event_stop": r.get("event_stop"),
+            "available_capacity": r.get("available_capacity"),
+            "unavailable_capacity": r.get("unavailable_capacity"),
+            "technical_capacity": r.get("technical_capacity"),
+            "revision_number": r.get("revision_number"),
+            "publication_dt": r.get("publication_dt"),
+        })
+    return JSONResponse({
+        "site": site,
+        "category": category,
+        "count": len(matches),
+        "rows": matches,
+    })
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")

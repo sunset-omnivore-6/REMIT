@@ -276,25 +276,79 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
 
 function computeUpcomingNext(rows, site, days = 7, nowMs = Date.now()) {
   const horizonStop = nowMs + days * 86400 * 1000;
-  return rowsForSite(operationalRows(rows), site)
+  const opRows = operationalRows(rows);
+  return rowsForSite(opRows, site)
     .filter((r) => {
       const start = parseTs(r.event_start);
       return start != null && start > nowMs && start <= horizonStop;
     })
-    .map((r) => ({
-      thread_id: r.thread_id,
-      category: categorise(r.type_of_event) || r.type_of_event || "?",
-      type_of_unavailability: r.type_of_unavailability,
-      event_start: r.event_start,
-      event_stop: r.event_stop,
-      unavailable_capacity: r.unavailable_capacity,
-      available_capacity: r.available_capacity,
-      unit_of_measurement: r.unit_of_measurement,
-      reason: r.reason,
-      remarks: r.remarks,
-      duration_hours: (parseTs(r.event_stop) - parseTs(r.event_start)) / 3600000,
-    }))
+    .map((r) => {
+      const cat = categorise(r.type_of_event);
+      const startMs = parseTs(r.event_start);
+      const stopMs = parseTs(r.event_stop);
+      const effective = cat
+        ? computeEffectiveAvailableDuring(opRows, site, cat, startMs, stopMs)
+        : null;
+      return {
+        thread_id: r.thread_id,
+        category: cat || r.type_of_event || "?",
+        type_of_unavailability: r.type_of_unavailability,
+        event_start: r.event_start,
+        event_stop: r.event_stop,
+        unavailable_capacity: r.unavailable_capacity,
+        available_capacity: r.available_capacity,
+        unit_of_measurement: r.unit_of_measurement,
+        reason: r.reason,
+        remarks: r.remarks,
+        duration_hours: (stopMs - startMs) / 3600000,
+        // Effective availability during this REMIT's window, computed the
+        // SAME WAY the conflicts panel computes its "effective available"
+        // — min(availableCapacity) across all REMITs active during the
+        // window. This is what the user actually wants to know.
+        effective_available_during: effective != null ? effective.value : null,
+        effective_other_count: effective != null ? effective.other_count : 0,
+        tech_max: cat && TECH_CAPACITY[site] ? TECH_CAPACITY[site][cat] : null,
+      };
+    })
     .sort((a, b) => Date.parse(a.event_start) - Date.parse(b.event_start));
+}
+
+// Effective availability during a window — min(availableCapacity) across all
+// non-Dismissed REMITs in (site, category) that overlap the window. Returns
+// { value, other_count } where other_count is how many OTHER REMITs are
+// contributing alongside the one whose window this is.
+function computeEffectiveAvailableDuring(opRows, site, category, windowStartMs, windowStopMs) {
+  if (windowStartMs == null || windowStopMs == null) return null;
+  const own = rowsForSiteCategory(opRows, site, category);
+  let minAvail = null;
+  let otherCount = -1; // subtract 1 to exclude the REMIT itself from "others"
+  let anyUnknownAvail = false;
+  let sumUnavail = 0;
+  for (const r of own) {
+    const s = parseTs(r.event_start);
+    const e = parseTs(r.event_stop);
+    if (s == null || e == null) continue;
+    if (e <= windowStartMs || s >= windowStopMs) continue;
+    otherCount += 1;
+    const a = r.available_capacity != null && r.available_capacity !== ""
+      ? Number(r.available_capacity) : null;
+    if (a != null && !Number.isNaN(a)) {
+      if (minAvail == null || a < minAvail) minAvail = a;
+    } else {
+      anyUnknownAvail = true;
+    }
+    sumUnavail += Number(r.unavailable_capacity) || 0;
+  }
+  if (minAvail != null) {
+    return { value: minAvail, other_count: Math.max(0, otherCount) };
+  }
+  if (anyUnknownAvail || sumUnavail > 0) {
+    const tech = TECH_CAPACITY[site]?.[category];
+    if (tech != null) {
+      return { value: Math.max(0, tech - sumUnavail), other_count: Math.max(0, otherCount) };
+    }
+  }
+  return null;
 }
 
 // --- conflicts --------------------------------------------------------------

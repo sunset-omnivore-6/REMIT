@@ -341,21 +341,39 @@ function renderUpcomingForSite(rootEl, site, events) {
   }
   const items = events.map((e) => {
     const dur = formatDuration(e.duration_hours);
-    const cap = e.unavailable_capacity != null
-      ? `${formatNum(e.unavailable_capacity)} ${escapeHtml(e.unit_of_measurement || "")} unavail`
-      : "";
     const cls = (e.type_of_unavailability || "").toLowerCase() === "unplanned"
       ? "upcoming-item--unplanned" : "upcoming-item--planned";
+
+    // Effective availability is the headline number — what's actually
+    // available during the REMIT's window once everything stacking on top
+    // is considered. This REMIT's marginal contribution is shown smaller
+    // underneath so the data is still inspectable.
+    const unit = escapeHtml(e.unit_of_measurement || "");
+    let effLine;
+    if (e.effective_available_during != null) {
+      const techNote = e.tech_max != null
+        ? ` <span class="upcoming-tech">of ${formatNum(e.tech_max)} ${unit} max</span>` : "";
+      const stack = e.effective_other_count > 0
+        ? ` <span class="upcoming-stack">(with ${e.effective_other_count} other REMIT${e.effective_other_count === 1 ? "" : "s"})</span>` : "";
+      effLine = `<strong class="upcoming-eff">${formatNum(e.effective_available_during)} ${unit} available</strong>${techNote}${stack}`;
+    } else {
+      effLine = `<span class="upcoming-tech">— availability unknown</span>`;
+    }
+    const marginal = e.unavailable_capacity != null
+      ? `<span class="upcoming-marginal">This REMIT removes ${formatNum(e.unavailable_capacity)} ${unit}</span>`
+      : "";
+
     const reason = e.reason ? ` · ${escapeHtml(e.reason)}` : "";
     return `
       <div class="upcoming-item ${cls}">
         <div class="upcoming-time">${formatTs(e.event_start)} <span class="upcoming-dur">(${dur})</span></div>
         <div class="upcoming-body">
-          <strong>${escapeHtml(e.category)}</strong>
-          ${cap ? ` · ${cap}` : ""}
+          <strong>${escapeHtml(e.category)}</strong> · ${effLine}
           <span class="upcoming-thread">${escapeHtml(e.thread_id || "")}</span>
         </div>
-        ${e.remarks ? `<div class="upcoming-remarks">${escapeHtml(e.remarks)}${reason}</div>` : (reason ? `<div class="upcoming-remarks">${escapeHtml(e.reason || "")}</div>` : "")}
+        <div class="upcoming-remarks">
+          ${marginal}${e.remarks ? ` · ${escapeHtml(e.remarks)}` : ""}${reason}
+        </div>
       </div>`;
   }).join("");
   rootEl.innerHTML = `

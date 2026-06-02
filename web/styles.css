@@ -381,6 +381,11 @@ main {
   font-size: 11px;
   color: var(--text-muted);
 }
+.upcoming-eff { color: #0f172a; font-variant-numeric: tabular-nums; }
+.upcoming-item--unplanned .upcoming-eff { color: #b91c1c; }
+.upcoming-tech { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+.upcoming-stack { color: var(--text-muted); font-weight: 400; font-size: 11px; }
+.upcoming-marginal { color: #475569; }
 
 /* --- Conflicts (split per site, no panic colours) --- */
 .conflicts-section {
