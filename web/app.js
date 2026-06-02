@@ -20,14 +20,10 @@ const els = {
   // Dashboard widgets
   changesBanner: document.getElementById("changes-banner"),
   changesText: document.getElementById("changes-text"),
-  kpiLive: document.getElementById("kpi-live"),
-  kpiLiveSplit: document.getElementById("kpi-live-split"),
-  kpiUpcoming: document.getElementById("kpi-upcoming"),
-  kpiUpcomingSplit: document.getElementById("kpi-upcoming-split"),
   headlineAldbrough: document.getElementById("headline-aldbrough"),
   headlineAtwick: document.getElementById("headline-atwick"),
-  conflictsSection: document.getElementById("conflicts-section"),
-  conflictsList: document.getElementById("conflicts-list"),
+  conflictsAldbrough: document.getElementById("conflicts-aldbrough"),
+  conflictsAtwick: document.getElementById("conflicts-atwick"),
 };
 
 const charts = { aldbrough: null, atwick: null };
@@ -82,13 +78,6 @@ function renderDashboard() {
     els.changesBanner.hidden = true;
   }
 
-  // Hero KPIs
-  const kpis = agg.computeKpis(siteRows);
-  els.kpiLive.textContent = kpis.live_count;
-  els.kpiLiveSplit.textContent = formatSplit(kpis.live_planned, kpis.live_unplanned, "live");
-  els.kpiUpcoming.textContent = kpis.upcoming_7d;
-  els.kpiUpcomingSplit.textContent = formatSplit(kpis.upcoming_planned, kpis.upcoming_unplanned, "upcoming");
-
   // Per-site headlines (3 category lines each, never summed)
   renderHeadline(els.headlineAldbrough, agg.computeSiteHeadline(siteRows, "Aldbrough"));
   renderHeadline(els.headlineAtwick, agg.computeSiteHeadline(siteRows, "Atwick"));
@@ -101,19 +90,15 @@ function renderDashboard() {
     }
   }
 
-  // 30-day timeline charts
-  renderCapacityChart("aldbrough", agg.computeCapacityTimeline(siteRows, "Aldbrough"));
-  renderCapacityChart("atwick", agg.computeCapacityTimeline(siteRows, "Atwick"));
+  // 30-day availability timeline (per-direction lines)
+  renderAvailabilityChart("aldbrough", agg.computeAvailabilityTimeline(siteRows, "Aldbrough"));
+  renderAvailabilityChart("atwick", agg.computeAvailabilityTimeline(siteRows, "Atwick"));
 
-  // Conflicts
-  renderConflicts(agg.computeConflicts(siteRows));
-}
-
-function formatSplit(planned, unplanned, fallbackLabel) {
-  const parts = [];
-  if (planned) parts.push(`${planned} planned`);
-  if (unplanned) parts.push(`${unplanned} unplanned`);
-  return parts.join(" · ") || `none ${fallbackLabel}`;
+  // Conflicts split per site
+  const conflicts = agg.computeConflicts(siteRows);
+  const buckets = agg.bucketConflictsBySite(conflicts);
+  renderConflictsForSite(els.conflictsAldbrough, "Aldbrough", buckets["Aldbrough"]);
+  renderConflictsForSite(els.conflictsAtwick, "Atwick", buckets["Atwick"]);
 }
 
 function renderHeadline(el, h) {
@@ -156,7 +141,6 @@ function renderDial(elId, status) {
       <div class="dial-footer">
         <div class="dial-avail" id="${elId}-avail"></div>
         <div class="dial-tech" id="${elId}-tech"></div>
-        <div class="dial-live" id="${elId}-live"></div>
       </div>
     `;
     el.dataset.built = "1";
@@ -168,13 +152,6 @@ function renderDial(elId, status) {
     `<strong>${formatNum(status.available_now)}</strong> ${status.unit} available`;
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
-  const liveEl = document.getElementById(`${elId}-live`);
-  if (status.live_remits.length === 0) {
-    liveEl.textContent = "";
-  } else {
-    const ids = status.live_remits.map((r) => r.thread_id).join(", ");
-    liveEl.textContent = `${status.live_remits.length} live: ${ids}`;
-  }
 
   const data = {
     labels: ["Available", "Unavailable"],
@@ -203,50 +180,129 @@ function renderDial(elId, status) {
   }
 }
 
-function renderCapacityChart(siteKey, timeline) {
+function renderAvailabilityChart(siteKey, timeline) {
   const canvas = document.getElementById(`chart-${siteKey}`);
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext("2d");
+
+  // Vertical gradient under each line for a bit of polish (light at top,
+  // saturated near baseline). Recomputed per render to follow the canvas
+  // pixel-size — required because Chart.js resizes its backing store on init.
+  function bandGradient(rgb) {
+    const h = canvas.height || canvas.parentElement.clientHeight || 240;
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0,    `rgba(${rgb}, 0.02)`);
+    g.addColorStop(0.6,  `rgba(${rgb}, 0.10)`);
+    g.addColorStop(1,    `rgba(${rgb}, 0.22)`);
+    return g;
+  }
 
   const data = {
     labels: timeline.labels,
     datasets: [
       {
-        label: "Planned",
-        data: timeline.planned,
-        borderColor: "#2563eb",
-        backgroundColor: "rgba(37,99,235,0.15)",
+        label: `Withdrawal available (max ${formatNum(timeline.withdrawal_tech)} GWh/d)`,
+        data: timeline.withdrawal_available,
+        borderColor: "#dc2626",
+        backgroundColor: bandGradient("220,38,38"),
         fill: true,
-        tension: 0.2,
+        tension: 0.35,
         pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: "#dc2626",
+        pointHoverBorderColor: "#fff",
+        pointHoverBorderWidth: 2,
+        borderWidth: 2.5,
       },
       {
-        label: "Unplanned",
-        data: timeline.unplanned,
-        borderColor: "#dc2626",
-        backgroundColor: "rgba(220,38,38,0.15)",
+        label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
+        data: timeline.injection_available,
+        borderColor: "#2563eb",
+        backgroundColor: bandGradient("37,99,235"),
         fill: true,
-        tension: 0.2,
+        tension: 0.35,
         pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: "#2563eb",
+        pointHoverBorderColor: "#fff",
+        pointHoverBorderWidth: 2,
+        borderWidth: 2.5,
+      },
+      // Reference lines at the tech max (dashed, no fill, hidden from legend).
+      {
+        label: "withdrawal_tech_max",
+        data: timeline.labels.map(() => timeline.withdrawal_tech),
+        borderColor: "rgba(220,38,38,0.35)",
+        borderDash: [4, 4],
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        spanGaps: true,
+      },
+      {
+        label: "injection_tech_max",
+        data: timeline.labels.map(() => timeline.injection_tech),
+        borderColor: "rgba(37,99,235,0.35)",
+        borderDash: [4, 4],
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        spanGaps: true,
       },
     ],
   };
+  const yMax = Math.max(timeline.withdrawal_tech, timeline.injection_tech) * 1.08;
   const options = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false },
     plugins: {
-      legend: { position: "top", labels: { font: { size: 11 } } },
-      tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${formatNum(c.parsed.y)}` } },
+      legend: {
+        position: "top",
+        align: "end",
+        labels: {
+          font: { size: 11, weight: "500" },
+          boxWidth: 10,
+          boxHeight: 10,
+          usePointStyle: true,
+          // Hide the dashed tech-max reference rows from the legend.
+          filter: (item) => !item.text.endsWith("_tech_max"),
+        },
+      },
+      tooltip: {
+        backgroundColor: "rgba(15,23,42,0.94)",
+        titleFont: { size: 12, weight: "600" },
+        bodyFont: { size: 12 },
+        padding: 10,
+        cornerRadius: 6,
+        displayColors: true,
+        boxWidth: 8,
+        boxHeight: 8,
+        usePointStyle: true,
+        filter: (ctx) => !ctx.dataset.label.endsWith("_tech_max"),
+        callbacks: {
+          title: (items) => {
+            if (!items.length) return "";
+            const lbl = items[0].label;
+            const [y, m, d] = lbl.split("-");
+            const dt = new Date(Date.UTC(+y, +m - 1, +d));
+            return dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+          },
+          label: (c) => ` ${c.dataset.label.split(" available")[0]}: ${formatNum(c.parsed.y)} GWh/d`,
+        },
+      },
     },
     scales: {
       x: {
+        grid: { color: "rgba(148,163,184,0.10)" },
         ticks: {
           autoSkip: true,
-          maxTicksLimit: 10,
+          maxTicksLimit: 8,
           font: { size: 10 },
+          color: "#64748b",
           callback: function (value) {
-            // value is the index; this.getLabelForValue gives YYYY-MM-DD.
             const lbl = this.getLabelForValue(value);
             if (!lbl) return "";
             const parts = lbl.split("-");
@@ -254,49 +310,97 @@ function renderCapacityChart(siteKey, timeline) {
           },
         },
       },
-      y: { beginAtZero: true, ticks: { font: { size: 10 } } },
+      y: {
+        beginAtZero: true,
+        suggestedMax: yMax,
+        grid: { color: "rgba(148,163,184,0.12)" },
+        ticks: {
+          font: { size: 10 },
+          color: "#64748b",
+          callback: (v) => formatNum(v),
+        },
+        title: { display: true, text: "GWh/d", color: "#94a3b8", font: { size: 10, weight: "600" } },
+      },
     },
   };
   if (charts[siteKey]) {
-    charts[siteKey].data = data;
-    charts[siteKey].options = options;
-    charts[siteKey].update();
-  } else {
-    charts[siteKey] = new Chart(ctx, { type: "line", data, options });
+    // Tear down and recreate so the gradient picks up the latest canvas size.
+    charts[siteKey].destroy();
   }
+  charts[siteKey] = new Chart(ctx, { type: "line", data, options });
 }
 
-function renderConflicts(conflicts) {
-  if (!conflicts || conflicts.length === 0) {
-    els.conflictsSection.hidden = true;
+function renderConflictsForSite(rootEl, site, buckets) {
+  const total = buckets.live.length + buckets.upcoming.length + buckets.beyond.length;
+  if (total === 0) {
+    rootEl.innerHTML = `
+      <div class="conflicts-card conflicts-card--clean">
+        <div class="conflicts-card-head">
+          <span class="conflicts-site">${escapeHtml(site)}</span>
+          <span class="conflicts-allclear">✓ No overlapping REMITs</span>
+        </div>
+      </div>`;
     return;
   }
-  els.conflictsSection.hidden = false;
-  const nowMs = Date.now();
-  els.conflictsList.innerHTML = conflicts.map((c) => {
-    const livePill = c.overlap_start <= nowMs && nowMs <= c.overlap_stop
-      ? '<span class="pill pill--live">LIVE NOW</span>' : "";
-    const eff = c.effective_available != null
-      ? ` <span class="conflict-eff">effective available: <strong>${formatNum(c.effective_available)} ${escapeHtml(c.unit)}</strong></span>`
-      : "";
-    return `<li>
-      <div class="conflict-head">
-        <strong>${escapeHtml(c.site)} · ${escapeHtml(c.category)}</strong>
-        ${livePill}
-        <span class="conflict-window">overlap ${formatTs(new Date(c.overlap_start).toISOString())} → ${formatTs(new Date(c.overlap_stop).toISOString())}</span>
-        ${eff}
+
+  const inlineHtml = [...buckets.live, ...buckets.upcoming]
+    .map((c) => conflictItemHtml(c, "live" === c.bucket ? "live" : "upcoming"))
+    .join("") || `<div class="conflicts-empty">No conflicts within next 30 days</div>`;
+
+  // Add bucket marker so the template above knows which class to use.
+  // Simpler: re-map with explicit bucket arg.
+  const inlineHtml2 = [
+    ...buckets.live.map((c) => conflictItemHtml(c, "live")),
+    ...buckets.upcoming.map((c) => conflictItemHtml(c, "upcoming")),
+  ].join("") || `<div class="conflicts-empty">No conflicts within next 30 days</div>`;
+
+  const beyondHtml = buckets.beyond.length === 0
+    ? ""
+    : `
+      <details class="conflicts-beyond">
+        <summary>${buckets.beyond.length} further conflict${buckets.beyond.length === 1 ? "" : "s"} beyond 30 days</summary>
+        ${buckets.beyond.map((c) => conflictItemHtml(c, "beyond")).join("")}
+      </details>`;
+
+  const counts = [];
+  if (buckets.live.length)     counts.push(`<span class="conflicts-count conflicts-count--live">${buckets.live.length} live</span>`);
+  if (buckets.upcoming.length) counts.push(`<span class="conflicts-count conflicts-count--upcoming">${buckets.upcoming.length} next 30d</span>`);
+  if (buckets.beyond.length)   counts.push(`<span class="conflicts-count conflicts-count--beyond">${buckets.beyond.length} beyond</span>`);
+
+  rootEl.innerHTML = `
+    <div class="conflicts-card">
+      <div class="conflicts-card-head">
+        <span class="conflicts-site">${escapeHtml(site)}</span>
+        <span class="conflicts-counts">${counts.join("")}</span>
       </div>
+      <div class="conflicts-list">${inlineHtml2}</div>
+      ${beyondHtml}
+    </div>`;
+}
+
+function conflictItemHtml(c, bucket) {
+  const tag = bucket === "live"
+    ? '<span class="conflict-tag conflict-tag--live">LIVE NOW</span>'
+    : bucket === "upcoming"
+      ? '<span class="conflict-tag conflict-tag--upcoming">UPCOMING</span>'
+      : '<span class="conflict-tag conflict-tag--beyond">BEYOND 30d</span>';
+  const eff = c.effective_available != null
+    ? `<div class="conflict-eff">Effective available during overlap: <strong>${formatNum(c.effective_available)} ${escapeHtml(c.unit)}</strong></div>`
+    : "";
+  return `
+    <div class="conflict-item conflict-item--${bucket}">
+      <div class="conflict-row1">
+        ${tag}
+        <span class="conflict-cat">${escapeHtml(c.category)}</span>
+        <span class="conflict-window">${formatTs(new Date(c.overlap_start).toISOString())} → ${formatTs(new Date(c.overlap_stop).toISOString())}</span>
+      </div>
+      ${eff}
       <div class="conflict-pair">
-        <code>${escapeHtml(c.a.thread_id || "")}</code>
-        (avail ${formatNum(c.a.available_capacity)} ${escapeHtml(c.unit)},
-         ${formatTs(c.a.event_start)} → ${formatTs(c.a.event_stop)})
+        <code>${escapeHtml(c.a.thread_id || "")}</code> (avail ${formatNum(c.a.available_capacity)})
         ↔
-        <code>${escapeHtml(c.b.thread_id || "")}</code>
-        (avail ${formatNum(c.b.available_capacity)} ${escapeHtml(c.unit)},
-         ${formatTs(c.b.event_start)} → ${formatTs(c.b.event_stop)})
+        <code>${escapeHtml(c.b.thread_id || "")}</code> (avail ${formatNum(c.b.available_capacity)})
       </div>
-    </li>`;
-  }).join("");
+    </div>`;
 }
 
 function renderBanner() {

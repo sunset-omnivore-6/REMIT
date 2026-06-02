@@ -173,39 +173,81 @@ function computeSiteHeadline(rows, site, nowMs = Date.now()) {
   };
 }
 
-// --- capacity timeline (kept; complements the dials) ------------------------
+// --- capacity timeline (per direction, conservative rule) ------------------
 
-function computeCapacityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs = Date.now()) {
+function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs = Date.now()) {
+  // For each day in the horizon, compute the AVAILABLE capacity for the two
+  // flow directions (Withdrawal, Injection). When multiple REMITs overlap on
+  // the same day, the conservative rule applies: take the MAXIMUM
+  // unavailable_capacity reported across them — never the sum, never the
+  // average. That way unavailable is bounded by the largest single REMIT
+  // and available stays >= 0.
+  //
+  // Storage events are deliberately excluded — the chart is about flow,
+  // and storage is a different unit (TWh vs GWh/d).
   const oneDay = 86400 * 1000;
   const startOfToday = new Date(nowMs);
   startOfToday.setHours(0, 0, 0, 0);
   const labels = [];
-  const planned = [];
-  const unplanned = [];
-  const ownRows = rowsForSite(rows, site);
+  const withdrawal_available = [];
+  const injection_available = [];
+  const techWithdrawal = TECH_CAPACITY[site].Withdrawal;
+  const techInjection = TECH_CAPACITY[site].Injection;
+
+  const withdrawalRows = rowsForSiteCategory(rows, site, "Withdrawal");
+  const injectionRows = rowsForSiteCategory(rows, site, "Injection");
+
+  function effectiveAvailable(catRows, tech, dayStart, dayEnd) {
+    let maxUnavail = 0;
+    let hadAny = false;
+    for (const r of catRows) {
+      const s = parseTs(r.event_start);
+      const e = parseTs(r.event_stop);
+      if (s == null || e == null) continue;
+      if (e < dayStart || s > dayEnd) continue;
+      hadAny = true;
+      const u = Number(r.unavailable_capacity) || 0;
+      if (u > maxUnavail) maxUnavail = u;
+    }
+    if (!hadAny) return tech;
+    return Math.max(0, tech - maxUnavail);
+  }
 
   for (let i = 0; i < days; i++) {
     const dayStart = startOfToday.getTime() + i * oneDay;
     const dayEnd = dayStart + oneDay - 1;
     labels.push(new Date(dayStart).toISOString().slice(0, 10));
-    let pSum = 0, uSum = 0;
-    for (const r of ownRows) {
-      const s = parseTs(r.event_start);
-      const e = parseTs(r.event_stop);
-      if (s == null || e == null) continue;
-      if (e < dayStart || s > dayEnd) continue;
-      const cap = Number(r.unavailable_capacity) || 0;
-      const ut = (r.type_of_unavailability || "").toLowerCase();
-      if (ut === "planned") pSum += cap;
-      else if (ut === "unplanned") uSum += cap;
-    }
-    planned.push(pSum);
-    unplanned.push(uSum);
+    withdrawal_available.push(effectiveAvailable(withdrawalRows, techWithdrawal, dayStart, dayEnd));
+    injection_available.push(effectiveAvailable(injectionRows, techInjection, dayStart, dayEnd));
   }
-  return { labels, planned, unplanned };
+  return {
+    labels,
+    withdrawal_available,
+    injection_available,
+    withdrawal_tech: techWithdrawal,
+    injection_tech: techInjection,
+  };
 }
 
 // --- conflicts --------------------------------------------------------------
+
+function bucketConflictsBySite(conflicts, nowMs = Date.now(), horizonDays = TIMELINE_DAYS_DEFAULT) {
+  // Group conflicts by site, then by time bucket: live | upcoming | beyond.
+  const horizonStop = nowMs + horizonDays * 86400 * 1000;
+  const out = {};
+  for (const site of SITES) {
+    out[site] = { live: [], upcoming: [], beyond: [] };
+  }
+  for (const c of conflicts) {
+    const bucket = c.overlap_start <= nowMs && nowMs <= c.overlap_stop
+      ? "live"
+      : c.overlap_start <= horizonStop
+        ? "upcoming"
+        : "beyond";
+    if (out[c.site]) out[c.site][bucket].push(c);
+  }
+  return out;
+}
 
 function computeConflicts(rows, nowMs = Date.now()) {
   // Surface overlapping REMIT pairs that meet ALL of:
@@ -301,7 +343,8 @@ window.REMITAggregates = {
   computeKpis,
   computeSiteCategoryStatus,
   computeSiteHeadline,
-  computeCapacityTimeline,
+  computeAvailabilityTimeline,
   computeConflicts,
+  bucketConflictsBySite,
   gradientColor,
 };

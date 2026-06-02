@@ -36,20 +36,6 @@
       <span id="changes-text"></span>
     </section>
 
-    <!-- Hero KPI row: just two big cards -->
-    <section class="kpi-hero-row">
-      <div class="kpi kpi--hero">
-        <div class="kpi-label">Live REMITs</div>
-        <div class="kpi-value" id="kpi-live">—</div>
-        <div class="kpi-sub" id="kpi-live-split"></div>
-      </div>
-      <div class="kpi kpi--hero">
-        <div class="kpi-label">Upcoming (next 7 days)</div>
-        <div class="kpi-value" id="kpi-upcoming">—</div>
-        <div class="kpi-sub" id="kpi-upcoming-split"></div>
-      </div>
-    </section>
-
     <!-- Per-site headlines: three category lines each, never summed -->
     <section class="headlines">
       <div class="headline" id="headline-aldbrough"></div>
@@ -76,22 +62,25 @@
       </div>
     </section>
 
-    <!-- Capacity timeline charts (next 30 days, planned vs unplanned) -->
+    <!-- Capacity timeline charts: available withdrawal + injection, 30d -->
     <section class="charts">
       <div class="chart-card">
-        <h3>Aldbrough — unavailable capacity (next 30 days)</h3>
+        <h3>Aldbrough — available capacity (next 30 days)</h3>
         <div class="chart-wrap"><canvas id="chart-aldbrough"></canvas></div>
       </div>
       <div class="chart-card">
-        <h3>Atwick — unavailable capacity (next 30 days)</h3>
+        <h3>Atwick — available capacity (next 30 days)</h3>
         <div class="chart-wrap"><canvas id="chart-atwick"></canvas></div>
       </div>
     </section>
 
-    <!-- Conflicts (overlapping REMITs at same site) -->
-    <section class="conflicts" id="conflicts-section" hidden>
-      <h3>⚠ Overlapping REMITs at same site</h3>
-      <ul id="conflicts-list"></ul>
+    <!-- Conflicts: split per site, live + next-30d inline, beyond collapsed -->
+    <section class="conflicts-section">
+      <h2 class="section-title section-title--inline">Overlapping REMITs</h2>
+      <div class="conflicts-grid">
+        <div class="conflicts-col" id="conflicts-aldbrough"></div>
+        <div class="conflicts-col" id="conflicts-atwick"></div>
+      </div>
     </section>
 
     <!-- Detail table with filters -->
