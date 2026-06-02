@@ -210,24 +210,12 @@ function renderAvailabilityChart(siteKey, timeline) {
     `;
   }
 
-  function bandGradient(rgb) {
-    const h = canvas.height || canvas.parentElement.clientHeight || 260;
-    const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0,    `rgba(${rgb}, 0.02)`);
-    g.addColorStop(0.6,  `rgba(${rgb}, 0.10)`);
-    g.addColorStop(1,    `rgba(${rgb}, 0.22)`);
-    return g;
-  }
-
   // Materialise the step function as explicit points so Chart.js can't
-  // get it wrong. For each breakpoint (x_i, y_i) which means "y_i holds
-  // from x_i until the next breakpoint", emit:
+  // get it wrong. For each breakpoint (x_i, y_i) — "y_i holds from x_i
+  // until the next breakpoint" — emit:
   //   (x_i, y_i)         — start of segment
   //   (x_{i+1}-1ms, y_i) — end of segment, 1ms before the jump
-  //   (x_{i+1}, y_{i+1}) — the jump itself (drawn near-vertically by Chart)
-  // No stepped option needed; just straight-line interpolation. The 1ms
-  // gap reads as instantaneous on a 30-day chart but stops Chart.js from
-  // collapsing overlapping x values.
+  // Straight-line interpolation then yields a clean step function.
   function materialiseStepSeries(stepPoints) {
     if (!stepPoints || stepPoints.length === 0) return [];
     const out = [];
@@ -247,30 +235,20 @@ function renderAvailabilityChart(siteKey, timeline) {
   const withdrawalSeries = materialiseStepSeries(timeline.withdrawal_data);
   const injectionSeries = materialiseStepSeries(timeline.injection_data);
 
-  // Helpful for debugging from devtools: F12 → REMITChartSeries.Atwick.W
   window.REMITChartSeries = window.REMITChartSeries || {};
   window.REMITChartSeries[siteKey] = { W: withdrawalSeries, I: injectionSeries, raw: timeline };
 
-  const techRefLine = (tech, color, label) => ({
-    label,  // ends with "_tech_max" so legend + tooltip filter it
-    data: [{ x: timeline.start_ms, y: tech }, { x: timeline.end_ms, y: tech }],
-    borderColor: color,
-    borderDash: [4, 4],
-    borderWidth: 1,
-    pointRadius: 0,
-    fill: false,
-    tension: 0,
-    parsing: false,
-  });
-
+  // Simplified renderer: solid colour step lines, no fill, no gradient.
+  // No fill = no fill artifacts. Plain horizontal dashed reference lines
+  // for the tech maxima.
   const data = {
     datasets: [
       {
         label: `Withdrawal available (max ${formatNum(timeline.withdrawal_tech)} GWh/d)`,
         data: withdrawalSeries,
         borderColor: "#dc2626",
-        backgroundColor: bandGradient("220,38,38"),
-        fill: "origin",
+        backgroundColor: "transparent",
+        fill: false,
         tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
@@ -284,8 +262,8 @@ function renderAvailabilityChart(siteKey, timeline) {
         label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
         data: injectionSeries,
         borderColor: "#2563eb",
-        backgroundColor: bandGradient("37,99,235"),
-        fill: "origin",
+        backgroundColor: "transparent",
+        fill: false,
         tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
@@ -295,8 +273,36 @@ function renderAvailabilityChart(siteKey, timeline) {
         borderWidth: 2.5,
         parsing: false,
       },
-      techRefLine(timeline.withdrawal_tech, "rgba(220,38,38,0.35)", "withdrawal_tech_max"),
-      techRefLine(timeline.injection_tech,  "rgba(37,99,235,0.35)", "injection_tech_max"),
+      {
+        label: "withdrawal_tech_max",
+        data: [
+          { x: timeline.start_ms, y: timeline.withdrawal_tech },
+          { x: timeline.end_ms,   y: timeline.withdrawal_tech },
+        ],
+        borderColor: "rgba(220,38,38,0.35)",
+        backgroundColor: "transparent",
+        borderDash: [4, 4],
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        parsing: false,
+      },
+      {
+        label: "injection_tech_max",
+        data: [
+          { x: timeline.start_ms, y: timeline.injection_tech },
+          { x: timeline.end_ms,   y: timeline.injection_tech },
+        ],
+        borderColor: "rgba(37,99,235,0.35)",
+        backgroundColor: "transparent",
+        borderDash: [4, 4],
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        parsing: false,
+      },
     ],
   };
 
