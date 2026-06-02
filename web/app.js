@@ -219,6 +219,38 @@ function renderAvailabilityChart(siteKey, timeline) {
     return g;
   }
 
+  // Materialise the step function as explicit points so Chart.js can't
+  // get it wrong. For each breakpoint (x_i, y_i) which means "y_i holds
+  // from x_i until the next breakpoint", emit:
+  //   (x_i, y_i)         — start of segment
+  //   (x_{i+1}-1ms, y_i) — end of segment, 1ms before the jump
+  //   (x_{i+1}, y_{i+1}) — the jump itself (drawn near-vertically by Chart)
+  // No stepped option needed; just straight-line interpolation. The 1ms
+  // gap reads as instantaneous on a 30-day chart but stops Chart.js from
+  // collapsing overlapping x values.
+  function materialiseStepSeries(stepPoints) {
+    if (!stepPoints || stepPoints.length === 0) return [];
+    const out = [];
+    for (let i = 0; i < stepPoints.length; i++) {
+      const p = stepPoints[i];
+      out.push({ x: p.x, y: p.y });
+      if (i < stepPoints.length - 1) {
+        const next = stepPoints[i + 1];
+        if (next.x > p.x + 1) {
+          out.push({ x: next.x - 1, y: p.y });
+        }
+      }
+    }
+    return out;
+  }
+
+  const withdrawalSeries = materialiseStepSeries(timeline.withdrawal_data);
+  const injectionSeries = materialiseStepSeries(timeline.injection_data);
+
+  // Helpful for debugging from devtools: F12 → REMITChartSeries.Atwick.W
+  window.REMITChartSeries = window.REMITChartSeries || {};
+  window.REMITChartSeries[siteKey] = { W: withdrawalSeries, I: injectionSeries, raw: timeline };
+
   const techRefLine = (tech, color, label) => ({
     label,  // ends with "_tech_max" so legend + tooltip filter it
     data: [{ x: timeline.start_ms, y: tech }, { x: timeline.end_ms, y: tech }],
@@ -227,42 +259,38 @@ function renderAvailabilityChart(siteKey, timeline) {
     borderWidth: 1,
     pointRadius: 0,
     fill: false,
-    stepped: false,
     tension: 0,
-    parsing: false,
   });
 
   const data = {
     datasets: [
       {
         label: `Withdrawal available (max ${formatNum(timeline.withdrawal_tech)} GWh/d)`,
-        data: timeline.withdrawal_data,
+        data: withdrawalSeries,
         borderColor: "#dc2626",
         backgroundColor: bandGradient("220,38,38"),
         fill: true,
-        stepped: "after",
+        tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
         pointHoverBackgroundColor: "#dc2626",
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
-        parsing: false,
       },
       {
         label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
-        data: timeline.injection_data,
+        data: injectionSeries,
         borderColor: "#2563eb",
         backgroundColor: bandGradient("37,99,235"),
         fill: true,
-        stepped: "after",
+        tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
         pointHoverBackgroundColor: "#2563eb",
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
-        parsing: false,
       },
       techRefLine(timeline.withdrawal_tech, "rgba(220,38,38,0.35)", "withdrawal_tech_max"),
       techRefLine(timeline.injection_tech,  "rgba(37,99,235,0.35)", "injection_tech_max"),
