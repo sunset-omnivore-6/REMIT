@@ -29,6 +29,63 @@
   </section>
 
   <main>
+
+    <!-- Recent-changes banner: what's happened in the last 24h -->
+    <section id="changes-banner" class="changes" hidden>
+      <span class="changes-icon">●</span>
+      <span id="changes-text"></span>
+    </section>
+
+    <!-- KPI tiles -->
+    <section class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">Live REMITs</div>
+        <div class="kpi-value" id="kpi-live">—</div>
+        <div class="kpi-sub" id="kpi-live-split"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Upcoming 7d</div>
+        <div class="kpi-value" id="kpi-upcoming">—</div>
+        <div class="kpi-sub">events starting in next week</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Aldbrough offline</div>
+        <div class="kpi-value" id="kpi-aldbrough">—</div>
+        <div class="kpi-sub" id="kpi-aldbrough-sub"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Atwick offline</div>
+        <div class="kpi-value" id="kpi-atwick">—</div>
+        <div class="kpi-sub" id="kpi-atwick-sub"></div>
+      </div>
+    </section>
+
+    <!-- Per-site headlines -->
+    <section class="headlines">
+      <div class="headline" id="headline-aldbrough"></div>
+      <div class="headline" id="headline-atwick"></div>
+    </section>
+
+    <!-- Capacity timeline charts -->
+    <section class="charts">
+      <div class="chart-card">
+        <h3>Aldbrough — unavailable capacity (next 30 days)</h3>
+        <div class="chart-wrap"><canvas id="chart-aldbrough"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Atwick — unavailable capacity (next 30 days)</h3>
+        <div class="chart-wrap"><canvas id="chart-atwick"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Conflicts (overlapping REMITs at same site) -->
+    <section class="conflicts" id="conflicts-section" hidden>
+      <h3>⚠ Overlapping REMITs at same site</h3>
+      <ul id="conflicts-list"></ul>
+    </section>
+
+    <!-- Detail table with filters -->
+    <h2 class="section-title">All REMITs</h2>
     <section class="controls">
       <div class="control">
         <label for="filter-site">Location</label>
@@ -94,6 +151,8 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/web/aggregate.js"></script>
   <script src="/web/app.js"></script>
 </body>
 </html>

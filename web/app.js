@@ -17,7 +17,23 @@ const els = {
   filterSearch: document.getElementById("filter-search"),
   filterAllSites: document.getElementById("filter-all-sites"),
   filterLiveOnly: document.getElementById("filter-live-only"),
+  // Dashboard widgets
+  changesBanner: document.getElementById("changes-banner"),
+  changesText: document.getElementById("changes-text"),
+  kpiLive: document.getElementById("kpi-live"),
+  kpiLiveSplit: document.getElementById("kpi-live-split"),
+  kpiUpcoming: document.getElementById("kpi-upcoming"),
+  kpiAldbrough: document.getElementById("kpi-aldbrough"),
+  kpiAldbroughSub: document.getElementById("kpi-aldbrough-sub"),
+  kpiAtwick: document.getElementById("kpi-atwick"),
+  kpiAtwickSub: document.getElementById("kpi-atwick-sub"),
+  headlineAldbrough: document.getElementById("headline-aldbrough"),
+  headlineAtwick: document.getElementById("headline-atwick"),
+  conflictsSection: document.getElementById("conflicts-section"),
+  conflictsList: document.getElementById("conflicts-list"),
 };
+
+const charts = { aldbrough: null, atwick: null };
 
 let state = {
   rows: [],
@@ -39,7 +55,167 @@ async function loadData() {
   state.snapshotAgeSeconds = data.snapshot_age_seconds;
   renderBanner();
   populateFilterOptions();
+  renderDashboard();
   renderTable();
+}
+
+function renderDashboard() {
+  // The dashboard widgets always reflect the unfiltered Aldbrough+Atwick view,
+  // even if the table is filtered to "all sites" — these tiles are about the
+  // two storage sites specifically.
+  const agg = window.REMITAggregates;
+  // When user has "show all sites" ticked, state.rows includes non-SSE rows.
+  // Filter down to just our two sites for dashboard aggregations.
+  const siteRows = state.rows.filter((r) => {
+    const a = (r.asset || "").toLowerCase();
+    const t = (r.thread_id || "").toLowerCase();
+    return a === "aldbrough" || a === "atwick" || t.startsWith("ald_") || t.startsWith("atw_");
+  });
+
+  // Recent changes banner
+  const changes = agg.computeRecentChanges(siteRows, 24);
+  if (changes.total > 0) {
+    els.changesBanner.hidden = false;
+    const parts = [];
+    if (changes.new > 0) parts.push(`${changes.new} new`);
+    if (changes.revised > 0) parts.push(`${changes.revised} revised`);
+    els.changesText.textContent = `${parts.join(" · ")} REMIT${changes.total === 1 ? "" : "s"} in the last ${changes.hours}h`;
+  } else {
+    els.changesBanner.hidden = true;
+  }
+
+  // KPIs
+  const kpis = agg.computeKpis(siteRows);
+  els.kpiLive.textContent = kpis.live_count;
+  const splitParts = [];
+  if (kpis.live_planned) splitParts.push(`${kpis.live_planned} planned`);
+  if (kpis.live_unplanned) splitParts.push(`${kpis.live_unplanned} unplanned`);
+  els.kpiLiveSplit.textContent = splitParts.join(" · ") || "nothing live";
+  els.kpiUpcoming.textContent = kpis.upcoming_7d;
+
+  // Per-site KPI tiles
+  fillSiteKpi("Aldbrough", siteRows, els.kpiAldbrough, els.kpiAldbroughSub);
+  fillSiteKpi("Atwick", siteRows, els.kpiAtwick, els.kpiAtwickSub);
+
+  // Per-site headlines
+  renderHeadline(els.headlineAldbrough, agg.computeSiteHeadline(siteRows, "Aldbrough"));
+  renderHeadline(els.headlineAtwick, agg.computeSiteHeadline(siteRows, "Atwick"));
+
+  // Charts
+  renderCapacityChart("aldbrough", agg.computeCapacityTimeline(siteRows, "Aldbrough"));
+  renderCapacityChart("atwick", agg.computeCapacityTimeline(siteRows, "Atwick"));
+
+  // Conflicts
+  renderConflicts(agg.computeConflicts(siteRows));
+}
+
+function fillSiteKpi(site, rows, valueEl, subEl) {
+  const nowMs = Date.now();
+  const own = rows.filter((r) => (r.asset || "").toLowerCase() === site.toLowerCase());
+  const live = own.filter((r) => window.REMITAggregates.isLive(r, nowMs));
+  let total = 0;
+  let uom = "";
+  for (const r of live) {
+    if (r.unavailable_capacity != null) total += Number(r.unavailable_capacity) || 0;
+    if (r.unit_of_measurement) uom = r.unit_of_measurement;
+  }
+  if (live.length === 0) {
+    valueEl.textContent = "0";
+    subEl.textContent = "nothing live";
+  } else {
+    valueEl.textContent = `${formatNum(total)} ${uom}`;
+    subEl.textContent = `${live.length} live event${live.length === 1 ? "" : "s"}`;
+  }
+}
+
+function renderHeadline(el, h) {
+  el.className = `headline headline--${h.state}`;
+  el.innerHTML = `
+    <div class="headline-site">${escapeHtml(h.site)}</div>
+    <div class="headline-main">${escapeHtml(h.headline)}</div>
+    <div class="headline-detail">${escapeHtml(h.detail)}</div>
+  `;
+}
+
+function renderCapacityChart(siteKey, timeline) {
+  const canvas = document.getElementById(`chart-${siteKey}`);
+  if (!canvas || !window.Chart) return;
+  const ctx = canvas.getContext("2d");
+
+  const data = {
+    labels: timeline.labels,
+    datasets: [
+      {
+        label: "Planned",
+        data: timeline.planned,
+        borderColor: "#2563eb",
+        backgroundColor: "rgba(37,99,235,0.15)",
+        fill: true,
+        tension: 0.2,
+        pointRadius: 0,
+      },
+      {
+        label: "Unplanned",
+        data: timeline.unplanned,
+        borderColor: "#dc2626",
+        backgroundColor: "rgba(220,38,38,0.15)",
+        fill: true,
+        tension: 0.2,
+        pointRadius: 0,
+      },
+    ],
+  };
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { position: "top", labels: { font: { size: 11 } } },
+      tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${formatNum(c.parsed.y)}` } },
+    },
+    scales: {
+      x: {
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: 10,
+          font: { size: 10 },
+          callback: function (value) {
+            // value is the index; this.getLabelForValue gives YYYY-MM-DD.
+            const lbl = this.getLabelForValue(value);
+            if (!lbl) return "";
+            const parts = lbl.split("-");
+            return `${parts[2]}/${parts[1]}`;
+          },
+        },
+      },
+      y: { beginAtZero: true, ticks: { font: { size: 10 } } },
+    },
+  };
+  if (charts[siteKey]) {
+    charts[siteKey].data = data;
+    charts[siteKey].options = options;
+    charts[siteKey].update();
+  } else {
+    charts[siteKey] = new Chart(ctx, { type: "line", data, options });
+  }
+}
+
+function renderConflicts(conflicts) {
+  if (!conflicts || conflicts.length === 0) {
+    els.conflictsSection.hidden = true;
+    return;
+  }
+  els.conflictsSection.hidden = false;
+  els.conflictsList.innerHTML = conflicts
+    .map((c) => `<li>
+      <strong>${escapeHtml(c.site)}:</strong>
+      <code>${escapeHtml(c.a.thread_id || "")}</code> (${escapeHtml(c.a.type_of_event || "")},
+      ${formatTs(c.a.event_start)} → ${formatTs(c.a.event_stop)})
+      overlaps with
+      <code>${escapeHtml(c.b.thread_id || "")}</code> (${escapeHtml(c.b.type_of_event || "")},
+      ${formatTs(c.b.event_start)} → ${formatTs(c.b.event_stop)})
+    </li>`)
+    .join("");
 }
 
 function renderBanner() {
