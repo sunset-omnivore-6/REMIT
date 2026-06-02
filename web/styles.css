@@ -161,11 +161,101 @@
   --shadow:        var(--elev-1);
 }
 
-/* Dark mode hook — gets filled in by Tier 0 #3. The token system is the
-   prerequisite: dark mode becomes a 30-line override here, not a 200-line
-   parallel stylesheet. */
+/* Dark mode — flips the role tokens. Every component in the file references
+   roles (not literal colours) so they all re-skin automatically. Palette is
+   slate-based with a subtle blue tint, inspired by Linear / Stripe Dashboard
+   / Vercel — feels financial rather than generic dark-gray. */
 [data-theme="dark"] {
-  /* placeholder */
+  --fg-default:   #f1f5f9;
+  --fg-strong:    #f8fafc;
+  --fg-muted:     #cbd5e1;
+  --fg-subtle:    #94a3b8;
+  --fg-faint:     #64748b;
+  --fg-on-accent: #ffffff;
+
+  --surface-page:    #0a0e1a;
+  --surface-1:       #111827;
+  --surface-2:       #1a2138;
+  --surface-3:       #232b44;
+  --surface-inverse: #f1f5f9;
+  --surface-inverse-fg:    #1e293b;
+  --surface-inverse-muted: #64748b;
+
+  --border-default: #1e293b;
+  --border-strong:  #334155;
+  --border-subtle:  #1a2138;
+  --border-dashed:  #1e293b;
+
+  --accent-primary:       #3b82f6;
+  --accent-primary-hover: #60a5fa;
+
+  --status-success:        #22c55e;
+  --status-success-bg:     #052e16;
+  --status-success-border: #166534;
+  --status-success-fg:     #86efac;
+
+  --status-warning:        #f59e0b;
+  --status-warning-bg:     #422006;
+  --status-warning-border: #92400e;
+  --status-warning-fg:     #fcd34d;
+
+  --status-danger:         #ef4444;
+  --status-danger-bg:      #450a0a;
+  --status-danger-border:  #7f1d1d;
+  --status-danger-fg:      #fca5a5;
+
+  --status-info:           #06b6d4;
+  --status-info-bg:        #083344;
+  --status-info-border:    #155e75;
+  --status-info-fg:        #67e8f9;
+
+  --status-neutral:        #94a3b8;
+  --status-neutral-bg:     #1e293b;
+  --status-neutral-border: #334155;
+  --status-neutral-fg:     #cbd5e1;
+
+  --data-withdrawal:    #ef4444;
+  --data-withdrawal-bg: #2a0a0a;
+  --data-withdrawal-fg: #fca5a5;
+  --data-injection:     #3b82f6;
+  --data-injection-bg:  #0e1d3d;
+  --data-injection-fg:  #93c5fd;
+  --data-storage:       #a855f7;
+  --data-storage-bg:    #1f0e2f;
+  --data-storage-fg:    #d8b4fe;
+
+  --state-idle:      #64748b;
+
+  /* Shadows lean heavier on dark — same elevation cost more contrast. */
+  --elev-1:       0 1px 2px rgba(0,0,0,.4),  0 1px 3px rgba(0,0,0,.25);
+  --elev-2:       0 4px 6px -1px rgba(0,0,0,.5), 0 2px 4px -2px rgba(0,0,0,.35);
+  --elev-overlay: 0 10px 15px -3px rgba(0,0,0,.6), 0 4px 6px -2px rgba(0,0,0,.4);
+}
+
+/* Scrollbar restyle for dark mode (Firefox + Webkit). Subtle but the page
+   scrolls all day on a wall display — bright scrollbars on a dark canvas
+   are jarring. */
+[data-theme="dark"] {
+  scrollbar-color: #334155 #0a0e1a;
+}
+[data-theme="dark"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-theme="dark"] ::-webkit-scrollbar-track { background: #0a0e1a; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border: 2px solid #0a0e1a;
+  border-radius: 5px;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Cards / surfaces transition smoothly when the toggle flips. Limited to
+   colour properties only — layout never animates. */
+html, body, .headline, .kpi, .dials-site, .chart-card, .upcoming-card,
+.conflicts-card, .controls, .table-wrap, .banner, .changes, .conflict-item,
+.upcoming-item, .pill, .chart-now-pill, .conflicts-beyond summary,
+button {
+  transition: background-color var(--duration-base) var(--ease-out),
+              border-color     var(--duration-base) var(--ease-out),
+              color            var(--duration-base) var(--ease-out);
 }
 
 
@@ -271,6 +361,29 @@ button {
 }
 button:hover { background: var(--accent-primary-hover); }
 button:disabled { opacity: 0.6; cursor: wait; }
+
+/* Icon-only button — for the theme toggle in the masthead. Sized to align
+   with the text-sized "Refresh now" button next to it. */
+.icon-btn {
+  background: transparent;
+  color: var(--fg-subtle);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration-fast) var(--ease-out),
+              color      var(--duration-fast) var(--ease-out);
+}
+.icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--fg-default);
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn .icon-sun  { display: none; }
+.icon-btn .icon-moon { display: block; }
+[data-theme="dark"] .icon-btn .icon-sun  { display: block; }
+[data-theme="dark"] .icon-btn .icon-moon { display: none; }
 
 
 /* =============================================================
@@ -492,7 +605,6 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .dial-avail { color: var(--fg-default); }
 .dial-avail strong { font-size: var(--text-base); }
 .dial-tech  { color: var(--fg-subtle); }
-.dial-live  { color: #b45309; margin-top: 2px; font-size: var(--text-2xs); word-break: break-all; }
 
 
 /* =============================================================
@@ -864,10 +976,14 @@ tbody tr:hover { background: var(--surface-2); }
 .pill--inactive  { background: var(--surface-3);         color: var(--fg-muted); }
 .pill--planned   { background: var(--data-injection-bg); color: var(--data-injection-fg); }
 .pill--unplanned { background: var(--data-withdrawal-bg);color: var(--data-withdrawal-fg); }
-.pill--live      { background: #fef3c7; color: #78350f; border: 1px solid var(--status-warning); }
+.pill--live {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  border: 1px solid var(--status-warning);
+}
 
-tr.row--live { background: #fffbeb; }
-tr.row--live:hover { background: #fef3c7; }
+tr.row--live { background: var(--status-warning-bg); }
+tr.row--live:hover { background: var(--status-warning-border); }
 tr.row--live td:first-child { border-left: 3px solid var(--status-warning); }
 
 .muted { color: var(--fg-subtle); font-size: var(--text-sm); }

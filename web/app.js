@@ -26,10 +26,62 @@ const els = {
   upcomingAtwick: document.getElementById("upcoming-atwick"),
   conflictsAldbrough: document.getElementById("conflicts-aldbrough"),
   conflictsAtwick: document.getElementById("conflicts-atwick"),
+  themeToggle: document.getElementById("theme-toggle"),
 };
 
 const charts = { aldbrough: null, atwick: null };
 const dialCharts = {};  // keyed "site-category" lowercase
+
+
+// --- theme ----------------------------------------------------------------
+// The data-theme attribute is set BEFORE first paint by the inline script in
+// the page <head>, so there's no flash. This handler just persists the user
+// choice and re-renders the charts so they pick up the new colour tokens.
+
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+function withAlpha(hex, alpha) {
+  if (!hex) return `rgba(0,0,0,${alpha})`;
+  let h = hex.trim();
+  if (h.startsWith("#")) h = h.slice(1);
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return `rgba(0,0,0,${alpha})`;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function getChartTheme() {
+  return {
+    surface1:   cssVar("--surface-1",   "#ffffff"),
+    surface2:   cssVar("--surface-2",   "#f8fafc"),
+    surface3:   cssVar("--surface-3",   "#f1f5f9"),
+    fgDefault:  cssVar("--fg-default",  "#0f172a"),
+    fgMuted:    cssVar("--fg-muted",    "#475569"),
+    fgSubtle:   cssVar("--fg-subtle",   "#64748b"),
+    fgFaint:    cssVar("--fg-faint",    "#94a3b8"),
+    border:     cssVar("--border-default", "#e2e8f0"),
+    borderSubtle: cssVar("--border-subtle", "#f1f5f9"),
+    withdrawal: cssVar("--data-withdrawal", "#dc2626"),
+    injection:  cssVar("--data-injection",  "#2563eb"),
+    tooltipBg:  cssVar("--surface-inverse", "#0f172a"),
+    tooltipFg:  cssVar("--surface-inverse-fg", "#e2e8f0"),
+  };
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme") || "light";
+  const next = current === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("remit-theme", next); } catch (e) {}
+  // Charts cache the colour values at construction time, so a theme flip
+  // requires a re-render to pick up the new tokens.
+  if (state.rows.length > 0) renderDashboard();
+}
 
 let state = {
   rows: [],
@@ -173,11 +225,15 @@ function renderDial(elId, status) {
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
 
+  // Empty-segment colour from CSS so dials follow the theme. In light mode
+  // this is a pale slate; in dark mode a darker slate that recedes into the
+  // card without becoming invisible.
+  const emptyColor = cssVar("--surface-3", "#e5e7eb");
   const data = {
     labels: ["Available", "Unavailable"],
     datasets: [{
       data: [status.available_now, Math.max(0, status.tech_max - status.available_now)],
-      backgroundColor: [color, "#e5e7eb"],
+      backgroundColor: [color, emptyColor],
       borderWidth: 0,
     }],
   };
@@ -247,21 +303,22 @@ function renderAvailabilityChart(siteKey, timeline) {
   window.REMITChartSeries[siteKey] = { W: withdrawalSeries, I: injectionSeries, raw: timeline };
 
   // Simplified renderer: solid colour step lines, no fill, no gradient.
-  // No fill = no fill artifacts. Plain horizontal dashed reference lines
-  // for the tech maxima.
+  // All colours come from CSS custom properties via getChartTheme() so a
+  // theme flip re-themes the chart on the next render.
+  const theme = getChartTheme();
   const data = {
     datasets: [
       {
         label: `Withdrawal available (max ${formatNum(timeline.withdrawal_tech)} GWh/d)`,
         data: withdrawalSeries,
-        borderColor: "#dc2626",
+        borderColor: theme.withdrawal,
         backgroundColor: "transparent",
         fill: false,
         tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
-        pointHoverBackgroundColor: "#dc2626",
-        pointHoverBorderColor: "#fff",
+        pointHoverBackgroundColor: theme.withdrawal,
+        pointHoverBorderColor: theme.surface1,
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
         parsing: false,
@@ -269,14 +326,14 @@ function renderAvailabilityChart(siteKey, timeline) {
       {
         label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
         data: injectionSeries,
-        borderColor: "#2563eb",
+        borderColor: theme.injection,
         backgroundColor: "transparent",
         fill: false,
         tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
-        pointHoverBackgroundColor: "#2563eb",
-        pointHoverBorderColor: "#fff",
+        pointHoverBackgroundColor: theme.injection,
+        pointHoverBorderColor: theme.surface1,
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
         parsing: false,
@@ -287,7 +344,7 @@ function renderAvailabilityChart(siteKey, timeline) {
           { x: timeline.start_ms, y: timeline.withdrawal_tech },
           { x: timeline.end_ms,   y: timeline.withdrawal_tech },
         ],
-        borderColor: "rgba(220,38,38,0.35)",
+        borderColor: withAlpha(theme.withdrawal, 0.35),
         backgroundColor: "transparent",
         borderDash: [4, 4],
         borderWidth: 1,
@@ -302,7 +359,7 @@ function renderAvailabilityChart(siteKey, timeline) {
           { x: timeline.start_ms, y: timeline.injection_tech },
           { x: timeline.end_ms,   y: timeline.injection_tech },
         ],
-        borderColor: "rgba(37,99,235,0.35)",
+        borderColor: withAlpha(theme.injection, 0.35),
         backgroundColor: "transparent",
         borderDash: [4, 4],
         borderWidth: 1,
@@ -325,6 +382,7 @@ function renderAvailabilityChart(siteKey, timeline) {
         align: "end",
         labels: {
           font: { size: 11, weight: "500" },
+          color: theme.fgMuted,
           boxWidth: 10,
           boxHeight: 10,
           usePointStyle: true,
@@ -332,7 +390,9 @@ function renderAvailabilityChart(siteKey, timeline) {
         },
       },
       tooltip: {
-        backgroundColor: "rgba(15,23,42,0.94)",
+        backgroundColor: withAlpha(theme.tooltipBg, 0.94),
+        titleColor: theme.tooltipFg,
+        bodyColor: theme.tooltipFg,
         titleFont: { size: 12, weight: "600" },
         bodyFont: { size: 12 },
         padding: 10,
@@ -366,25 +426,27 @@ function renderAvailabilityChart(siteKey, timeline) {
           displayFormats: { day: "d MMM", hour: "d MMM HH:mm" },
           tooltipFormat: "EEE d MMM HH:mm",
         },
-        grid: { color: "rgba(148,163,184,0.10)" },
+        grid: { color: withAlpha(theme.fgFaint, 0.10) },
+        border: { color: theme.border },
         ticks: {
           autoSkip: true,
           maxTicksLimit: 8,
           font: { size: 10 },
-          color: "#64748b",
+          color: theme.fgSubtle,
           source: "auto",
         },
       },
       y: {
         beginAtZero: true,
         suggestedMax: yMax,
-        grid: { color: "rgba(148,163,184,0.12)" },
+        grid: { color: withAlpha(theme.fgFaint, 0.12) },
+        border: { color: theme.border },
         ticks: {
           font: { size: 10 },
-          color: "#64748b",
+          color: theme.fgSubtle,
           callback: (v) => formatNum(v),
         },
-        title: { display: true, text: "GWh/d", color: "#94a3b8", font: { size: 10, weight: "600" } },
+        title: { display: true, text: "GWh/d", color: theme.fgFaint, font: { size: 10, weight: "600" } },
       },
     },
   };
@@ -709,6 +771,10 @@ els.diagToggle.addEventListener("click", () => {
 els.filterSearch.addEventListener("input", renderTable);
 els.filterAllSites.addEventListener("change", loadData);
 els.filterLiveOnly.addEventListener("change", renderTable);
+
+if (els.themeToggle) {
+  els.themeToggle.addEventListener("click", toggleTheme);
+}
 
 setInterval(updateClock, 1000);
 updateClock();
