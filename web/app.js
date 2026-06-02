@@ -116,10 +116,17 @@ function renderDashboard() {
 function renderHeadline(el, h) {
   el.className = `headline headline--${h.state}`;
   const linesHtml = h.lines.map((l) => {
-    const isOffline = l.unavailable > 0;
-    const valStr = isOffline ? `${formatNum(l.unavailable)} ${l.unit}` : `<span class="headline-ok">all available</span>`;
+    // Flip: show what's AVAILABLE right now (matches the dial's headline
+    // number underneath). Red text when reduced; green "all available"
+    // when at nameplate tech max.
+    const isReduced = l.available != null && l.tech_max != null
+      ? l.available < l.tech_max
+      : false;
+    const valStr = isReduced
+      ? `${formatNum(l.available)} ${l.unit}`
+      : `<span class="headline-ok">all available</span>`;
     return `
-      <div class="headline-line${isOffline ? " headline-line--offline" : ""}">
+      <div class="headline-line${isReduced ? " headline-line--offline" : ""}">
         <span class="headline-cat">${escapeHtml(l.category)}</span>
         <span class="headline-val">${valStr}</span>
         ${l.live_count > 0 ? `<span class="headline-count">${l.live_count} live</span>` : ""}

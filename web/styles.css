@@ -15,14 +15,54 @@
 
 * { box-sizing: border-box; }
 
+/* --- Typography: Inter Variable, OpenType features tuned for finance UI ---
+   - cv11 = single-storey g (Inter's signature alternate, more "modern")
+   - cv02 = open 4
+   - ss01 = "Inter v3.x" stylistic set
+   - tnum = tabular numerals (essential for trading dashboards — every
+            digit is the same width so columns of numbers line up)
+   - case = punctuation aligned to uppercase
+   --webkit-font-smoothing + text-rendering: optimizeLegibility get the
+   best per-pixel rendering across macOS/Windows.
+*/
 html, body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
   line-height: 1.45;
+  font-feature-settings: 'cv11', 'cv02', 'ss01', 'case', 'tnum';
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+/* InterVariable is a variable font; on older browsers the static "Inter"
+   family takes over without weight axis. Progressive enhancement: */
+@supports (font-variation-settings: normal) {
+  html, body {
+    font-family: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", Roboto, sans-serif;
+  }
+}
+
+/* Trader-trained eye reads numbers fastest when they're slightly tighter
+   and unambiguous. Apply to every numeric surface in the UI. */
+.kpi-value, .dial-pct, .dial-avail strong, .dial-tech,
+.headline-val, .conflict-window, .conflict-eff strong, .conflict-pair,
+.upcoming-time, .upcoming-eff, .upcoming-marginal,
+td.num, .chart-now-pill, .num,
+#now-clock {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum', 'cv11', 'cv02';
+}
+
+/* Headings tighter than body — Inter has the metrics for this. */
+h1, h2, h3, .kpi-value, .dial-pct {
+  letter-spacing: -0.011em;
 }
 
 .masthead {

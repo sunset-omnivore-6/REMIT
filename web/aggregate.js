@@ -165,7 +165,8 @@ function computeSiteHeadline(rows, site, nowMs = Date.now()) {
     return {
       category: cat,
       unit: s.unit,
-      unavailable: s.unavailable_now,
+      available: s.available_now,
+      tech_max: s.tech_max,
       live_count: s.live_remits.length,
     };
   });
