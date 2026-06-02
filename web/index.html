@@ -36,37 +36,47 @@
       <span id="changes-text"></span>
     </section>
 
-    <!-- KPI tiles -->
-    <section class="kpi-row">
-      <div class="kpi">
+    <!-- Hero KPI row: just two big cards -->
+    <section class="kpi-hero-row">
+      <div class="kpi kpi--hero">
         <div class="kpi-label">Live REMITs</div>
         <div class="kpi-value" id="kpi-live">—</div>
         <div class="kpi-sub" id="kpi-live-split"></div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Upcoming 7d</div>
+      <div class="kpi kpi--hero">
+        <div class="kpi-label">Upcoming (next 7 days)</div>
         <div class="kpi-value" id="kpi-upcoming">—</div>
-        <div class="kpi-sub">events starting in next week</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Aldbrough offline</div>
-        <div class="kpi-value" id="kpi-aldbrough">—</div>
-        <div class="kpi-sub" id="kpi-aldbrough-sub"></div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Atwick offline</div>
-        <div class="kpi-value" id="kpi-atwick">—</div>
-        <div class="kpi-sub" id="kpi-atwick-sub"></div>
+        <div class="kpi-sub" id="kpi-upcoming-split"></div>
       </div>
     </section>
 
-    <!-- Per-site headlines -->
+    <!-- Per-site headlines: three category lines each, never summed -->
     <section class="headlines">
       <div class="headline" id="headline-aldbrough"></div>
       <div class="headline" id="headline-atwick"></div>
     </section>
 
-    <!-- Capacity timeline charts -->
+    <!-- Capacity dials: 3 per site (Withdrawal / Injection / Storage) -->
+    <section class="dials-section">
+      <div class="dials-site">
+        <h3>Aldbrough — capacity available right now</h3>
+        <div class="dials-row">
+          <div class="dial" id="dial-aldbrough-withdrawal"></div>
+          <div class="dial" id="dial-aldbrough-injection"></div>
+          <div class="dial" id="dial-aldbrough-storage"></div>
+        </div>
+      </div>
+      <div class="dials-site">
+        <h3>Atwick — capacity available right now</h3>
+        <div class="dials-row">
+          <div class="dial" id="dial-atwick-withdrawal"></div>
+          <div class="dial" id="dial-atwick-injection"></div>
+          <div class="dial" id="dial-atwick-storage"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Capacity timeline charts (next 30 days, planned vs unplanned) -->
     <section class="charts">
       <div class="chart-card">
         <h3>Aldbrough — unavailable capacity (next 30 days)</h3>

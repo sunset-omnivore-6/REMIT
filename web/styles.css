@@ -154,26 +154,31 @@ main {
 .changes-icon { color: #0891b2; font-size: 10px; }
 
 /* --- KPI tiles --- */
-.kpi-row {
+.kpi-hero-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  margin: 16px 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
 }
 .kpi {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px 16px;
+  border-radius: 10px;
+  padding: 18px 22px;
   box-shadow: var(--shadow);
 }
+.kpi--hero {
+  padding: 28px 32px;
+  text-align: center;
+}
 .kpi-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
 }
+.kpi--hero .kpi-label { font-size: 13px; }
 .kpi-value {
   font-size: 28px;
   font-weight: 600;
@@ -182,24 +187,30 @@ main {
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
+.kpi--hero .kpi-value {
+  font-size: 56px;
+  line-height: 1.1;
+  margin-top: 6px;
+}
 .kpi-sub {
   font-size: 12px;
   color: var(--text-muted);
   margin-top: 2px;
 }
+.kpi--hero .kpi-sub { font-size: 14px; margin-top: 4px; }
 
-/* --- Per-site headlines --- */
+/* --- Per-site headlines (per-category breakdown) --- */
 .headlines {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 16px 0;
+  gap: 16px;
+  margin: 20px 0;
 }
 .headline {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px 18px;
+  border-radius: 10px;
+  padding: 18px 22px;
   box-shadow: var(--shadow);
   border-left-width: 4px;
 }
@@ -207,23 +218,113 @@ main {
 .headline--planned   { border-left-color: #2563eb; }
 .headline--unplanned { border-left-color: #dc2626; }
 .headline-site {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
+  margin-bottom: 8px;
 }
-.headline-main {
+.headline-line {
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+.headline-line + .headline-line { border-top: 1px dashed #e2e8f0; }
+.headline-cat {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.headline-val {
   font-size: 18px;
   font-weight: 600;
-  margin-top: 4px;
-  color: #0f172a;
+  font-variant-numeric: tabular-nums;
 }
-.headline-detail {
-  font-size: 13px;
+.headline-line--offline .headline-val { color: #b91c1c; }
+.headline-ok { color: #166534; font-weight: 500; font-size: 14px; }
+.headline-count {
+  font-size: 11px;
   color: var(--text-muted);
-  margin-top: 4px;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
+
+/* --- Capacity dials --- */
+.dials-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+.dials-site {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+}
+.dials-site h3 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.dials-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.dial-canvas-wrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+}
+.dial-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dial-pct {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.dial-cat {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.dial-footer {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.dial-avail { color: #0f172a; }
+.dial-avail strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.dial-tech { color: var(--text-muted); }
+.dial-live { color: #b45309; margin-top: 2px; font-size: 10px; word-break: break-all; }
 
 /* --- Charts --- */
 .charts {
@@ -270,13 +371,24 @@ main {
   font-size: 12px;
   color: #7c2d12;
 }
-.conflicts li { margin: 4px 0; line-height: 1.5; }
+.conflicts li { margin: 8px 0; line-height: 1.5; }
 .conflicts code {
   background: #fed7aa;
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 11px;
 }
+.conflict-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #7c2d12;
+}
+.conflict-window { color: #9a3412; font-size: 11px; }
+.conflict-eff { color: #7c2d12; margin-left: auto; font-size: 12px; }
+.conflict-pair { margin-top: 4px; font-size: 11px; }
 
 .section-title {
   margin: 28px 0 8px;
@@ -287,9 +399,8 @@ main {
   color: var(--text-muted);
 }
 
-/* Wider screens get a fourth-column layout for headlines/charts */
 @media (max-width: 900px) {
-  .headlines, .charts {
+  .headlines, .charts, .dials-section, .kpi-hero-row {
     grid-template-columns: 1fr;
   }
 }

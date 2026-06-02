@@ -1,9 +1,22 @@
 // Aggregation helpers: pure functions over the normalised rows array.
-// Kept in its own file so it's easy to swap to server-side later if needed.
 
 const SITES = ["Aldbrough", "Atwick"];
+const CATEGORIES = ["Withdrawal", "Injection", "Storage"];
 const RECENT_HOURS_DEFAULT = 24;
 const TIMELINE_DAYS_DEFAULT = 30;
+
+// Hard-coded nameplate tech max — these are AUTHORITATIVE. Individual REMIT
+// rows carry varying technicalCapacity values; the nameplate is the truth.
+// Source: app.py TECH_CAPACITY_FALLBACK (lines 79–85).
+const TECH_CAPACITY = {
+  Aldbrough: { Withdrawal: 287.78, Injection: 293.33, Storage: 3.3 },
+  Atwick:    { Withdrawal: 130.0,  Injection: 30.0,   Storage: 3.47 },
+};
+const TECH_UNITS = {
+  Withdrawal: "GWh/d",
+  Injection: "GWh/d",
+  Storage: "TWh",
+};
 
 function parseTs(s) {
   if (!s) return null;
@@ -18,18 +31,22 @@ function isLive(r, nowMs) {
   return start <= nowMs && nowMs <= stop;
 }
 
-function overlaps(a, b) {
-  const aStart = parseTs(a.event_start);
-  const aStop  = parseTs(a.event_stop);
-  const bStart = parseTs(b.event_start);
-  const bStop  = parseTs(b.event_stop);
-  if ([aStart, aStop, bStart, bStop].some((v) => v == null)) return false;
-  return aStart < bStop && bStart < aStop;
+function categorise(typeOfEvent) {
+  // typeOfEvent is "Withdrawal unavailability" / "Injection unavailability" /
+  // "Storage unavailability". First word is the category.
+  if (!typeOfEvent) return null;
+  const first = typeOfEvent.trim().split(/\s+/)[0];
+  if (CATEGORIES.includes(first)) return first;
+  return null;
 }
 
 function rowsForSite(rows, site) {
   const s = site.toLowerCase();
   return rows.filter((r) => (r.asset || "").toLowerCase() === s);
+}
+
+function rowsForSiteCategory(rows, site, category) {
+  return rowsForSite(rows, site).filter((r) => categorise(r.type_of_event) === category);
 }
 
 // --- recent changes ---------------------------------------------------------
@@ -47,7 +64,7 @@ function computeRecentChanges(rows, hours = RECENT_HOURS_DEFAULT) {
   return { hours, new: newCount, revised: revisedCount, total: newCount + revisedCount };
 }
 
-// --- KPIs -------------------------------------------------------------------
+// --- top-level KPIs ---------------------------------------------------------
 
 function computeKpis(rows, nowMs = Date.now()) {
   const live = rows.filter((r) => isLive(r, nowMs));
@@ -64,68 +81,105 @@ function computeKpis(rows, nowMs = Date.now()) {
     const diffH = (start - nowMs) / 3600000;
     return diffH > 0 && diffH <= 24 * 7;
   });
+  // Split upcoming by planned/unplanned for the sub-line.
+  const upcomingByType = { planned: 0, unplanned: 0 };
+  for (const r of upcoming7d) {
+    const t = (r.type_of_unavailability || "").toLowerCase();
+    if (t === "planned") upcomingByType.planned += 1;
+    else if (t === "unplanned") upcomingByType.unplanned += 1;
+  }
   return {
     live_count: live.length,
     live_planned: liveByType.planned,
     live_unplanned: liveByType.unplanned,
     upcoming_7d: upcoming7d.length,
+    upcoming_planned: upcomingByType.planned,
+    upcoming_unplanned: upcomingByType.unplanned,
   };
 }
 
-// --- per-site headlines -----------------------------------------------------
+// --- per-site, per-category status -----------------------------------------
 
-function computeSiteHeadline(rows, site, nowMs = Date.now()) {
-  const ownRows = rowsForSite(rows, site);
-  const live = ownRows.filter((r) => isLive(r, nowMs));
+function computeSiteCategoryStatus(rows, site, category, nowMs = Date.now()) {
+  // For one (site, category) pair, return:
+  //   tech_max, unit, live_remits[], unavailable_now, available_now, pct_available
+  //
+  // Overlap rule (user spec): when multiple REMITs in the same category are
+  // simultaneously live, the LOWEST availableCapacity across them is treated
+  // as the effective availability. With no live REMITs, available = tech_max.
+  const own = rowsForSiteCategory(rows, site, category);
+  const live = own.filter((r) => isLive(r, nowMs));
+  const tech = TECH_CAPACITY[site][category];
+  const unit = TECH_UNITS[category];
+
+  let available;
+  let unavailable;
   if (live.length === 0) {
-    // Find next upcoming.
-    const upcoming = ownRows
-      .filter((r) => {
-        const s = parseTs(r.event_start);
-        return s != null && s > nowMs;
-      })
-      .sort((a, b) => parseTs(a.event_start) - parseTs(b.event_start));
-    const next = upcoming[0];
-    return {
-      site,
-      state: "idle",
-      headline: "No live unavailability",
-      detail: next
-        ? `Next: ${next.type_of_event} from ${formatShort(next.event_start)} (${formatNum(next.unavailable_capacity)} ${next.unit_of_measurement || ""})`
-        : "No upcoming events scheduled",
-      live_rows: [],
-    };
+    available = tech;
+    unavailable = 0;
+  } else {
+    const avails = live
+      .map((r) => (r.available_capacity != null ? Number(r.available_capacity) : null))
+      .filter((v) => v != null && !Number.isNaN(v));
+    if (avails.length === 0) {
+      // Fall back to summing unavailable_capacity (also the user's spec for
+      // the headline). Lowest-available rule only applies when SSE actually
+      // reports availableCapacity, which it usually does.
+      const unavailSum = live.reduce((acc, r) => acc + (Number(r.unavailable_capacity) || 0), 0);
+      unavailable = unavailSum;
+      available = Math.max(0, tech - unavailSum);
+    } else {
+      available = Math.min(...avails);
+      unavailable = Math.max(0, tech - available);
+    }
   }
-  // Aggregate live: sum unavailable, take most-recent reason
-  let totalUnavail = 0;
-  let uom = "";
-  const reasons = new Set();
-  const types = new Set();
-  for (const r of live) {
-    if (r.unavailable_capacity != null) totalUnavail += Number(r.unavailable_capacity) || 0;
-    if (r.unit_of_measurement) uom = r.unit_of_measurement;
-    if (r.reason) reasons.add(r.reason);
-    if (r.type_of_event) types.add(r.type_of_event);
-  }
+
+  const pct = tech > 0 ? Math.max(0, Math.min(1, available / tech)) : 0;
   return {
     site,
-    state: live.some((r) => (r.type_of_unavailability || "").toLowerCase() === "unplanned") ? "unplanned" : "planned",
-    headline: `${formatNum(totalUnavail)} ${uom} offline — ${[...types].join(", ")}`,
-    detail: `${live.length} live REMIT${live.length === 1 ? "" : "s"}${reasons.size ? " · " + [...reasons].join(", ") : ""}`,
-    live_rows: live,
+    category,
+    tech_max: tech,
+    unit,
+    live_remits: live,
+    unavailable_now: unavailable,
+    available_now: available,
+    pct_available: pct,
   };
 }
 
-// --- capacity timeline ------------------------------------------------------
+function computeSiteHeadline(rows, site, nowMs = Date.now()) {
+  // Headline shows per-category unavailable for the site. Never sums across
+  // categories (TWh and GWh/d don't add).
+  const lines = CATEGORIES.map((cat) => {
+    const s = computeSiteCategoryStatus(rows, site, cat, nowMs);
+    return {
+      category: cat,
+      unit: s.unit,
+      unavailable: s.unavailable_now,
+      live_count: s.live_remits.length,
+    };
+  });
+  const anyLive = lines.some((l) => l.live_count > 0);
+  return {
+    site,
+    state: anyLive
+      ? (rowsForSite(rows, site)
+          .filter((r) => isLive(r, nowMs))
+          .some((r) => (r.type_of_unavailability || "").toLowerCase() === "unplanned")
+        ? "unplanned" : "planned")
+      : "idle",
+    lines,
+    any_live: anyLive,
+  };
+}
+
+// --- capacity timeline (kept; complements the dials) ------------------------
 
 function computeCapacityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs = Date.now()) {
-  // Bucket by day. For each day, sum the unavailable_capacity of every REMIT
-  // (regardless of status) whose [start, stop] window covers that day.
   const oneDay = 86400 * 1000;
   const startOfToday = new Date(nowMs);
   startOfToday.setHours(0, 0, 0, 0);
   const labels = [];
-  const total = [];
   const planned = [];
   const unplanned = [];
   const ownRows = rowsForSite(rows, site);
@@ -134,68 +188,120 @@ function computeCapacityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs
     const dayStart = startOfToday.getTime() + i * oneDay;
     const dayEnd = dayStart + oneDay - 1;
     labels.push(new Date(dayStart).toISOString().slice(0, 10));
-    let tSum = 0, pSum = 0, uSum = 0;
+    let pSum = 0, uSum = 0;
     for (const r of ownRows) {
       const s = parseTs(r.event_start);
       const e = parseTs(r.event_stop);
       if (s == null || e == null) continue;
       if (e < dayStart || s > dayEnd) continue;
       const cap = Number(r.unavailable_capacity) || 0;
-      tSum += cap;
       const ut = (r.type_of_unavailability || "").toLowerCase();
       if (ut === "planned") pSum += cap;
       else if (ut === "unplanned") uSum += cap;
     }
-    total.push(tSum);
     planned.push(pSum);
     unplanned.push(uSum);
   }
-  return { labels, total, planned, unplanned };
+  return { labels, planned, unplanned };
 }
 
 // --- conflicts --------------------------------------------------------------
 
-function computeConflicts(rows) {
-  // Pairs of REMITs at the same site with overlapping event windows.
+function computeConflicts(rows, nowMs = Date.now()) {
+  // Surface overlapping REMIT pairs that meet ALL of:
+  //   - both rows have event_status == "Active" (not Inactive/Dismissed)
+  //   - both rows are in the same site AND same category (Withdrawal/Injection/
+  //     Storage) — different categories don't physically conflict
+  //   - their event windows overlap
+  //   - the overlap window has NOT ended yet (skip purely historical clashes)
+  //
+  // For each surfaced pair, also compute the effective available capacity
+  // during the overlap, using the user's rule: take the minimum
+  // availableCapacity reported across the conflicting REMITs.
   const out = [];
   for (const site of SITES) {
-    const own = rowsForSite(rows, site);
-    for (let i = 0; i < own.length; i++) {
-      for (let j = i + 1; j < own.length; j++) {
-        const a = own[i], b = own[j];
-        if (!overlaps(a, b)) continue;
-        // Skip pairs that share a thread_id (same outage revisions).
-        if (a.thread_id && a.thread_id === b.thread_id) continue;
-        out.push({ site, a, b });
+    for (const category of CATEGORIES) {
+      const own = rowsForSiteCategory(rows, site, category).filter(
+        (r) => (r.event_status || "").toLowerCase() === "active"
+      );
+      for (let i = 0; i < own.length; i++) {
+        for (let j = i + 1; j < own.length; j++) {
+          const a = own[i], b = own[j];
+          if (a.thread_id && a.thread_id === b.thread_id) continue;
+          const aStart = parseTs(a.event_start), aStop = parseTs(a.event_stop);
+          const bStart = parseTs(b.event_start), bStop = parseTs(b.event_stop);
+          if ([aStart, aStop, bStart, bStop].some((v) => v == null)) continue;
+          const overlapStart = Math.max(aStart, bStart);
+          const overlapStop = Math.min(aStop, bStop);
+          if (overlapStart >= overlapStop) continue; // no real overlap
+          if (overlapStop < nowMs) continue;          // purely in the past
+          // Effective available during overlap = min reported availableCapacity.
+          const avA = a.available_capacity != null ? Number(a.available_capacity) : null;
+          const avB = b.available_capacity != null ? Number(b.available_capacity) : null;
+          const reported = [avA, avB].filter((v) => v != null && !Number.isNaN(v));
+          const effectiveAvailable = reported.length > 0 ? Math.min(...reported) : null;
+          out.push({
+            site,
+            category,
+            a, b,
+            overlap_start: overlapStart,
+            overlap_stop: overlapStop,
+            effective_available: effectiveAvailable,
+            unit: TECH_UNITS[category],
+          });
+        }
       }
     }
   }
+  // Sort: currently-overlapping first, then by overlap start.
+  out.sort((x, y) => {
+    const xLive = x.overlap_start <= nowMs && nowMs <= x.overlap_stop ? 0 : 1;
+    const yLive = y.overlap_start <= nowMs && nowMs <= y.overlap_stop ? 0 : 1;
+    if (xLive !== yLive) return xLive - yLive;
+    return x.overlap_start - y.overlap_start;
+  });
   return out;
 }
 
-// --- formatting helpers used by aggregations themselves ---------------------
+// --- gradient colour for the dial fill -------------------------------------
+// 0% available -> red, 50% -> amber, 100% -> green. Linear interpolation
+// between three stops; returns "#rrggbb".
 
-function formatNum(v) {
-  if (v == null || v === "") return "";
-  const n = Number(v);
-  if (Number.isNaN(n)) return String(v);
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
+function _lerp(a, b, t) { return Math.round(a + (b - a) * t); }
+function _toHex(n) { return n.toString(16).padStart(2, "0"); }
 
-function formatShort(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function gradientColor(pct) {
+  pct = Math.max(0, Math.min(1, pct));
+  const red    = [220, 38, 38];   // #dc2626
+  const amber  = [234, 179, 8];   // #eab308
+  const green  = [22, 163, 74];   // #16a34a
+  let r, g, b;
+  if (pct < 0.5) {
+    const t = pct / 0.5;
+    r = _lerp(red[0], amber[0], t);
+    g = _lerp(red[1], amber[1], t);
+    b = _lerp(red[2], amber[2], t);
+  } else {
+    const t = (pct - 0.5) / 0.5;
+    r = _lerp(amber[0], green[0], t);
+    g = _lerp(amber[1], green[1], t);
+    b = _lerp(amber[2], green[2], t);
+  }
+  return `#${_toHex(r)}${_toHex(g)}${_toHex(b)}`;
 }
 
 window.REMITAggregates = {
   SITES,
+  CATEGORIES,
+  TECH_CAPACITY,
+  TECH_UNITS,
   isLive,
+  categorise,
   computeRecentChanges,
   computeKpis,
+  computeSiteCategoryStatus,
   computeSiteHeadline,
   computeCapacityTimeline,
   computeConflicts,
+  gradientColor,
 };

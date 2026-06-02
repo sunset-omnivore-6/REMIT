@@ -23,10 +23,7 @@ const els = {
   kpiLive: document.getElementById("kpi-live"),
   kpiLiveSplit: document.getElementById("kpi-live-split"),
   kpiUpcoming: document.getElementById("kpi-upcoming"),
-  kpiAldbrough: document.getElementById("kpi-aldbrough"),
-  kpiAldbroughSub: document.getElementById("kpi-aldbrough-sub"),
-  kpiAtwick: document.getElementById("kpi-atwick"),
-  kpiAtwickSub: document.getElementById("kpi-atwick-sub"),
+  kpiUpcomingSplit: document.getElementById("kpi-upcoming-split"),
   headlineAldbrough: document.getElementById("headline-aldbrough"),
   headlineAtwick: document.getElementById("headline-atwick"),
   conflictsSection: document.getElementById("conflicts-section"),
@@ -34,6 +31,7 @@ const els = {
 };
 
 const charts = { aldbrough: null, atwick: null };
+const dialCharts = {};  // keyed "site-category" lowercase
 
 let state = {
   rows: [],
@@ -84,24 +82,26 @@ function renderDashboard() {
     els.changesBanner.hidden = true;
   }
 
-  // KPIs
+  // Hero KPIs
   const kpis = agg.computeKpis(siteRows);
   els.kpiLive.textContent = kpis.live_count;
-  const splitParts = [];
-  if (kpis.live_planned) splitParts.push(`${kpis.live_planned} planned`);
-  if (kpis.live_unplanned) splitParts.push(`${kpis.live_unplanned} unplanned`);
-  els.kpiLiveSplit.textContent = splitParts.join(" · ") || "nothing live";
+  els.kpiLiveSplit.textContent = formatSplit(kpis.live_planned, kpis.live_unplanned, "live");
   els.kpiUpcoming.textContent = kpis.upcoming_7d;
+  els.kpiUpcomingSplit.textContent = formatSplit(kpis.upcoming_planned, kpis.upcoming_unplanned, "upcoming");
 
-  // Per-site KPI tiles
-  fillSiteKpi("Aldbrough", siteRows, els.kpiAldbrough, els.kpiAldbroughSub);
-  fillSiteKpi("Atwick", siteRows, els.kpiAtwick, els.kpiAtwickSub);
-
-  // Per-site headlines
+  // Per-site headlines (3 category lines each, never summed)
   renderHeadline(els.headlineAldbrough, agg.computeSiteHeadline(siteRows, "Aldbrough"));
   renderHeadline(els.headlineAtwick, agg.computeSiteHeadline(siteRows, "Atwick"));
 
-  // Charts
+  // Capacity dials: 3 per site
+  for (const site of agg.SITES) {
+    for (const cat of agg.CATEGORIES) {
+      const status = agg.computeSiteCategoryStatus(siteRows, site, cat);
+      renderDial(`dial-${site.toLowerCase()}-${cat.toLowerCase()}`, status);
+    }
+  }
+
+  // 30-day timeline charts
   renderCapacityChart("aldbrough", agg.computeCapacityTimeline(siteRows, "Aldbrough"));
   renderCapacityChart("atwick", agg.computeCapacityTimeline(siteRows, "Atwick"));
 
@@ -109,32 +109,98 @@ function renderDashboard() {
   renderConflicts(agg.computeConflicts(siteRows));
 }
 
-function fillSiteKpi(site, rows, valueEl, subEl) {
-  const nowMs = Date.now();
-  const own = rows.filter((r) => (r.asset || "").toLowerCase() === site.toLowerCase());
-  const live = own.filter((r) => window.REMITAggregates.isLive(r, nowMs));
-  let total = 0;
-  let uom = "";
-  for (const r of live) {
-    if (r.unavailable_capacity != null) total += Number(r.unavailable_capacity) || 0;
-    if (r.unit_of_measurement) uom = r.unit_of_measurement;
-  }
-  if (live.length === 0) {
-    valueEl.textContent = "0";
-    subEl.textContent = "nothing live";
-  } else {
-    valueEl.textContent = `${formatNum(total)} ${uom}`;
-    subEl.textContent = `${live.length} live event${live.length === 1 ? "" : "s"}`;
-  }
+function formatSplit(planned, unplanned, fallbackLabel) {
+  const parts = [];
+  if (planned) parts.push(`${planned} planned`);
+  if (unplanned) parts.push(`${unplanned} unplanned`);
+  return parts.join(" · ") || `none ${fallbackLabel}`;
 }
 
 function renderHeadline(el, h) {
   el.className = `headline headline--${h.state}`;
+  const linesHtml = h.lines.map((l) => {
+    const isOffline = l.unavailable > 0;
+    const valStr = isOffline ? `${formatNum(l.unavailable)} ${l.unit}` : `<span class="headline-ok">all available</span>`;
+    return `
+      <div class="headline-line${isOffline ? " headline-line--offline" : ""}">
+        <span class="headline-cat">${escapeHtml(l.category)}</span>
+        <span class="headline-val">${valStr}</span>
+        ${l.live_count > 0 ? `<span class="headline-count">${l.live_count} live</span>` : ""}
+      </div>
+    `;
+  }).join("");
   el.innerHTML = `
     <div class="headline-site">${escapeHtml(h.site)}</div>
-    <div class="headline-main">${escapeHtml(h.headline)}</div>
-    <div class="headline-detail">${escapeHtml(h.detail)}</div>
+    ${linesHtml}
   `;
+}
+
+function renderDial(elId, status) {
+  const agg = window.REMITAggregates;
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const pct = status.pct_available;
+  const color = agg.gradientColor(pct);
+  const canvasId = `${elId}-canvas`;
+
+  // First render: build the inner DOM. Subsequent renders just patch values
+  // so the chart instance is reused and the canvas doesn't flicker.
+  if (!el.dataset.built) {
+    el.innerHTML = `
+      <div class="dial-canvas-wrap"><canvas id="${canvasId}"></canvas>
+        <div class="dial-center">
+          <div class="dial-pct" id="${elId}-pct"></div>
+          <div class="dial-cat" id="${elId}-cat"></div>
+        </div>
+      </div>
+      <div class="dial-footer">
+        <div class="dial-avail" id="${elId}-avail"></div>
+        <div class="dial-tech" id="${elId}-tech"></div>
+        <div class="dial-live" id="${elId}-live"></div>
+      </div>
+    `;
+    el.dataset.built = "1";
+  }
+
+  document.getElementById(`${elId}-pct`).textContent = `${Math.round(pct * 100)}%`;
+  document.getElementById(`${elId}-cat`).textContent = status.category;
+  document.getElementById(`${elId}-avail`).innerHTML =
+    `<strong>${formatNum(status.available_now)}</strong> ${status.unit} available`;
+  document.getElementById(`${elId}-tech`).textContent =
+    `of ${formatNum(status.tech_max)} ${status.unit} max`;
+  const liveEl = document.getElementById(`${elId}-live`);
+  if (status.live_remits.length === 0) {
+    liveEl.textContent = "";
+  } else {
+    const ids = status.live_remits.map((r) => r.thread_id).join(", ");
+    liveEl.textContent = `${status.live_remits.length} live: ${ids}`;
+  }
+
+  const data = {
+    labels: ["Available", "Unavailable"],
+    datasets: [{
+      data: [status.available_now, Math.max(0, status.tech_max - status.available_now)],
+      backgroundColor: [color, "#e5e7eb"],
+      borderWidth: 0,
+    }],
+  };
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: "72%",
+    rotation: -90,
+    circumference: 360,
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    animation: { duration: 400 },
+  };
+  if (dialCharts[elId]) {
+    dialCharts[elId].data = data;
+    dialCharts[elId].options = options;
+    dialCharts[elId].update();
+  } else {
+    dialCharts[elId] = new Chart(document.getElementById(canvasId).getContext("2d"),
+      { type: "doughnut", data, options });
+  }
 }
 
 function renderCapacityChart(siteKey, timeline) {
@@ -206,16 +272,31 @@ function renderConflicts(conflicts) {
     return;
   }
   els.conflictsSection.hidden = false;
-  els.conflictsList.innerHTML = conflicts
-    .map((c) => `<li>
-      <strong>${escapeHtml(c.site)}:</strong>
-      <code>${escapeHtml(c.a.thread_id || "")}</code> (${escapeHtml(c.a.type_of_event || "")},
-      ${formatTs(c.a.event_start)} → ${formatTs(c.a.event_stop)})
-      overlaps with
-      <code>${escapeHtml(c.b.thread_id || "")}</code> (${escapeHtml(c.b.type_of_event || "")},
-      ${formatTs(c.b.event_start)} → ${formatTs(c.b.event_stop)})
-    </li>`)
-    .join("");
+  const nowMs = Date.now();
+  els.conflictsList.innerHTML = conflicts.map((c) => {
+    const livePill = c.overlap_start <= nowMs && nowMs <= c.overlap_stop
+      ? '<span class="pill pill--live">LIVE NOW</span>' : "";
+    const eff = c.effective_available != null
+      ? ` <span class="conflict-eff">effective available: <strong>${formatNum(c.effective_available)} ${escapeHtml(c.unit)}</strong></span>`
+      : "";
+    return `<li>
+      <div class="conflict-head">
+        <strong>${escapeHtml(c.site)} · ${escapeHtml(c.category)}</strong>
+        ${livePill}
+        <span class="conflict-window">overlap ${formatTs(new Date(c.overlap_start).toISOString())} → ${formatTs(new Date(c.overlap_stop).toISOString())}</span>
+        ${eff}
+      </div>
+      <div class="conflict-pair">
+        <code>${escapeHtml(c.a.thread_id || "")}</code>
+        (avail ${formatNum(c.a.available_capacity)} ${escapeHtml(c.unit)},
+         ${formatTs(c.a.event_start)} → ${formatTs(c.a.event_stop)})
+        ↔
+        <code>${escapeHtml(c.b.thread_id || "")}</code>
+        (avail ${formatNum(c.b.available_capacity)} ${escapeHtml(c.unit)},
+         ${formatTs(c.b.event_start)} → ${formatTs(c.b.event_stop)})
+      </div>
+    </li>`;
+  }).join("");
 }
 
 function renderBanner() {
