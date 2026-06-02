@@ -178,14 +178,20 @@ function computeSiteHeadline(rows, site, nowMs = Date.now()) {
 function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs = Date.now()) {
   // Returns a STEP function — availability is piecewise constant and only
   // changes at REMIT start/stop boundaries. Evaluated per direction
-  // (Withdrawal / Injection). At each breakpoint we report the value that
-  // holds from that breakpoint UNTIL the next one, so the chart renderer
-  // should use stepped:'after' to draw a horizontal segment until the next x.
+  // (Withdrawal / Injection). Use stepped:'after' to draw.
   //
-  // Overlap rule (per spec): when multiple REMITs in the same direction are
-  // active simultaneously, effective unavailable = MAX(unavailable_capacity)
-  // across them — never the sum. That bounds unavailable at the largest
-  // single REMIT and keeps available >= 0.
+  // OVERLAP RULE: effective availability at instant t =
+  //   MIN(availableCapacity) across all REMITs active at t in this category.
+  // Fallback (only if no availableCapacity reported by any of them):
+  //   tech_max - SUM(unavailableCapacity).
+  // Mirrors app.py:_capacity_at() exactly.
+  //
+  // Why MIN(available) and not MAX(unavail): individual REMITs report
+  // unavailable_capacity as the MARGINAL impact of that REMIT. The
+  // availableCapacity field is the absolute system state already accounting
+  // for other concurrent REMITs at publication time. So
+  //   tech_max - unavailable != availableCapacity in general,
+  // and stacking via max(unavail) would miss the cumulative effect.
   //
   // Storage events deliberately excluded — different unit (TWh), not flow.
   const endMs = nowMs + days * 86400 * 1000;
@@ -193,17 +199,22 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
   const techInjection = TECH_CAPACITY[site].Injection;
 
   function lineFor(category, tech) {
-    // Filter to rows that touch the horizon at all.
     const catRows = rowsForSiteCategory(rows, site, category)
       .map((r) => ({
         start: parseTs(r.event_start),
         stop: parseTs(r.event_stop),
-        unavail: Number(r.unavailable_capacity) || 0,
+        avail: r.available_capacity != null && r.available_capacity !== ""
+          ? Number(r.available_capacity)
+          : null,
+        unavail: r.unavailable_capacity != null && r.unavailable_capacity !== ""
+          ? Number(r.unavailable_capacity)
+          : null,
       }))
-      .filter((r) => r.start != null && r.stop != null && r.stop > nowMs && r.start < endMs);
+      .filter((r) =>
+        r.start != null && r.stop != null &&
+        r.stop > nowMs && r.start < endMs
+      );
 
-    // Breakpoints = nowMs, endMs, plus every start/stop that falls strictly
-    // inside the horizon. Dedupe via a Set.
     const bps = new Set([nowMs, endMs]);
     for (const r of catRows) {
       if (r.start > nowMs && r.start < endMs) bps.add(r.start);
@@ -211,28 +222,30 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
     }
     const sorted = [...bps].sort((a, b) => a - b);
 
-    // For each interval [t_i, t_{i+1}) evaluate availability at the midpoint;
-    // emit a point at t_i carrying that value. Final point closes the line
-    // at endMs with the trailing value so the chart reaches the right edge.
     const data = [];
     for (let i = 0; i < sorted.length - 1; i++) {
       const t1 = sorted[i];
       const t2 = sorted[i + 1];
       const mid = (t1 + t2) / 2;
-      let maxUnavail = 0;
-      for (const r of catRows) {
-        if (r.start <= mid && mid < r.stop) {
-          if (r.unavail > maxUnavail) maxUnavail = r.unavail;
+
+      const active = catRows.filter((r) => r.start <= mid && mid < r.stop);
+      let value;
+      if (active.length === 0) {
+        value = tech;
+      } else {
+        const reportedAvails = active.map((r) => r.avail).filter((v) => v != null && !Number.isNaN(v));
+        if (reportedAvails.length > 0) {
+          value = Math.min(...reportedAvails);
+        } else {
+          const unavailSum = active.reduce((acc, r) => acc + (r.unavail || 0), 0);
+          value = Math.max(0, tech - unavailSum);
         }
       }
-      const avail = Math.max(0, tech - maxUnavail);
-      data.push({ x: t1, y: avail });
+      data.push({ x: t1, y: value });
     }
     if (data.length === 0) {
-      // No relevant REMITs in window — flat at tech max across the horizon.
       data.push({ x: nowMs, y: tech });
     }
-    // Trailing closing point.
     data.push({ x: endMs, y: data[data.length - 1].y });
     return data;
   }
