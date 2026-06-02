@@ -93,8 +93,14 @@ function renderDashboard() {
   }
 
   // 30-day availability timeline (per-direction step lines)
-  renderAvailabilityChart("aldbrough", agg.computeAvailabilityTimeline(siteRows, "Aldbrough"));
-  renderAvailabilityChart("atwick", agg.computeAvailabilityTimeline(siteRows, "Atwick"));
+  const aldTimeline = agg.computeAvailabilityTimeline(siteRows, "Aldbrough");
+  const atwTimeline = agg.computeAvailabilityTimeline(siteRows, "Atwick");
+  renderAvailabilityChart("aldbrough", aldTimeline);
+  renderAvailabilityChart("atwick", atwTimeline);
+  // Make the actual plotted data inspectable from devtools — useful when
+  // anyone wonders whether a visual oddity is a math problem or a render
+  // problem. Press F12 → Console and read `REMITTimeline`.
+  window.REMITTimeline = { Aldbrough: aldTimeline, Atwick: atwTimeline };
 
   // Upcoming next-7-days text list, per site
   renderUpcomingForSite(els.upcomingAldbrough, "Aldbrough", agg.computeUpcomingNext(siteRows, "Aldbrough", 7));
@@ -190,6 +196,19 @@ function renderAvailabilityChart(siteKey, timeline) {
   const canvas = document.getElementById(`chart-${siteKey}`);
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext("2d");
+
+  // Render an explicit "Now" badge so the line's current value is
+  // unambiguous. With a 0-160 y-axis a value of 26 looks low and is
+  // easy to misread as 0; the badge eliminates the ambiguity.
+  const nowBadge = document.getElementById(`chart-now-${siteKey}`);
+  if (nowBadge) {
+    const wNow = timeline.withdrawal_data[0]?.y ?? null;
+    const iNow = timeline.injection_data[0]?.y ?? null;
+    nowBadge.innerHTML = `
+      <span class="chart-now-pill chart-now-pill--w">W <strong>${formatNum(wNow)}</strong> / ${formatNum(timeline.withdrawal_tech)}</span>
+      <span class="chart-now-pill chart-now-pill--i">I <strong>${formatNum(iNow)}</strong> / ${formatNum(timeline.injection_tech)}</span>
+    `;
+  }
 
   function bandGradient(rgb) {
     const h = canvas.height || canvas.parentElement.clientHeight || 260;

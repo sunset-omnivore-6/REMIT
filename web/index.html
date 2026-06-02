@@ -65,11 +65,17 @@
     <!-- Capacity timeline charts: available withdrawal + injection, 30d -->
     <section class="charts">
       <div class="chart-card">
-        <h3>Aldbrough — available capacity (next 30 days)</h3>
+        <div class="chart-head">
+          <h3>Aldbrough — available capacity (next 30 days)</h3>
+          <div class="chart-now" id="chart-now-aldbrough"></div>
+        </div>
         <div class="chart-wrap"><canvas id="chart-aldbrough"></canvas></div>
       </div>
       <div class="chart-card">
-        <h3>Atwick — available capacity (next 30 days)</h3>
+        <div class="chart-head">
+          <h3>Atwick — available capacity (next 30 days)</h3>
+          <div class="chart-now" id="chart-now-atwick"></div>
+        </div>
         <div class="chart-wrap"><canvas id="chart-atwick"></canvas></div>
       </div>
     </section>
@@ -161,7 +167,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="/web/aggregate.js"></script>
-  <script src="/web/app.js"></script>
+  <script>
+    // Cache-bust local scripts with a build tag so a `git pull` is enough —
+    // no need for users to hard-refresh or clear cache.
+    var BUILD = "20260603a";
+    document.write('<scr' + 'ipt src="/web/aggregate.js?v=' + BUILD + '"></scr' + 'ipt>');
+    document.write('<scr' + 'ipt src="/web/app.js?v=' + BUILD + '"></scr' + 'ipt>');
+  </script>
 </body>
 </html>

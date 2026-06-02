@@ -295,12 +295,33 @@ main {
   box-shadow: var(--shadow);
 }
 .chart-card h3 {
-  margin: 0 0 12px;
+  margin: 0 0 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
   letter-spacing: 0.01em;
 }
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.chart-now { display: flex; gap: 8px; font-size: 11px; }
+.chart-now-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.chart-now-pill strong { color: #0f172a; font-weight: 600; }
+.chart-now-pill--w { background: #fee2e2; color: #991b1b; }
+.chart-now-pill--w strong { color: #7f1d1d; }
+.chart-now-pill--i { background: #dbeafe; color: #1e40af; }
+.chart-now-pill--i strong { color: #1e3a8a; }
 .chart-wrap {
   position: relative;
   height: 260px;

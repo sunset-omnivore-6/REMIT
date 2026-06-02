@@ -225,9 +225,31 @@ async def api_debug_site_category(site: str = "Atwick", category: str = "Withdra
     })
 
 
+_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
 @app.get("/")
 async def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+    # Disable HTML caching so the cache-busting build-tag inside index.html
+    # is always re-read after a deploy / git pull.
+    return FileResponse(WEB_DIR / "index.html", headers=_NO_CACHE_HEADERS)
 
 
-app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+class NoCacheStaticFiles(StaticFiles):
+    """Static files with no-store cache headers. Combined with the build-tag
+    query string on script src URLs, this guarantees that a browser refresh
+    after `git pull` always loads the fresh JS/CSS — never a stale cached copy.
+    """
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        for k, v in _NO_CACHE_HEADERS.items():
+            resp.headers[k] = v
+        return resp
+
+
+app.mount("/web", NoCacheStaticFiles(directory=WEB_DIR), name="web")
