@@ -403,6 +403,9 @@ function renderAvailabilityChart(siteKey, timeline) {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: "nearest", axis: "x", intersect: false },
+    // Subtle entry animation on first mount only. Periodic refreshes use
+    // update('none') below so this duration never plays on refresh.
+    animation: { duration: 450, easing: "easeOutQuart" },
     plugins: {
       legend: {
         position: "top",
@@ -478,8 +481,17 @@ function renderAvailabilityChart(siteKey, timeline) {
     },
   };
 
-  if (charts[siteKey]) charts[siteKey].destroy();
-  charts[siteKey] = new Chart(ctx, { type: "line", data, options });
+  // First mount animates briefly; subsequent renders (theme toggle,
+  // periodic 30s data refresh) update in place via update('none') so the
+  // chart doesn't repeatedly re-animate on screen — that catches the eye
+  // every refresh cycle and reads as the page being unstable.
+  if (charts[siteKey]) {
+    charts[siteKey].data = data;
+    charts[siteKey].options = options;
+    charts[siteKey].update("none");
+  } else {
+    charts[siteKey] = new Chart(ctx, { type: "line", data, options });
+  }
 
   // Hide the skeleton overlay now that the canvas has real content.
   const skel = document.getElementById(`chart-skel-${siteKey}`);
