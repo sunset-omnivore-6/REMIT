@@ -14,7 +14,11 @@ from fastapi.staticfiles import StaticFiles
 
 from server import cache
 from server.fetch_sse import fetch_remit
-from server.normalise import filter_to_sse_storage, normalise_rows
+from server.normalise import (
+    collect_raw_field_names,
+    filter_to_sse_storage,
+    normalise_rows,
+)
 
 logger = logging.getLogger("remit")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -158,6 +162,19 @@ async def api_refresh() -> JSONResponse:
 @app.get("/api/log")
 async def api_log(limit: int = 50) -> JSONResponse:
     return JSONResponse({"entries": cache.read_log(limit=limit)})
+
+
+@app.get("/api/debug/raw_schema")
+async def api_debug_raw_schema() -> JSONResponse:
+    """Show what field names the SSE API is actually returning.
+
+    Use this when normalisation is producing empty columns — compare
+    these names against FIELD_ALIASES in server/normalise.py.
+    """
+    snapshot = cache.load_snapshot()
+    if snapshot is None:
+        return JSONResponse({"error": "no snapshot yet"}, status_code=404)
+    return JSONResponse(collect_raw_field_names(snapshot["rows"]))
 
 
 @app.get("/")
