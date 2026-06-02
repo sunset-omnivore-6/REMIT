@@ -260,6 +260,7 @@ function renderAvailabilityChart(siteKey, timeline) {
     pointRadius: 0,
     fill: false,
     tension: 0,
+    parsing: false,
   });
 
   const data = {
@@ -269,7 +270,7 @@ function renderAvailabilityChart(siteKey, timeline) {
         data: withdrawalSeries,
         borderColor: "#dc2626",
         backgroundColor: bandGradient("220,38,38"),
-        fill: true,
+        fill: "origin",
         tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
@@ -277,13 +278,14 @@ function renderAvailabilityChart(siteKey, timeline) {
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
+        parsing: false,
       },
       {
         label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
         data: injectionSeries,
         borderColor: "#2563eb",
         backgroundColor: bandGradient("37,99,235"),
-        fill: true,
+        fill: "origin",
         tension: 0,
         pointRadius: 0,
         pointHoverRadius: 5,
@@ -291,6 +293,7 @@ function renderAvailabilityChart(siteKey, timeline) {
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
+        parsing: false,
       },
       techRefLine(timeline.withdrawal_tech, "rgba(220,38,38,0.35)", "withdrawal_tech_max"),
       techRefLine(timeline.injection_tech,  "rgba(37,99,235,0.35)", "injection_tech_max"),
