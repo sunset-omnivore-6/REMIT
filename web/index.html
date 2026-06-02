@@ -61,6 +61,9 @@
         <input id="filter-search" type="text" placeholder="e.g. ALD_…" />
       </div>
       <div class="control control--inline">
+        <label><input id="filter-live-only" type="checkbox" /> Currently live only</label>
+      </div>
+      <div class="control control--inline">
         <label><input id="filter-all-sites" type="checkbox" /> Show all sites (not just Aldbrough/Atwick)</label>
       </div>
     </section>
@@ -80,6 +83,9 @@
             <th>Event stop</th>
             <th>UoM</th>
             <th class="num">Unavailable</th>
+            <th class="num">Tech max</th>
+            <th>Reason</th>
+            <th>Remarks</th>
           </tr>
         </thead>
         <tbody id="remit-tbody"></tbody>

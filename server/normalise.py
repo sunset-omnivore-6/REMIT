@@ -11,22 +11,30 @@ from typing import Any
 
 # Canonical field -> ordered list of source-field aliases (case-insensitive).
 # First match wins. Substring fallback below catches anything we missed.
+# Primary alias is the exact field name SSE returns today (verified via
+# /api/debug/raw_schema); subsequent aliases are safety nets for renames.
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
-    "thread_id": ("threadId", "threadID", "thread_id", "messageId", "mrid"),
+    "id": ("id",),
+    "message_id": ("messageId",),
+    "thread_id": ("threadId", "threadID", "thread_id", "mrid"),
     "revision_number": ("revisionNumber", "revision", "version"),
     "asset": (
+        "generationUnitName",
         "affectedAssetOrUnit",
         "affectedAsset",
-        "asset",
-        "assetOrUnit",
         "assetName",
         "unitName",
         "facilityName",
         "siteName",
+        "asset",
         "site",
         "facility",
         "name",
     ),
+    "eic_code": ("generationUnitEicCode", "eicCode"),
+    "balancing_zone": ("balancingZone",),
+    "market_participant": ("marketParticipant", "participant"),
+    "market_participant_code": ("marketParticipantCode",),
     "event_status": ("eventStatus", "status", "messageStatus"),
     "type_of_unavailability": ("typeOfUnavailability", "unavailabilityType"),
     "type_of_event": ("typeOfEvent", "eventType"),
@@ -52,17 +60,16 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "stopDate",
     ),
     "unit_of_measurement": ("unitOfMeasurement", "uom", "units"),
+    "technical_capacity": ("technicalCapacity",),
     "unavailable_capacity": (
         "unavailableCapacity",
         "unavailableCapacityValue",
         "capacity",
     ),
     "available_capacity": ("availableCapacity",),
-    "technical_capacity": ("technicalCapacity",),
-    "reason": ("reason", "remarks", "comment"),
+    "reason": ("reasonForUnavailability", "reason"),
+    "remarks": ("remarks", "comment"),
     "location": ("location",),
-    "fuel_type": ("fuelType",),
-    "market_participant": ("marketParticipant", "participant"),
 }
 
 # Substring patterns used as a last-resort fallback when no exact alias

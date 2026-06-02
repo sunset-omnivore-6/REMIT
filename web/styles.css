@@ -223,6 +223,11 @@ tbody tr:hover { background: #f8fafc; }
 .pill--inactive { background: #f1f5f9; color: #475569; }
 .pill--planned  { background: #dbeafe; color: #1e40af; }
 .pill--unplanned{ background: #fee2e2; color: #991b1b; }
+.pill--live     { background: #fef3c7; color: #78350f; border: 1px solid #f59e0b; }
+
+tr.row--live { background: #fffbeb; }
+tr.row--live:hover { background: #fef3c7; }
+tr.row--live td:first-child { border-left: 3px solid #f59e0b; }
 
 .muted { color: var(--text-muted); font-size: 12px; }
 .empty { padding: 32px; text-align: center; color: var(--text-muted); }
