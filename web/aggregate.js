@@ -276,6 +276,8 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
 // --- upcoming events (next N days, text list) -------------------------------
 
 function computeUpcomingNext(rows, site, days = 7, nowMs = Date.now()) {
+  // Kept for backwards compatibility / future reuse — see
+  // computeUpcomingTransitions for the active view the UI renders.
   const horizonStop = nowMs + days * 86400 * 1000;
   const opRows = operationalRows(rows);
   return rowsForSite(opRows, site)
@@ -283,35 +285,77 @@ function computeUpcomingNext(rows, site, days = 7, nowMs = Date.now()) {
       const start = parseTs(r.event_start);
       return start != null && start > nowMs && start <= horizonStop;
     })
-    .map((r) => {
-      const cat = categorise(r.type_of_event);
-      const startMs = parseTs(r.event_start);
-      const stopMs = parseTs(r.event_stop);
-      const effective = cat
-        ? computeEffectiveAvailableDuring(opRows, site, cat, startMs, stopMs)
-        : null;
-      return {
-        thread_id: r.thread_id,
-        category: cat || r.type_of_event || "?",
-        type_of_unavailability: r.type_of_unavailability,
-        event_start: r.event_start,
-        event_stop: r.event_stop,
-        unavailable_capacity: r.unavailable_capacity,
-        available_capacity: r.available_capacity,
-        unit_of_measurement: r.unit_of_measurement,
-        reason: r.reason,
-        remarks: r.remarks,
-        duration_hours: (stopMs - startMs) / 3600000,
-        // Effective availability during this REMIT's window, computed the
-        // SAME WAY the conflicts panel computes its "effective available"
-        // — min(availableCapacity) across all REMITs active during the
-        // window. This is what the user actually wants to know.
-        effective_available_during: effective != null ? effective.value : null,
-        effective_other_count: effective != null ? effective.other_count : 0,
-        tech_max: cat && TECH_CAPACITY[site] ? TECH_CAPACITY[site][cat] : null,
-      };
-    })
     .sort((a, b) => Date.parse(a.event_start) - Date.parse(b.event_start));
+}
+
+// Upcoming TRANSITIONS — every moment in the next N days where the
+// effective availability of a category changes, including current REMITs
+// that are clearing (ending). Returns an array of
+//   { at_ms, category, from, to, delta, unit, tech_max, starting[], ending[] }
+// sorted by time. Concise enough to read as a punch-list:
+//   "03/06 04:00 — Withdrawal 26 → 44 GWh/d  (ATW_1239 ends · ATW_1257 begins)"
+function computeUpcomingTransitions(rows, site, days = 7, nowMs = Date.now()) {
+  const horizonEnd = nowMs + days * 86400 * 1000;
+  const opRows = operationalRows(rows);
+  const transitions = [];
+
+  for (const category of CATEGORIES) {
+    const catRows = rowsForSiteCategory(opRows, site, category)
+      .map((r) => ({
+        raw: r,
+        start: parseTs(r.event_start),
+        stop: parseTs(r.event_stop),
+        avail: r.available_capacity != null && r.available_capacity !== ""
+          ? Number(r.available_capacity) : null,
+        unavail: Number(r.unavailable_capacity) || 0,
+      }))
+      .filter((r) =>
+        r.start != null && r.stop != null &&
+        r.stop > nowMs && r.start < horizonEnd
+      );
+
+    const tech = TECH_CAPACITY[site][category];
+    const unit = TECH_UNITS[category];
+
+    // Breakpoints in this category's transition window.
+    const bps = new Set();
+    for (const r of catRows) {
+      if (r.start > nowMs && r.start <= horizonEnd) bps.add(r.start);
+      if (r.stop > nowMs && r.stop <= horizonEnd) bps.add(r.stop);
+    }
+    const sortedBps = [...bps].sort((a, b) => a - b);
+
+    function availAt(t) {
+      const active = catRows.filter((r) => r.start <= t && t < r.stop);
+      if (active.length === 0) return tech;
+      const reportedAvails = active
+        .map((r) => r.avail)
+        .filter((v) => v != null && !Number.isNaN(v));
+      if (reportedAvails.length > 0) return Math.min(...reportedAvails);
+      const unavailSum = active.reduce((acc, r) => acc + (r.unavail || 0), 0);
+      return Math.max(0, tech - unavailSum);
+    }
+
+    for (const t of sortedBps) {
+      const before = availAt(t - 1);
+      const after = availAt(t);
+      if (Math.abs(before - after) < 0.001) continue; // no net change at this instant
+      transitions.push({
+        at_ms: t,
+        category,
+        from: before,
+        to: after,
+        delta: after - before,
+        unit,
+        tech_max: tech,
+        starting: catRows.filter((r) => r.start === t).map((r) => r.raw),
+        ending: catRows.filter((r) => r.stop === t).map((r) => r.raw),
+      });
+    }
+  }
+
+  transitions.sort((a, b) => a.at_ms - b.at_ms);
+  return transitions;
 }
 
 // Effective availability during a window — min(availableCapacity) across all
@@ -468,6 +512,7 @@ window.REMITAggregates = {
   computeSiteHeadline,
   computeAvailabilityTimeline,
   computeUpcomingNext,
+  computeUpcomingTransitions,
   computeConflicts,
   bucketConflictsBySite,
   gradientColor,

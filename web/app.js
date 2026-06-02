@@ -102,9 +102,10 @@ function renderDashboard() {
   // problem. Press F12 → Console and read `REMITTimeline`.
   window.REMITTimeline = { Aldbrough: aldTimeline, Atwick: atwTimeline };
 
-  // Upcoming next-7-days text list, per site
-  renderUpcomingForSite(els.upcomingAldbrough, "Aldbrough", agg.computeUpcomingNext(siteRows, "Aldbrough", 7));
-  renderUpcomingForSite(els.upcomingAtwick, "Atwick", agg.computeUpcomingNext(siteRows, "Atwick", 7));
+  // Upcoming transitions: every capacity change in the next 7 days, including
+  // currently-live REMITs that are clearing. Format: from -> to per category.
+  renderUpcomingForSite(els.upcomingAldbrough, "Aldbrough", agg.computeUpcomingTransitions(siteRows, "Aldbrough", 7));
+  renderUpcomingForSite(els.upcomingAtwick, "Atwick", agg.computeUpcomingTransitions(siteRows, "Atwick", 7));
 
   // Conflicts split per site
   const conflicts = agg.computeConflicts(siteRows);
@@ -392,70 +393,68 @@ function renderAvailabilityChart(siteKey, timeline) {
   charts[siteKey] = new Chart(ctx, { type: "line", data, options });
 }
 
-function renderUpcomingForSite(rootEl, site, events) {
+function renderUpcomingForSite(rootEl, site, transitions) {
   if (!rootEl) return;
-  if (events.length === 0) {
+  if (transitions.length === 0) {
     rootEl.innerHTML = `
       <div class="upcoming-card upcoming-card--empty">
-        <div class="upcoming-site">${escapeHtml(site)}</div>
-        <div class="upcoming-empty">Nothing upcoming in next 7 days</div>
+        <div class="upcoming-site-row">
+          <span class="upcoming-site">${escapeHtml(site)}</span>
+        </div>
+        <div class="upcoming-empty">No capacity changes in next 7 days</div>
       </div>`;
     return;
   }
-  const items = events.map((e) => {
-    const dur = formatDuration(e.duration_hours);
-    const cls = (e.type_of_unavailability || "").toLowerCase() === "unplanned"
-      ? "upcoming-item--unplanned" : "upcoming-item--planned";
-
-    // Effective availability is the headline number — what's actually
-    // available during the REMIT's window once everything stacking on top
-    // is considered. This REMIT's marginal contribution is shown smaller
-    // underneath so the data is still inspectable.
-    const unit = escapeHtml(e.unit_of_measurement || "");
-    let effLine;
-    if (e.effective_available_during != null) {
-      const techNote = e.tech_max != null
-        ? ` <span class="upcoming-tech">of ${formatNum(e.tech_max)} ${unit} max</span>` : "";
-      const stack = e.effective_other_count > 0
-        ? ` <span class="upcoming-stack">(with ${e.effective_other_count} other REMIT${e.effective_other_count === 1 ? "" : "s"})</span>` : "";
-      effLine = `<strong class="upcoming-eff">${formatNum(e.effective_available_during)} ${unit} available</strong>${techNote}${stack}`;
-    } else {
-      effLine = `<span class="upcoming-tech">— availability unknown</span>`;
-    }
-    const marginal = e.unavailable_capacity != null
-      ? `<span class="upcoming-marginal">This REMIT removes ${formatNum(e.unavailable_capacity)} ${unit}</span>`
-      : "";
-
-    const reason = e.reason ? ` · ${escapeHtml(e.reason)}` : "";
+  const nowMs = Date.now();
+  const items = transitions.map((t) => {
+    const dir = t.delta > 0 ? "up" : "down";
+    const causes = [
+      ...t.ending.map((r) => `<code>${escapeHtml(shortenThreadId(r.thread_id))}</code> ends`),
+      ...t.starting.map((r) => `<code>${escapeHtml(shortenThreadId(r.thread_id))}</code> begins`),
+    ].join(" · ");
+    const countdown = formatCountdown(t.at_ms - nowMs);
+    const unit = escapeHtml(t.unit || "");
     return `
-      <div class="upcoming-item ${cls}">
-        <div class="upcoming-time">${formatTs(e.event_start)} <span class="upcoming-dur">(${dur})</span></div>
+      <div class="upcoming-item upcoming-item--${dir}">
+        <div class="upcoming-time">
+          ${formatTs(new Date(t.at_ms).toISOString())}
+          <span class="upcoming-dur">in ${countdown}</span>
+        </div>
         <div class="upcoming-body">
-          <strong>${escapeHtml(e.category)}</strong> · ${effLine}
-          <span class="upcoming-thread">${escapeHtml(e.thread_id || "")}</span>
+          <strong class="upcoming-cat">${escapeHtml(t.category)}</strong>
+          <span class="upcoming-from">${formatNum(t.from)}</span>
+          <span class="upcoming-arrow">→</span>
+          <strong class="upcoming-to">${formatNum(t.to)} ${unit}</strong>
         </div>
-        <div class="upcoming-remarks">
-          ${marginal}${e.remarks ? ` · ${escapeHtml(e.remarks)}` : ""}${reason}
-        </div>
+        <div class="upcoming-remarks">${causes}</div>
       </div>`;
   }).join("");
   rootEl.innerHTML = `
     <div class="upcoming-card">
       <div class="upcoming-site-row">
         <span class="upcoming-site">${escapeHtml(site)}</span>
-        <span class="upcoming-count">${events.length} event${events.length === 1 ? "" : "s"}</span>
+        <span class="upcoming-count">${transitions.length} change${transitions.length === 1 ? "" : "s"}</span>
       </div>
       ${items}
     </div>`;
 }
 
-function formatDuration(hours) {
-  if (hours == null || !isFinite(hours) || hours < 0) return "";
-  if (hours < 1) return `${Math.round(hours * 60)} min`;
-  if (hours < 24) return `${Math.round(hours)} hr`;
-  const days = hours / 24;
-  if (days < 7) return `${days % 1 < 0.1 ? days.toFixed(0) : days.toFixed(1)} d`;
-  return `${(days / 7).toFixed(1)} wk`;
+function shortenThreadId(tid) {
+  if (!tid) return "";
+  // ATW_000000000000000001239 → ATW_1239 — leading zeros are pure noise.
+  return String(tid).replace(/_0+(?=\d)/, "_");
+}
+
+function formatCountdown(deltaMs) {
+  if (deltaMs < 60000) return "<1m";
+  const totalMin = Math.floor(deltaMs / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const totalHr = Math.floor(totalMin / 60);
+  const remMin = totalMin % 60;
+  if (totalHr < 24) return remMin > 0 ? `${totalHr}h ${remMin}m` : `${totalHr}h`;
+  const totalDay = Math.floor(totalHr / 24);
+  const remHr = totalHr % 24;
+  return remHr > 0 ? `${totalDay}d ${remHr}h` : `${totalDay}d`;
 }
 
 function renderConflictsForSite(rootEl, site, buckets) {

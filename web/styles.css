@@ -442,11 +442,23 @@ main {
   font-size: 11px;
   color: var(--text-muted);
 }
-.upcoming-eff { color: #0f172a; font-variant-numeric: tabular-nums; }
-.upcoming-item--unplanned .upcoming-eff { color: #b91c1c; }
-.upcoming-tech { color: var(--text-muted); font-weight: 400; font-size: 12px; }
-.upcoming-stack { color: var(--text-muted); font-weight: 400; font-size: 11px; }
-.upcoming-marginal { color: #475569; }
+/* Transition arrow row: category · from → to */
+.upcoming-cat   { font-weight: 600; color: #0f172a; margin-right: 10px; }
+.upcoming-from  { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.upcoming-arrow { color: var(--text-muted); margin: 0 6px; font-weight: 400; }
+.upcoming-to    { font-weight: 600; font-variant-numeric: tabular-nums; color: #0f172a; }
+.upcoming-item--up   .upcoming-to { color: #166534; }
+.upcoming-item--down .upcoming-to { color: #b91c1c; }
+.upcoming-item--up   { border-top-color: #d1fae5; }
+.upcoming-item--down { border-top-color: #fee2e2; }
+.upcoming-remarks code {
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
 
 /* --- Conflicts (split per site, no panic colours) --- */
 .conflicts-section {
