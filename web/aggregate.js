@@ -49,6 +49,20 @@ function rowsForSiteCategory(rows, site, category) {
   return rowsForSite(rows, site).filter((r) => categorise(r.type_of_event) === category);
 }
 
+// Dismissed REMITs are issued then cancelled — operators publish them as a
+// notice but they don't represent real capacity changes. The old app
+// (app.py:2602-2604) filters them out before any capacity math; we do the
+// same so the chart / dials / headlines all agree with reality. Conflicts
+// apply a stricter "Active only" filter elsewhere per user spec.
+function isNotDismissed(r) {
+  const s = (r.event_status || "").toLowerCase();
+  return !s.includes("dismiss");
+}
+
+function operationalRows(rows) {
+  return rows.filter(isNotDismissed);
+}
+
 // --- recent changes ---------------------------------------------------------
 
 function computeRecentChanges(rows, hours = RECENT_HOURS_DEFAULT) {
@@ -101,13 +115,9 @@ function computeKpis(rows, nowMs = Date.now()) {
 // --- per-site, per-category status -----------------------------------------
 
 function computeSiteCategoryStatus(rows, site, category, nowMs = Date.now()) {
-  // For one (site, category) pair, return:
-  //   tech_max, unit, live_remits[], unavailable_now, available_now, pct_available
-  //
-  // Overlap rule (user spec): when multiple REMITs in the same category are
-  // simultaneously live, the LOWEST availableCapacity across them is treated
-  // as the effective availability. With no live REMITs, available = tech_max.
-  const own = rowsForSiteCategory(rows, site, category);
+  // For one (site, category) pair. Dismissed REMITs excluded — see
+  // operationalRows() doc for rationale.
+  const own = rowsForSiteCategory(operationalRows(rows), site, category);
   const live = own.filter((r) => isLive(r, nowMs));
   const tech = TECH_CAPACITY[site][category];
   const unit = TECH_UNITS[category];
@@ -163,7 +173,7 @@ function computeSiteHeadline(rows, site, nowMs = Date.now()) {
   return {
     site,
     state: anyLive
-      ? (rowsForSite(rows, site)
+      ? (rowsForSite(operationalRows(rows), site)
           .filter((r) => isLive(r, nowMs))
           .some((r) => (r.type_of_unavailability || "").toLowerCase() === "unplanned")
         ? "unplanned" : "planned")
@@ -198,8 +208,10 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
   const techWithdrawal = TECH_CAPACITY[site].Withdrawal;
   const techInjection = TECH_CAPACITY[site].Injection;
 
+  const opRows = operationalRows(rows);
+
   function lineFor(category, tech) {
-    const catRows = rowsForSiteCategory(rows, site, category)
+    const catRows = rowsForSiteCategory(opRows, site, category)
       .map((r) => ({
         start: parseTs(r.event_start),
         stop: parseTs(r.event_stop),
@@ -264,7 +276,7 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
 
 function computeUpcomingNext(rows, site, days = 7, nowMs = Date.now()) {
   const horizonStop = nowMs + days * 86400 * 1000;
-  return rowsForSite(rows, site)
+  return rowsForSite(operationalRows(rows), site)
     .filter((r) => {
       const start = parseTs(r.event_start);
       return start != null && start > nowMs && start <= horizonStop;
