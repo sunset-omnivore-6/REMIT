@@ -22,6 +22,8 @@ const els = {
   changesText: document.getElementById("changes-text"),
   headlineAldbrough: document.getElementById("headline-aldbrough"),
   headlineAtwick: document.getElementById("headline-atwick"),
+  upcomingAldbrough: document.getElementById("upcoming-aldbrough"),
+  upcomingAtwick: document.getElementById("upcoming-atwick"),
   conflictsAldbrough: document.getElementById("conflicts-aldbrough"),
   conflictsAtwick: document.getElementById("conflicts-atwick"),
 };
@@ -90,9 +92,13 @@ function renderDashboard() {
     }
   }
 
-  // 30-day availability timeline (per-direction lines)
+  // 30-day availability timeline (per-direction step lines)
   renderAvailabilityChart("aldbrough", agg.computeAvailabilityTimeline(siteRows, "Aldbrough"));
   renderAvailabilityChart("atwick", agg.computeAvailabilityTimeline(siteRows, "Atwick"));
+
+  // Upcoming next-7-days text list, per site
+  renderUpcomingForSite(els.upcomingAldbrough, "Aldbrough", agg.computeUpcomingNext(siteRows, "Aldbrough", 7));
+  renderUpcomingForSite(els.upcomingAtwick, "Atwick", agg.computeUpcomingNext(siteRows, "Atwick", 7));
 
   // Conflicts split per site
   const conflicts = agg.computeConflicts(siteRows);
@@ -185,11 +191,8 @@ function renderAvailabilityChart(siteKey, timeline) {
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext("2d");
 
-  // Vertical gradient under each line for a bit of polish (light at top,
-  // saturated near baseline). Recomputed per render to follow the canvas
-  // pixel-size — required because Chart.js resizes its backing store on init.
   function bandGradient(rgb) {
-    const h = canvas.height || canvas.parentElement.clientHeight || 240;
+    const h = canvas.height || canvas.parentElement.clientHeight || 260;
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0,    `rgba(${rgb}, 0.02)`);
     g.addColorStop(0.6,  `rgba(${rgb}, 0.10)`);
@@ -197,67 +200,61 @@ function renderAvailabilityChart(siteKey, timeline) {
     return g;
   }
 
+  const techRefLine = (tech, color, label) => ({
+    label,  // ends with "_tech_max" so legend + tooltip filter it
+    data: [{ x: timeline.start_ms, y: tech }, { x: timeline.end_ms, y: tech }],
+    borderColor: color,
+    borderDash: [4, 4],
+    borderWidth: 1,
+    pointRadius: 0,
+    fill: false,
+    stepped: false,
+    tension: 0,
+    parsing: false,
+  });
+
   const data = {
-    labels: timeline.labels,
     datasets: [
       {
         label: `Withdrawal available (max ${formatNum(timeline.withdrawal_tech)} GWh/d)`,
-        data: timeline.withdrawal_available,
+        data: timeline.withdrawal_data,
         borderColor: "#dc2626",
         backgroundColor: bandGradient("220,38,38"),
         fill: true,
-        tension: 0.35,
+        stepped: "after",
         pointRadius: 0,
         pointHoverRadius: 5,
         pointHoverBackgroundColor: "#dc2626",
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
+        parsing: false,
       },
       {
         label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
-        data: timeline.injection_available,
+        data: timeline.injection_data,
         borderColor: "#2563eb",
         backgroundColor: bandGradient("37,99,235"),
         fill: true,
-        tension: 0.35,
+        stepped: "after",
         pointRadius: 0,
         pointHoverRadius: 5,
         pointHoverBackgroundColor: "#2563eb",
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 2,
         borderWidth: 2.5,
+        parsing: false,
       },
-      // Reference lines at the tech max (dashed, no fill, hidden from legend).
-      {
-        label: "withdrawal_tech_max",
-        data: timeline.labels.map(() => timeline.withdrawal_tech),
-        borderColor: "rgba(220,38,38,0.35)",
-        borderDash: [4, 4],
-        borderWidth: 1,
-        pointRadius: 0,
-        fill: false,
-        tension: 0,
-        spanGaps: true,
-      },
-      {
-        label: "injection_tech_max",
-        data: timeline.labels.map(() => timeline.injection_tech),
-        borderColor: "rgba(37,99,235,0.35)",
-        borderDash: [4, 4],
-        borderWidth: 1,
-        pointRadius: 0,
-        fill: false,
-        tension: 0,
-        spanGaps: true,
-      },
+      techRefLine(timeline.withdrawal_tech, "rgba(220,38,38,0.35)", "withdrawal_tech_max"),
+      techRefLine(timeline.injection_tech,  "rgba(37,99,235,0.35)", "injection_tech_max"),
     ],
   };
+
   const yMax = Math.max(timeline.withdrawal_tech, timeline.injection_tech) * 1.08;
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
+    interaction: { mode: "nearest", axis: "x", intersect: false },
     plugins: {
       legend: {
         position: "top",
@@ -267,7 +264,6 @@ function renderAvailabilityChart(siteKey, timeline) {
           boxWidth: 10,
           boxHeight: 10,
           usePointStyle: true,
-          // Hide the dashed tech-max reference rows from the legend.
           filter: (item) => !item.text.endsWith("_tech_max"),
         },
       },
@@ -285,10 +281,12 @@ function renderAvailabilityChart(siteKey, timeline) {
         callbacks: {
           title: (items) => {
             if (!items.length) return "";
-            const lbl = items[0].label;
-            const [y, m, d] = lbl.split("-");
-            const dt = new Date(Date.UTC(+y, +m - 1, +d));
-            return dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+            const t = items[0].parsed.x;
+            const dt = new Date(t);
+            return dt.toLocaleDateString(undefined, {
+              weekday: "short", day: "numeric", month: "short",
+              hour: "2-digit", minute: "2-digit",
+            });
           },
           label: (c) => ` ${c.dataset.label.split(" available")[0]}: ${formatNum(c.parsed.y)} GWh/d`,
         },
@@ -296,18 +294,21 @@ function renderAvailabilityChart(siteKey, timeline) {
     },
     scales: {
       x: {
+        type: "time",
+        min: timeline.start_ms,
+        max: timeline.end_ms,
+        time: {
+          unit: "day",
+          displayFormats: { day: "d MMM", hour: "d MMM HH:mm" },
+          tooltipFormat: "EEE d MMM HH:mm",
+        },
         grid: { color: "rgba(148,163,184,0.10)" },
         ticks: {
           autoSkip: true,
           maxTicksLimit: 8,
           font: { size: 10 },
           color: "#64748b",
-          callback: function (value) {
-            const lbl = this.getLabelForValue(value);
-            if (!lbl) return "";
-            const parts = lbl.split("-");
-            return `${parts[2]}/${parts[1]}`;
-          },
+          source: "auto",
         },
       },
       y: {
@@ -323,11 +324,57 @@ function renderAvailabilityChart(siteKey, timeline) {
       },
     },
   };
-  if (charts[siteKey]) {
-    // Tear down and recreate so the gradient picks up the latest canvas size.
-    charts[siteKey].destroy();
-  }
+
+  if (charts[siteKey]) charts[siteKey].destroy();
   charts[siteKey] = new Chart(ctx, { type: "line", data, options });
+}
+
+function renderUpcomingForSite(rootEl, site, events) {
+  if (!rootEl) return;
+  if (events.length === 0) {
+    rootEl.innerHTML = `
+      <div class="upcoming-card upcoming-card--empty">
+        <div class="upcoming-site">${escapeHtml(site)}</div>
+        <div class="upcoming-empty">Nothing upcoming in next 7 days</div>
+      </div>`;
+    return;
+  }
+  const items = events.map((e) => {
+    const dur = formatDuration(e.duration_hours);
+    const cap = e.unavailable_capacity != null
+      ? `${formatNum(e.unavailable_capacity)} ${escapeHtml(e.unit_of_measurement || "")} unavail`
+      : "";
+    const cls = (e.type_of_unavailability || "").toLowerCase() === "unplanned"
+      ? "upcoming-item--unplanned" : "upcoming-item--planned";
+    const reason = e.reason ? ` · ${escapeHtml(e.reason)}` : "";
+    return `
+      <div class="upcoming-item ${cls}">
+        <div class="upcoming-time">${formatTs(e.event_start)} <span class="upcoming-dur">(${dur})</span></div>
+        <div class="upcoming-body">
+          <strong>${escapeHtml(e.category)}</strong>
+          ${cap ? ` · ${cap}` : ""}
+          <span class="upcoming-thread">${escapeHtml(e.thread_id || "")}</span>
+        </div>
+        ${e.remarks ? `<div class="upcoming-remarks">${escapeHtml(e.remarks)}${reason}</div>` : (reason ? `<div class="upcoming-remarks">${escapeHtml(e.reason || "")}</div>` : "")}
+      </div>`;
+  }).join("");
+  rootEl.innerHTML = `
+    <div class="upcoming-card">
+      <div class="upcoming-site-row">
+        <span class="upcoming-site">${escapeHtml(site)}</span>
+        <span class="upcoming-count">${events.length} event${events.length === 1 ? "" : "s"}</span>
+      </div>
+      ${items}
+    </div>`;
+}
+
+function formatDuration(hours) {
+  if (hours == null || !isFinite(hours) || hours < 0) return "";
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  if (hours < 24) return `${Math.round(hours)} hr`;
+  const days = hours / 24;
+  if (days < 7) return `${days % 1 < 0.1 ? days.toFixed(0) : days.toFixed(1)} d`;
+  return `${(days / 7).toFixed(1)} wk`;
 }
 
 function renderConflictsForSite(rootEl, site, buckets) {

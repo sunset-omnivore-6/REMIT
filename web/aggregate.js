@@ -173,60 +173,103 @@ function computeSiteHeadline(rows, site, nowMs = Date.now()) {
   };
 }
 
-// --- capacity timeline (per direction, conservative rule) ------------------
+// --- capacity timeline (per direction, step function over breakpoints) -----
 
 function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs = Date.now()) {
-  // For each day in the horizon, compute the AVAILABLE capacity for the two
-  // flow directions (Withdrawal, Injection). When multiple REMITs overlap on
-  // the same day, the conservative rule applies: take the MAXIMUM
-  // unavailable_capacity reported across them — never the sum, never the
-  // average. That way unavailable is bounded by the largest single REMIT
-  // and available stays >= 0.
+  // Returns a STEP function — availability is piecewise constant and only
+  // changes at REMIT start/stop boundaries. Evaluated per direction
+  // (Withdrawal / Injection). At each breakpoint we report the value that
+  // holds from that breakpoint UNTIL the next one, so the chart renderer
+  // should use stepped:'after' to draw a horizontal segment until the next x.
   //
-  // Storage events are deliberately excluded — the chart is about flow,
-  // and storage is a different unit (TWh vs GWh/d).
-  const oneDay = 86400 * 1000;
-  const startOfToday = new Date(nowMs);
-  startOfToday.setHours(0, 0, 0, 0);
-  const labels = [];
-  const withdrawal_available = [];
-  const injection_available = [];
+  // Overlap rule (per spec): when multiple REMITs in the same direction are
+  // active simultaneously, effective unavailable = MAX(unavailable_capacity)
+  // across them — never the sum. That bounds unavailable at the largest
+  // single REMIT and keeps available >= 0.
+  //
+  // Storage events deliberately excluded — different unit (TWh), not flow.
+  const endMs = nowMs + days * 86400 * 1000;
   const techWithdrawal = TECH_CAPACITY[site].Withdrawal;
   const techInjection = TECH_CAPACITY[site].Injection;
 
-  const withdrawalRows = rowsForSiteCategory(rows, site, "Withdrawal");
-  const injectionRows = rowsForSiteCategory(rows, site, "Injection");
+  function lineFor(category, tech) {
+    // Filter to rows that touch the horizon at all.
+    const catRows = rowsForSiteCategory(rows, site, category)
+      .map((r) => ({
+        start: parseTs(r.event_start),
+        stop: parseTs(r.event_stop),
+        unavail: Number(r.unavailable_capacity) || 0,
+      }))
+      .filter((r) => r.start != null && r.stop != null && r.stop > nowMs && r.start < endMs);
 
-  function effectiveAvailable(catRows, tech, dayStart, dayEnd) {
-    let maxUnavail = 0;
-    let hadAny = false;
+    // Breakpoints = nowMs, endMs, plus every start/stop that falls strictly
+    // inside the horizon. Dedupe via a Set.
+    const bps = new Set([nowMs, endMs]);
     for (const r of catRows) {
-      const s = parseTs(r.event_start);
-      const e = parseTs(r.event_stop);
-      if (s == null || e == null) continue;
-      if (e < dayStart || s > dayEnd) continue;
-      hadAny = true;
-      const u = Number(r.unavailable_capacity) || 0;
-      if (u > maxUnavail) maxUnavail = u;
+      if (r.start > nowMs && r.start < endMs) bps.add(r.start);
+      if (r.stop > nowMs && r.stop < endMs) bps.add(r.stop);
     }
-    if (!hadAny) return tech;
-    return Math.max(0, tech - maxUnavail);
+    const sorted = [...bps].sort((a, b) => a - b);
+
+    // For each interval [t_i, t_{i+1}) evaluate availability at the midpoint;
+    // emit a point at t_i carrying that value. Final point closes the line
+    // at endMs with the trailing value so the chart reaches the right edge.
+    const data = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const t1 = sorted[i];
+      const t2 = sorted[i + 1];
+      const mid = (t1 + t2) / 2;
+      let maxUnavail = 0;
+      for (const r of catRows) {
+        if (r.start <= mid && mid < r.stop) {
+          if (r.unavail > maxUnavail) maxUnavail = r.unavail;
+        }
+      }
+      const avail = Math.max(0, tech - maxUnavail);
+      data.push({ x: t1, y: avail });
+    }
+    if (data.length === 0) {
+      // No relevant REMITs in window — flat at tech max across the horizon.
+      data.push({ x: nowMs, y: tech });
+    }
+    // Trailing closing point.
+    data.push({ x: endMs, y: data[data.length - 1].y });
+    return data;
   }
 
-  for (let i = 0; i < days; i++) {
-    const dayStart = startOfToday.getTime() + i * oneDay;
-    const dayEnd = dayStart + oneDay - 1;
-    labels.push(new Date(dayStart).toISOString().slice(0, 10));
-    withdrawal_available.push(effectiveAvailable(withdrawalRows, techWithdrawal, dayStart, dayEnd));
-    injection_available.push(effectiveAvailable(injectionRows, techInjection, dayStart, dayEnd));
-  }
   return {
-    labels,
-    withdrawal_available,
-    injection_available,
+    withdrawal_data: lineFor("Withdrawal", techWithdrawal),
+    injection_data: lineFor("Injection", techInjection),
     withdrawal_tech: techWithdrawal,
     injection_tech: techInjection,
+    start_ms: nowMs,
+    end_ms: endMs,
   };
+}
+
+// --- upcoming events (next N days, text list) -------------------------------
+
+function computeUpcomingNext(rows, site, days = 7, nowMs = Date.now()) {
+  const horizonStop = nowMs + days * 86400 * 1000;
+  return rowsForSite(rows, site)
+    .filter((r) => {
+      const start = parseTs(r.event_start);
+      return start != null && start > nowMs && start <= horizonStop;
+    })
+    .map((r) => ({
+      thread_id: r.thread_id,
+      category: categorise(r.type_of_event) || r.type_of_event || "?",
+      type_of_unavailability: r.type_of_unavailability,
+      event_start: r.event_start,
+      event_stop: r.event_stop,
+      unavailable_capacity: r.unavailable_capacity,
+      available_capacity: r.available_capacity,
+      unit_of_measurement: r.unit_of_measurement,
+      reason: r.reason,
+      remarks: r.remarks,
+      duration_hours: (parseTs(r.event_stop) - parseTs(r.event_start)) / 3600000,
+    }))
+    .sort((a, b) => Date.parse(a.event_start) - Date.parse(b.event_start));
 }
 
 // --- conflicts --------------------------------------------------------------
@@ -344,6 +387,7 @@ window.REMITAggregates = {
   computeSiteCategoryStatus,
   computeSiteHeadline,
   computeAvailabilityTimeline,
+  computeUpcomingNext,
   computeConflicts,
   bucketConflictsBySite,
   gradientColor,

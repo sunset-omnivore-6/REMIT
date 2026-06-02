@@ -306,6 +306,82 @@ main {
   height: 260px;
 }
 
+/* --- Upcoming next-7d list (per site) --- */
+.upcoming-section { margin: 24px 0; }
+.upcoming-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.upcoming-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.upcoming-card--empty { background: #f8fafc; }
+.upcoming-site-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.upcoming-site {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.upcoming-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.upcoming-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 0;
+  font-style: italic;
+}
+.upcoming-item {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  column-gap: 14px;
+  row-gap: 2px;
+  padding: 8px 0;
+  font-size: 13px;
+  border-top: 1px dashed #e2e8f0;
+}
+.upcoming-item:first-of-type { border-top: none; }
+.upcoming-item--planned   { /* default */ }
+.upcoming-item--unplanned .upcoming-body strong { color: #b91c1c; }
+.upcoming-time {
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  font-weight: 500;
+}
+.upcoming-dur { color: var(--text-muted); font-weight: 400; font-size: 11px; }
+.upcoming-body {
+  color: #0f172a;
+}
+.upcoming-thread {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.upcoming-remarks {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* --- Conflicts (split per site, no panic colours) --- */
 .conflicts-section {
   margin: 24px 0;
@@ -444,7 +520,7 @@ main {
 }
 
 @media (max-width: 900px) {
-  .headlines, .charts, .dials-section, .conflicts-grid {
+  .headlines, .charts, .dials-section, .conflicts-grid, .upcoming-grid {
     grid-template-columns: 1fr;
   }
 }
