@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>REMIT — Aldbrough & Atwick</title>
+  <link rel="stylesheet" href="/web/styles.css" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <h1>REMIT — Aldbrough &amp; Atwick</h1>
+      <div class="masthead-actions">
+        <button id="refresh-btn" type="button">Refresh now</button>
+        <span id="now-clock" class="muted"></span>
+      </div>
+    </div>
+  </header>
+
+  <div id="status-banner" class="banner banner--loading">
+    <span class="banner-dot"></span>
+    <span class="banner-text">Loading…</span>
+    <button id="diag-toggle" type="button" class="banner-link" hidden>Show diagnostics</button>
+  </div>
+
+  <section id="diagnostics" class="diagnostics" hidden>
+    <h2>Last fetch attempt</h2>
+    <pre id="diag-body"></pre>
+  </section>
+
+  <main>
+    <section class="controls">
+      <div class="control">
+        <label for="filter-site">Location</label>
+        <select id="filter-site">
+          <option value="">All</option>
+          <option value="Aldbrough">Aldbrough</option>
+          <option value="Atwick">Atwick</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="filter-status">Event status</label>
+        <select id="filter-status">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="filter-type">Type of event</label>
+        <select id="filter-type">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="filter-unavail">Type of unavailability</label>
+        <select id="filter-unavail">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="filter-search">Thread ID</label>
+        <input id="filter-search" type="text" placeholder="e.g. ALD_…" />
+      </div>
+      <div class="control control--inline">
+        <label><input id="filter-all-sites" type="checkbox" /> Show all sites (not just Aldbrough/Atwick)</label>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <table id="remit-table">
+        <thead>
+          <tr>
+            <th>Thread ID</th>
+            <th>Rev</th>
+            <th>Asset</th>
+            <th>Status</th>
+            <th>Unavailability</th>
+            <th>Event type</th>
+            <th>Published</th>
+            <th>Event start</th>
+            <th>Event stop</th>
+            <th>UoM</th>
+            <th class="num">Unavailable</th>
+          </tr>
+        </thead>
+        <tbody id="remit-tbody"></tbody>
+      </table>
+      <div id="empty-state" class="empty" hidden>No rows match the current filters.</div>
+    </section>
+  </main>
+
+  <script src="/web/app.js"></script>
+</body>
+</html>
