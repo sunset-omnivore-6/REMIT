@@ -991,6 +991,86 @@ tr.row--live td:first-child { border-left: 3px solid var(--status-warning); }
 
 
 /* =============================================================
+   Skeleton loading states
+   Visible from HTML load until first data render. Shimmer animation
+   conveys "working on it" without occupying real estate. Auto-replaced
+   by JS the moment the renderer touches its container.
+   ============================================================= */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    var(--surface-3) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+.skeleton-bar-lg { height: 22px; }
+.skeleton-bar    { height: 14px; }
+.skeleton-bar-sm { height: 10px; }
+.skeleton-bar-xs { height:  8px; }
+
+/* Ring-shaped skeleton — the dial placeholder. Matches the dial's
+   130px outer / 72% cutout exactly so the real dial drops into the
+   same hole when it mounts. */
+.skeleton-donut {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    var(--surface-3) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+}
+.skeleton-donut::after {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  background: var(--surface-1);
+  border-radius: 50%;
+}
+
+/* Chart skeleton — sits absolutely inside .chart-wrap, hidden by JS
+   the moment the canvas is drawn. */
+.chart-skeleton {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    var(--surface-3) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton, .skeleton-donut, .chart-skeleton {
+    animation: none;
+  }
+}
+
+
+/* =============================================================
    Responsive: collapse grids on narrow viewports
    ============================================================= */
 @media (max-width: 900px) {

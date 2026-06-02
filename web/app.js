@@ -237,6 +237,14 @@ function renderDial(elId, status) {
       borderWidth: 0,
     }],
   };
+  // On first mount: wheel-fill animation. The arc sweeps clockwise from
+  // 0% to the target percentage using easeOutQuart (decelerating curve —
+  // confident, premium-feeling). Each dial is staggered by its position
+  // in the row so the six dials read as a coordinated cascade rather
+  // than six simultaneous flickers.
+  // On subsequent renders (theme toggle, periodic data refresh) we use
+  // update('none') so dials don't re-animate every time — they just
+  // snap to their new value.
   const options = {
     responsive: true,
     maintainAspectRatio: false,
@@ -244,17 +252,36 @@ function renderDial(elId, status) {
     rotation: -90,
     circumference: 360,
     plugins: { legend: { display: false }, tooltip: { enabled: false } },
-    animation: { duration: 400 },
+    animation: {
+      duration: 900,
+      easing: "easeOutQuart",
+      delay: (DIAL_STAGGER[elId] || 0) * 70,
+      animateRotate: true,
+      animateScale: false,
+    },
   };
   if (dialCharts[elId]) {
     dialCharts[elId].data = data;
-    dialCharts[elId].options = options;
-    dialCharts[elId].update();
+    dialCharts[elId].update("none");
   } else {
-    dialCharts[elId] = new Chart(document.getElementById(canvasId).getContext("2d"),
-      { type: "doughnut", data, options });
+    dialCharts[elId] = new Chart(
+      document.getElementById(canvasId).getContext("2d"),
+      { type: "doughnut", data, options }
+    );
   }
 }
+
+// Stagger index per dial so the entry animations cascade left→right
+// top→bottom. 70ms apart, six dials total — full sequence settles in
+// ~1.3s, brisk enough to read as "loaded" rather than "loading".
+const DIAL_STAGGER = {
+  "dial-aldbrough-withdrawal": 0,
+  "dial-aldbrough-injection":  1,
+  "dial-aldbrough-storage":    2,
+  "dial-atwick-withdrawal":    3,
+  "dial-atwick-injection":     4,
+  "dial-atwick-storage":       5,
+};
 
 function renderAvailabilityChart(siteKey, timeline) {
   const canvas = document.getElementById(`chart-${siteKey}`);
@@ -453,6 +480,10 @@ function renderAvailabilityChart(siteKey, timeline) {
 
   if (charts[siteKey]) charts[siteKey].destroy();
   charts[siteKey] = new Chart(ctx, { type: "line", data, options });
+
+  // Hide the skeleton overlay now that the canvas has real content.
+  const skel = document.getElementById(`chart-skel-${siteKey}`);
+  if (skel) skel.style.display = "none";
 }
 
 function renderUpcomingForSite(rootEl, site, transitions) {

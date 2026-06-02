@@ -64,56 +64,143 @@
       <span id="changes-text"></span>
     </section>
 
-    <!-- Per-site headlines: three category lines each, never summed -->
+    <!-- Per-site headlines: three category lines each, never summed.
+         Skeleton placeholders show before JS runs and until first render. -->
     <section class="headlines">
-      <div class="headline" id="headline-aldbrough"></div>
-      <div class="headline" id="headline-atwick"></div>
+      <div class="headline" id="headline-aldbrough">
+        <div class="skeleton skeleton-bar-sm" style="width: 90px; margin-bottom: 12px;"></div>
+        <div class="headline-line"><div class="skeleton skeleton-bar"  style="width: 80%;"></div></div>
+        <div class="headline-line"><div class="skeleton skeleton-bar"  style="width: 65%;"></div></div>
+        <div class="headline-line"><div class="skeleton skeleton-bar"  style="width: 72%;"></div></div>
+      </div>
+      <div class="headline" id="headline-atwick">
+        <div class="skeleton skeleton-bar-sm" style="width: 75px; margin-bottom: 12px;"></div>
+        <div class="headline-line"><div class="skeleton skeleton-bar"  style="width: 70%;"></div></div>
+        <div class="headline-line"><div class="skeleton skeleton-bar"  style="width: 85%;"></div></div>
+        <div class="headline-line"><div class="skeleton skeleton-bar"  style="width: 60%;"></div></div>
+      </div>
     </section>
 
-    <!-- Capacity dials: 3 per site (Withdrawal / Injection / Storage) -->
+    <!-- Capacity dials: 3 per site (Withdrawal / Injection / Storage).
+         Donut-shaped skeletons match the real dial dimensions so the
+         actual doughnut drops into the same hole when it mounts. -->
     <section class="dials-section">
       <div class="dials-site">
         <h3>Aldbrough — capacity available right now</h3>
         <div class="dials-row">
-          <div class="dial" id="dial-aldbrough-withdrawal"></div>
-          <div class="dial" id="dial-aldbrough-injection"></div>
-          <div class="dial" id="dial-aldbrough-storage"></div>
+          <div class="dial" id="dial-aldbrough-withdrawal">
+            <div class="dial-canvas-wrap"><div class="skeleton-donut"></div></div>
+            <div class="dial-footer">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px; margin: 8px auto 4px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 65px; margin: 0 auto;"></div>
+            </div>
+          </div>
+          <div class="dial" id="dial-aldbrough-injection">
+            <div class="dial-canvas-wrap"><div class="skeleton-donut"></div></div>
+            <div class="dial-footer">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px; margin: 8px auto 4px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 65px; margin: 0 auto;"></div>
+            </div>
+          </div>
+          <div class="dial" id="dial-aldbrough-storage">
+            <div class="dial-canvas-wrap"><div class="skeleton-donut"></div></div>
+            <div class="dial-footer">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px; margin: 8px auto 4px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 65px; margin: 0 auto;"></div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="dials-site">
         <h3>Atwick — capacity available right now</h3>
         <div class="dials-row">
-          <div class="dial" id="dial-atwick-withdrawal"></div>
-          <div class="dial" id="dial-atwick-injection"></div>
-          <div class="dial" id="dial-atwick-storage"></div>
+          <div class="dial" id="dial-atwick-withdrawal">
+            <div class="dial-canvas-wrap"><div class="skeleton-donut"></div></div>
+            <div class="dial-footer">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px; margin: 8px auto 4px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 65px; margin: 0 auto;"></div>
+            </div>
+          </div>
+          <div class="dial" id="dial-atwick-injection">
+            <div class="dial-canvas-wrap"><div class="skeleton-donut"></div></div>
+            <div class="dial-footer">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px; margin: 8px auto 4px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 65px; margin: 0 auto;"></div>
+            </div>
+          </div>
+          <div class="dial" id="dial-atwick-storage">
+            <div class="dial-canvas-wrap"><div class="skeleton-donut"></div></div>
+            <div class="dial-footer">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px; margin: 8px auto 4px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 65px; margin: 0 auto;"></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Capacity timeline charts: available withdrawal + injection, 30d -->
+    <!-- Capacity timeline charts: available withdrawal + injection, 30d.
+         Skeleton overlay inside .chart-wrap is hidden by JS the moment
+         Chart.js touches the canvas. -->
     <section class="charts">
       <div class="chart-card">
         <div class="chart-head">
           <h3>Aldbrough — available capacity (next 30 days)</h3>
           <div class="chart-now" id="chart-now-aldbrough"></div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-aldbrough"></canvas></div>
+        <div class="chart-wrap">
+          <canvas id="chart-aldbrough"></canvas>
+          <div class="chart-skeleton" id="chart-skel-aldbrough"></div>
+        </div>
       </div>
       <div class="chart-card">
         <div class="chart-head">
           <h3>Atwick — available capacity (next 30 days)</h3>
           <div class="chart-now" id="chart-now-atwick"></div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-atwick"></canvas></div>
+        <div class="chart-wrap">
+          <canvas id="chart-atwick"></canvas>
+          <div class="chart-skeleton" id="chart-skel-atwick"></div>
+        </div>
       </div>
     </section>
 
-    <!-- Upcoming capacity transitions (next 7 days) -->
+    <!-- Upcoming capacity transitions (next 7 days). -->
     <section class="upcoming-section">
       <h2 class="section-title section-title--inline">Upcoming changes — next 7 days</h2>
       <div class="upcoming-grid">
-        <div class="upcoming-col" id="upcoming-aldbrough"></div>
-        <div class="upcoming-col" id="upcoming-atwick"></div>
+        <div class="upcoming-col" id="upcoming-aldbrough">
+          <div class="upcoming-card">
+            <div class="upcoming-site-row">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 60px;"></div>
+            </div>
+            <div class="upcoming-item">
+              <div class="upcoming-time"><div class="skeleton skeleton-bar" style="width: 90%;"></div></div>
+              <div class="upcoming-body"><div class="skeleton skeleton-bar" style="width: 80%;"></div></div>
+            </div>
+            <div class="upcoming-item">
+              <div class="upcoming-time"><div class="skeleton skeleton-bar" style="width: 90%;"></div></div>
+              <div class="upcoming-body"><div class="skeleton skeleton-bar" style="width: 70%;"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="upcoming-col" id="upcoming-atwick">
+          <div class="upcoming-card">
+            <div class="upcoming-site-row">
+              <div class="skeleton skeleton-bar-sm" style="width: 75px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 60px;"></div>
+            </div>
+            <div class="upcoming-item">
+              <div class="upcoming-time"><div class="skeleton skeleton-bar" style="width: 90%;"></div></div>
+              <div class="upcoming-body"><div class="skeleton skeleton-bar" style="width: 85%;"></div></div>
+            </div>
+            <div class="upcoming-item">
+              <div class="upcoming-time"><div class="skeleton skeleton-bar" style="width: 90%;"></div></div>
+              <div class="upcoming-body"><div class="skeleton skeleton-bar" style="width: 75%;"></div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -121,8 +208,28 @@
     <section class="conflicts-section">
       <h2 class="section-title section-title--inline">Overlapping REMITs</h2>
       <div class="conflicts-grid">
-        <div class="conflicts-col" id="conflicts-aldbrough"></div>
-        <div class="conflicts-col" id="conflicts-atwick"></div>
+        <div class="conflicts-col" id="conflicts-aldbrough">
+          <div class="conflicts-card">
+            <div class="conflicts-card-head">
+              <div class="skeleton skeleton-bar-sm" style="width: 90px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 50px;"></div>
+            </div>
+            <div class="conflicts-list">
+              <div class="conflict-item"><div class="skeleton skeleton-bar" style="width: 90%;"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="conflicts-col" id="conflicts-atwick">
+          <div class="conflicts-card">
+            <div class="conflicts-card-head">
+              <div class="skeleton skeleton-bar-sm" style="width: 75px;"></div>
+              <div class="skeleton skeleton-bar-xs" style="width: 50px;"></div>
+            </div>
+            <div class="conflicts-list">
+              <div class="conflict-item"><div class="skeleton skeleton-bar" style="width: 85%;"></div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -198,7 +305,7 @@
   <script>
     // Cache-bust local scripts with a build tag so a `git pull` is enough —
     // no need for users to hard-refresh or clear cache.
-    var BUILD = "20260603h";
+    var BUILD = "20260603i";
     document.write('<scr' + 'ipt src="/web/aggregate.js?v=' + BUILD + '"></scr' + 'ipt>');
     document.write('<scr' + 'ipt src="/web/app.js?v=' + BUILD + '"></scr' + 'ipt>');
   </script>
