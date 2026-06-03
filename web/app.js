@@ -202,30 +202,40 @@ function renderDial(elId, status) {
   const color = agg.gradientColor(pct);
   const canvasId = `${elId}-canvas`;
 
-  // First render: build the inner DOM. Subsequent renders just patch values
-  // so the chart instance is reused and the canvas doesn't flicker.
+  // First render: build the inner DOM with persistent spans for each
+  // animated numeric so we can update textContent on the SAME element
+  // each tick without rebuilding innerHTML (which would interrupt the
+  // count-up animation).
   if (!el.dataset.built) {
     el.innerHTML = `
       <div class="dial-canvas-wrap"><canvas id="${canvasId}"></canvas>
         <div class="dial-center">
-          <div class="dial-pct" id="${elId}-pct"></div>
+          <div class="dial-pct" id="${elId}-pct">0%</div>
           <div class="dial-cat" id="${elId}-cat"></div>
         </div>
       </div>
       <div class="dial-footer">
-        <div class="dial-avail" id="${elId}-avail"></div>
+        <div class="dial-avail">
+          <strong id="${elId}-avail-num">0</strong>
+          <span id="${elId}-avail-unit"></span> available
+        </div>
         <div class="dial-tech" id="${elId}-tech"></div>
       </div>
     `;
     el.dataset.built = "1";
   }
 
-  document.getElementById(`${elId}-pct`).textContent = `${Math.round(pct * 100)}%`;
   document.getElementById(`${elId}-cat`).textContent = status.category;
-  document.getElementById(`${elId}-avail`).innerHTML =
-    `<strong>${formatNum(status.available_now)}</strong> ${status.unit} available`;
+  document.getElementById(`${elId}-avail-unit`).textContent = status.unit;
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
+
+  // Count-up animations on the two prominent numbers: the big percentage
+  // in the centre of the dial and the available-capacity figure below.
+  // First render snaps (no prior value to animate from); subsequent
+  // renders tween 300ms easeOutQuart from the last value to the new one.
+  animateValueByKey(`${elId}-pct`, pct * 100, (v) => `${Math.round(v)}%`);
+  animateValueByKey(`${elId}-avail-num`, status.available_now, (v) => formatNum(v));
 
   // Empty-segment colour from CSS so dials follow the theme. In light mode
   // this is a pale slate; in dark mode a darker slate that recedes into the
@@ -878,6 +888,54 @@ function formatAge(seconds) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
   return `${Math.floor(seconds / 86400)}d`;
+}
+
+// --- number transitions ---------------------------------------------------
+// Count-up tween from the previous value of a keyed numeric to the new one.
+// First call for a key snaps (no prior value); subsequent calls animate over
+// `duration` ms using easeOutQuart. Respects prefers-reduced-motion.
+// Keyed by id-string so callers can reference the same element across
+// renders even if its DOM node has been replaced by an innerHTML rebuild.
+
+const _animState = {};  // key -> { handle, lastTarget }
+
+function animateValueByKey(key, newVal, formatter, duration = 300) {
+  const el = document.getElementById(key);
+  if (!el) return;
+  if (typeof newVal !== "number" || !Number.isFinite(newVal)) {
+    el.textContent = formatter(newVal);
+    return;
+  }
+  const prev = _animState[key];
+  const from = prev ? prev.lastTarget : null;
+  _animState[key] = { handle: prev?.handle, lastTarget: newVal };
+
+  // No prior, no change, or reduced motion → snap.
+  if (
+    from === null || from === undefined || !Number.isFinite(from) ||
+    from === newVal ||
+    (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+  ) {
+    if (prev?.handle) cancelAnimationFrame(prev.handle);
+    el.textContent = formatter(newVal);
+    _animState[key].handle = null;
+    return;
+  }
+  if (prev?.handle) cancelAnimationFrame(prev.handle);
+
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 4);
+    const v = from + (newVal - from) * eased;
+    el.textContent = formatter(v);
+    if (t < 1) {
+      _animState[key].handle = requestAnimationFrame(step);
+    } else {
+      _animState[key].handle = null;
+    }
+  }
+  _animState[key].handle = requestAnimationFrame(step);
 }
 
 function formatNum(v) {

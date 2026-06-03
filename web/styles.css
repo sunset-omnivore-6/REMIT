@@ -251,11 +251,42 @@
    colour properties only — layout never animates. */
 html, body, .headline, .kpi, .dials-site, .chart-card, .upcoming-card,
 .conflicts-card, .controls, .table-wrap, .banner, .changes, .conflict-item,
-.upcoming-item, .pill, .chart-now-pill, .conflicts-beyond summary,
+.upcoming-item, .pill, .conflicts-beyond summary,
 button {
   transition: background-color var(--duration-base) var(--ease-out),
               border-color     var(--duration-base) var(--ease-out),
-              color            var(--duration-base) var(--ease-out);
+              color            var(--duration-base) var(--ease-out),
+              box-shadow       var(--duration-base) var(--ease-out);
+}
+
+/* =============================================================
+   Hover lift on the main surface cards. Shadow rises one step on
+   pointer hover. No transform — staying restrained so it never
+   reads as a clickable affordance.
+   ============================================================= */
+.headline:hover,
+.dials-site:hover,
+.chart-card:hover,
+.upcoming-card:hover,
+.conflicts-card:hover {
+  box-shadow: var(--elev-2);
+}
+
+/* Focus-visible rings on every interactive control. Only shows on
+   keyboard nav (not pointer click), so it's invisible during normal
+   mouse use but proper for accessibility / power users. */
+button:focus-visible,
+.icon-btn:focus-visible,
+.banner-link:focus-visible,
+.conflicts-beyond summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.45);
+}
+[data-theme="dark"] button:focus-visible,
+[data-theme="dark"] .icon-btn:focus-visible,
+[data-theme="dark"] .banner-link:focus-visible,
+[data-theme="dark"] .conflicts-beyond summary:focus-visible {
+  box-shadow: 0 0 0 3px rgba(96,165,250,0.55);
 }
 
 
@@ -989,11 +1020,36 @@ tbody tr:hover { background: var(--surface-2); }
   background: var(--status-warning-bg);
   color: var(--status-warning-fg);
   border: 1px solid var(--status-warning);
+  animation: pulse-live 2s var(--ease-in-out) infinite;
 }
 
 tr.row--live { background: var(--status-warning-bg); }
 tr.row--live:hover { background: var(--status-warning-border); }
 tr.row--live td:first-child { border-left: 3px solid var(--status-warning); }
+
+
+/* =============================================================
+   Pulse animation for LIVE indicators
+   Subtle 2-second glow loop on the few elements that mean "this is
+   happening right now" — the LIVE NOW conflict tag and the LIVE
+   pill in the all-data table. Used sparingly so it never crosses
+   into novelty.
+   ============================================================= */
+@keyframes pulse-live {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.0); }
+  50%      { box-shadow: 0 0 0 4px rgba(245,158,11,0.35); }
+}
+@keyframes pulse-live-danger {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.0); }
+  50%      { box-shadow: 0 0 0 4px rgba(220,38,38,0.35); }
+}
+.conflict-tag--live {
+  animation: pulse-live-danger 2s var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill--live, .conflict-tag--live { animation: none; }
+}
 
 .muted { color: var(--fg-subtle); font-size: var(--text-sm); }
 .empty { padding: var(--space-8); text-align: center; color: var(--fg-subtle); }
