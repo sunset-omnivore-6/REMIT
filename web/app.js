@@ -61,9 +61,11 @@ function getChartTheme() {
     surface2:   cssVar("--surface-2",   "#f8fafc"),
     surface3:   cssVar("--surface-3",   "#f1f5f9"),
     fgDefault:  cssVar("--fg-default",  "#0f172a"),
+    fgStrong:   cssVar("--fg-strong",   "#1e293b"),
     fgMuted:    cssVar("--fg-muted",    "#475569"),
     fgSubtle:   cssVar("--fg-subtle",   "#64748b"),
     fgFaint:    cssVar("--fg-faint",    "#94a3b8"),
+    fgOnAccent: cssVar("--fg-on-accent","#ffffff"),
     border:     cssVar("--border-default", "#e2e8f0"),
     borderSubtle: cssVar("--border-subtle", "#f1f5f9"),
     withdrawal: cssVar("--data-withdrawal", "#dc2626"),
@@ -240,10 +242,13 @@ function renderDial(elId, status) {
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
 
-  // Sparkline of the last 24h of this dial's value. Empty silently while
-  // the history buffer is still warming up (< 2 samples).
+  // Sparkline of the last 24h of this dial's value. Falls back to a
+  // faint baseline + current-value dot while the history buffer warms up.
   const sparkEl = document.getElementById(`${elId}-spark`);
-  if (sparkEl) renderSparkline(sparkEl, status.site, status.category, status.tech_max, color);
+  if (sparkEl) {
+    renderSparkline(sparkEl, status.site, status.category, status.tech_max,
+                    status.available_now, color);
+  }
 
   // Empty-segment colour from CSS so dials follow the theme. In light mode
   // this is a pale slate; in dark mode a darker slate that recedes into the
@@ -303,9 +308,8 @@ const DIAL_STAGGER = {
   "dial-atwick-storage":       5,
 };
 
-// Chart.js plugin that draws a thin dashed "NOW" line at the current time
-// across the chart area, with a tiny label above. Lets the eye instantly
-// separate past from future when the chart spans both.
+// Chart.js plugin: vertical dashed "NOW" line with a filled label badge
+// at the top. Brighter than a regular axis tick so it pops on dark mode.
 const nowLinePlugin = {
   id: "nowLine",
   afterDatasetsDraw(chart, args, opts) {
@@ -316,24 +320,84 @@ const nowLinePlugin = {
     const { top, bottom, left, right } = chart.chartArea;
     if (x < left || x > right) return;
     const ctx = chart.ctx;
-    const colour = opts.color || "rgba(100,116,139,0.65)";
+    const lineColor  = opts.color   || "rgba(71,85,105,0.85)";
+    const badgeBg    = opts.badgeBg || lineColor;
+    const badgeFg    = opts.badgeFg || "#ffffff";
     ctx.save();
-    ctx.strokeStyle = colour;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 3]);
+    // Line
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1.25;
+    ctx.setLineDash([5, 3]);
     ctx.beginPath();
-    ctx.moveTo(x, top);
+    ctx.moveTo(x, top + 14);   // start below the badge
     ctx.lineTo(x, bottom);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = colour;
-    ctx.font = "600 9px InterVariable, Inter, sans-serif";
-    ctx.fillText("NOW", x + 4, top + 11);
+    // Badge
+    ctx.font = "700 9.5px InterVariable, Inter, sans-serif";
+    const label = "NOW";
+    const tw = ctx.measureText(label).width;
+    const padX = 5, padY = 2;
+    const bw = tw + padX * 2;
+    const bh = 14;
+    const bx = x - bw / 2;
+    ctx.fillStyle = badgeBg;
+    // rounded rectangle
+    const r = 3;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, top);
+    ctx.lineTo(bx + bw - r, top);
+    ctx.quadraticCurveTo(bx + bw, top, bx + bw, top + r);
+    ctx.lineTo(bx + bw, top + bh - r);
+    ctx.quadraticCurveTo(bx + bw, top + bh, bx + bw - r, top + bh);
+    ctx.lineTo(bx + r, top + bh);
+    ctx.quadraticCurveTo(bx, top + bh, bx, top + bh - r);
+    ctx.lineTo(bx, top + r);
+    ctx.quadraticCurveTo(bx, top, bx + r, top);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = badgeFg;
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, bx + padX, top + bh / 2 + 0.5);
     ctx.restore();
   },
 };
 if (window.Chart && !Chart.registry.plugins.get("nowLine")) {
   Chart.register(nowLinePlugin);
+}
+
+// Custom Chart.js interaction mode: returns the data point with the
+// largest x <= cursor_x for each dataset (i.e. the step-function value
+// HELD at the cursor's x position). With the default 'nearest' mode the
+// tooltip snaps to whichever data point is pixel-closest, which on a
+// step function means it locks onto the next change point rather than
+// showing the value being held — confusing the user.
+if (window.Chart && Chart.Interaction && !Chart.Interaction.modes.cursorStep) {
+  Chart.Interaction.modes.cursorStep = function (chart, e, _options, useFinalPosition) {
+    const items = [];
+    const xScale = chart.scales.x;
+    if (!xScale) return items;
+    const pos = useFinalPosition ? { x: e.x, y: e.y } : e;
+    const cursorX = xScale.getValueForPixel(pos.x);
+    for (let dsi = 0; dsi < chart.data.datasets.length; dsi++) {
+      const ds = chart.data.datasets[dsi];
+      if (!ds || !ds.data || ds.data.length === 0) continue;
+      // Skip the dashed tech-max reference rows
+      if ((ds.label || "").endsWith("_tech_max")) continue;
+      // Binary search for last point with x <= cursorX (data is x-sorted)
+      let lo = 0, hi = ds.data.length - 1, lastIdx = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (ds.data[mid].x <= cursorX) { lastIdx = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      if (lastIdx < 0) continue;
+      const meta = chart.getDatasetMeta(dsi);
+      const elem = meta.data[lastIdx];
+      if (elem) items.push({ element: elem, datasetIndex: dsi, index: lastIdx });
+    }
+    return items;
+  };
 }
 
 function renderAvailabilityChart(siteKey, timeline) {
@@ -442,12 +506,21 @@ function renderAvailabilityChart(siteKey, timeline) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: { mode: "nearest", axis: "x", intersect: false },
+    // cursorStep: tooltip follows the cursor x and returns the value of
+    // the step-function segment HELD at that x. Default 'nearest' mode
+    // snaps to the nearest data point which on a step function locks
+    // onto the next change point — confusing the user.
+    interaction: { mode: "cursorStep", axis: "x", intersect: false },
     // Subtle entry animation on first mount only. Periodic refreshes use
     // update('none') below so this duration never plays on refresh.
     animation: { duration: 450, easing: "easeOutQuart" },
     plugins: {
-      nowLine: { color: withAlpha(theme.fgSubtle, 0.7), now: timeline.now_ms || Date.now() },
+      nowLine: {
+        color:   withAlpha(theme.fgMuted, 0.9),
+        badgeBg: theme.fgMuted,
+        badgeFg: theme.surface1,
+        now:     timeline.now_ms || Date.now(),
+      },
       legend: {
         position: "top",
         align: "end",
@@ -587,26 +660,36 @@ function renderUpcomingForSite(rootEl, site, transitions) {
 
 // Render an 80x20 SVG sparkline of the last 24h of values for one
 // (site, category) dial. Scaled 0..tech_max so absolute level is
-// preserved (a flat line at 26 on a tech 130 dial sits low — that's
-// meaningful), with a soft fill underneath. Stays empty until the
-// rolling history buffer has at least two samples.
-function renderSparkline(svgEl, site, category, techMax, lineColor) {
+// preserved. Soft fill underneath in the dial's gradient colour.
+// When fewer than 2 history samples exist (the buffer is warming up
+// after a fresh deploy), draws a faint dashed baseline at the current
+// value with a dot marker — signals "we're here, more data coming".
+function renderSparkline(svgEl, site, category, techMax, currentValue, lineColor) {
   if (!svgEl) return;
   const key = `${site}.${category}`;
   const samples = (state.history || [])
     .map((s) => ({ t: Date.parse(s.t), v: s.values && s.values[key] }))
     .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v));
-  if (samples.length < 2) { svgEl.innerHTML = ""; return; }
 
   const W = 80, H = 20;
+  const yMax = techMax || 1;
+
+  if (samples.length < 2) {
+    if (currentValue == null) { svgEl.innerHTML = ""; return; }
+    const y = (H - 1.5 - (Math.max(0, Math.min(currentValue, yMax)) / yMax) * (H - 3)).toFixed(1);
+    svgEl.innerHTML =
+      `<line x1="0" y1="${y}" x2="${W - 4}" y2="${y}" ` +
+      `stroke="${withAlpha(lineColor, 0.35)}" stroke-width="1" stroke-dasharray="2 2"/>` +
+      `<circle cx="${W - 3}" cy="${y}" r="1.8" fill="${lineColor}"/>`;
+    return;
+  }
+
   const tMin = samples[0].t;
   const tMax = samples[samples.length - 1].t;
   const tRange = tMax - tMin || 1;
-  const yMax = techMax || Math.max(...samples.map((p) => p.v)) || 1;
 
   const points = samples.map((p) => {
     const x = ((p.t - tMin) / tRange) * W;
-    // Pad top by 1.5px so the line never clips the top edge.
     const y = H - 1.5 - (Math.max(0, Math.min(p.v, yMax)) / yMax) * (H - 3);
     return [x, y];
   });
@@ -697,19 +780,26 @@ function conflictItemHtml(c, bucket) {
   const eff = c.effective_available != null
     ? `<div class="conflict-eff">Effective available during overlap: <strong>${formatNum(c.effective_available)} ${escapeHtml(c.unit)}</strong></div>`
     : "";
+  // "All simultaneous" window vs. chain-shaped fallback gets a small
+  // muted hint so the user knows what the window represents.
+  const windowNote = c.fully_overlapping
+    ? ""
+    : ` <span class="conflict-windowhint">(staggered)</span>`;
+  const membersHtml = (c.members || []).map((m) => `
+    <div class="conflict-member">
+      <code>${escapeHtml(shortenThreadId(m.thread_id || ""))}</code>
+      <span class="conflict-member-window">${formatTs(m.event_start)} → ${formatTs(m.event_stop)}</span>
+      <span class="conflict-member-avail">avail ${formatNum(m.available_capacity)}</span>
+    </div>`).join("");
   return `
     <div class="conflict-item conflict-item--${bucket}">
       <div class="conflict-row1">
         ${tag}
-        <span class="conflict-cat">${escapeHtml(c.category)}</span>
-        <span class="conflict-window">${formatTs(new Date(c.overlap_start).toISOString())} → ${formatTs(new Date(c.overlap_stop).toISOString())}</span>
+        <span class="conflict-cat">${escapeHtml(c.category)} · ${c.member_count} active</span>
+        <span class="conflict-window">${formatTs(new Date(c.overlap_start).toISOString())} → ${formatTs(new Date(c.overlap_stop).toISOString())}${windowNote}</span>
       </div>
       ${eff}
-      <div class="conflict-pair">
-        <code>${escapeHtml(c.a.thread_id || "")}</code> (avail ${formatNum(c.a.available_capacity)})
-        ↔
-        <code>${escapeHtml(c.b.thread_id || "")}</code> (avail ${formatNum(c.b.available_capacity)})
-      </div>
+      <div class="conflict-members">${membersHtml}</div>
     </div>`;
 }
 

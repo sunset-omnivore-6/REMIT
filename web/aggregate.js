@@ -429,52 +429,95 @@ function bucketConflictsBySite(conflicts, nowMs = Date.now(), horizonDays = TIME
 }
 
 function computeConflicts(rows, nowMs = Date.now()) {
-  // Surface overlapping REMIT pairs that meet ALL of:
-  //   - both rows have event_status == "Active" (not Inactive/Dismissed)
-  //   - both rows are in the same site AND same category (Withdrawal/Injection/
-  //     Storage) — different categories don't physically conflict
-  //   - their event windows overlap
-  //   - the overlap window has NOT ended yet (skip purely historical clashes)
+  // Surface overlapping REMITs as CLUSTERS (connected components in the
+  // pairwise-overlap graph), not as raw pairs. Three REMITs that all
+  // overlap each other produce ONE cluster card with three members,
+  // rather than three near-duplicate pair cards.
   //
-  // For each surfaced pair, also compute the effective available capacity
-  // during the overlap, using the user's rule: take the minimum
-  // availableCapacity reported across the conflicting REMITs.
+  // Filters per cluster member:
+  //   - status == "Active"  (not Inactive/Dismissed)
+  //   - same site + same category (different categories don't conflict)
+  //
+  // Cluster kept iff:
+  //   - has 2+ members
+  //   - at least some part of the cluster is in the future or live now
+  //     (drop purely-historical clusters)
+  //
+  // Per cluster we compute:
+  //   - overlap_start: the latest member start (when all simultaneous)
+  //   - overlap_stop:  the earliest member stop  (when first ends)
+  //     if these don't form a positive window (chain-shaped overlap),
+  //     fall back to the full cluster span (earliest start, latest stop)
+  //   - effective_available: min(availableCapacity) across all members
   const out = [];
   for (const site of SITES) {
     for (const category of CATEGORIES) {
       const own = rowsForSiteCategory(rows, site, category).filter(
         (r) => (r.event_status || "").toLowerCase() === "active"
       );
-      for (let i = 0; i < own.length; i++) {
-        for (let j = i + 1; j < own.length; j++) {
-          const a = own[i], b = own[j];
-          if (a.thread_id && a.thread_id === b.thread_id) continue;
-          const aStart = parseTs(a.event_start), aStop = parseTs(a.event_stop);
-          const bStart = parseTs(b.event_start), bStop = parseTs(b.event_stop);
-          if ([aStart, aStop, bStart, bStop].some((v) => v == null)) continue;
-          const overlapStart = Math.max(aStart, bStart);
-          const overlapStop = Math.min(aStop, bStop);
-          if (overlapStart >= overlapStop) continue; // no real overlap
-          if (overlapStop < nowMs) continue;          // purely in the past
-          // Effective available during overlap = min reported availableCapacity.
-          const avA = a.available_capacity != null ? Number(a.available_capacity) : null;
-          const avB = b.available_capacity != null ? Number(b.available_capacity) : null;
-          const reported = [avA, avB].filter((v) => v != null && !Number.isNaN(v));
-          const effectiveAvailable = reported.length > 0 ? Math.min(...reported) : null;
-          out.push({
-            site,
-            category,
-            a, b,
-            overlap_start: overlapStart,
-            overlap_stop: overlapStop,
-            effective_available: effectiveAvailable,
-            unit: TECH_UNITS[category],
-          });
+      const n = own.length;
+      // Build adjacency list of overlapping pairs.
+      const adj = new Array(n).fill(null).map(() => []);
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          if (_pairOverlaps(own[i], own[j])) {
+            adj[i].push(j);
+            adj[j].push(i);
+          }
         }
+      }
+      // Connected components via BFS.
+      const seen = new Array(n).fill(false);
+      for (let s = 0; s < n; s++) {
+        if (seen[s] || adj[s].length === 0) continue;
+        const memberIdxs = [];
+        const queue = [s];
+        while (queue.length) {
+          const v = queue.shift();
+          if (seen[v]) continue;
+          seen[v] = true;
+          memberIdxs.push(v);
+          for (const w of adj[v]) if (!seen[w]) queue.push(w);
+        }
+        if (memberIdxs.length < 2) continue;
+        const members = memberIdxs.map((i) => own[i]);
+        const starts = members.map((r) => parseTs(r.event_start));
+        const stops  = members.map((r) => parseTs(r.event_stop));
+
+        const allSimultStart = Math.max(...starts);
+        const allSimultStop  = Math.min(...stops);
+        const spanStart      = Math.min(...starts);
+        const spanStop       = Math.max(...stops);
+        const fullyOverlapping = allSimultStart < allSimultStop;
+
+        const overlapStart = fullyOverlapping ? allSimultStart : spanStart;
+        const overlapStop  = fullyOverlapping ? allSimultStop  : spanStop;
+        if (overlapStop < nowMs) continue; // entirely in the past
+
+        const reported = members
+          .map((r) => (r.available_capacity != null ? Number(r.available_capacity) : null))
+          .filter((v) => v != null && !Number.isNaN(v));
+        const effectiveAvailable = reported.length > 0 ? Math.min(...reported) : null;
+
+        // Members sorted by start time for stable display.
+        members.sort(
+          (x, y) => (parseTs(x.event_start) || 0) - (parseTs(y.event_start) || 0)
+        );
+
+        out.push({
+          site,
+          category,
+          members,
+          member_count: members.length,
+          overlap_start: overlapStart,
+          overlap_stop: overlapStop,
+          fully_overlapping: fullyOverlapping,
+          effective_available: effectiveAvailable,
+          unit: TECH_UNITS[category],
+        });
       }
     }
   }
-  // Sort: currently-overlapping first, then by overlap start.
   out.sort((x, y) => {
     const xLive = x.overlap_start <= nowMs && nowMs <= x.overlap_stop ? 0 : 1;
     const yLive = y.overlap_start <= nowMs && nowMs <= y.overlap_stop ? 0 : 1;
@@ -482,6 +525,14 @@ function computeConflicts(rows, nowMs = Date.now()) {
     return x.overlap_start - y.overlap_start;
   });
   return out;
+}
+
+function _pairOverlaps(a, b) {
+  if (a.thread_id && a.thread_id === b.thread_id) return false;
+  const aStart = parseTs(a.event_start), aStop = parseTs(a.event_stop);
+  const bStart = parseTs(b.event_start), bStop = parseTs(b.event_stop);
+  if ([aStart, aStop, bStart, bStop].some((v) => v == null)) return false;
+  return Math.max(aStart, bStart) < Math.min(aStop, bStop);
 }
 
 // --- gradient colour for the dial fill -------------------------------------

@@ -843,6 +843,31 @@ button:disabled { opacity: 0.6; cursor: wait; }
   font-size: var(--text-2xs);
   color: var(--fg-muted);
 }
+.conflict-windowhint { color: var(--fg-faint); font-size: var(--text-2xs); }
+.conflict-members {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.conflict-member {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 1fr auto;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  padding: 2px 0;
+}
+.conflict-member code {
+  background: var(--border-default);
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-2xs);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.conflict-member-window { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.conflict-member-avail  { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 
 .conflicts-beyond { margin-top: var(--space-3); }
 .conflicts-beyond summary {
