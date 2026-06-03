@@ -289,7 +289,7 @@ html, body {
 .kpi-value, .dial-pct, .dial-avail strong, .dial-tech,
 .headline-val, .conflict-window, .conflict-eff strong, .conflict-pair,
 .upcoming-time, .upcoming-eff, .upcoming-marginal,
-td.num, .chart-now-pill, .num,
+td.num, .num,
 #now-clock {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum', 'cv11', 'cv02';
@@ -605,6 +605,14 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .dial-avail { color: var(--fg-default); }
 .dial-avail strong { font-size: var(--text-base); }
 .dial-tech  { color: var(--fg-subtle); }
+/* Sparkline: tiny 24h trend under each dial. Empty until the history
+   buffer has 2+ samples — silently invisible while it warms up. */
+.dial-spark {
+  display: block;
+  margin: var(--space-2) auto 0;
+  width: 80px;
+  height: 20px;
+}
 
 
 /* =============================================================
@@ -637,22 +645,6 @@ button:disabled { opacity: 0.6; cursor: wait; }
   margin-bottom: var(--space-3);
   flex-wrap: wrap;
 }
-.chart-now {
-  display: flex;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-}
-.chart-now-pill {
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--surface-3);
-  color: var(--fg-subtle);
-}
-.chart-now-pill strong { color: var(--fg-default); font-weight: var(--weight-semibold); }
-.chart-now-pill--w { background: var(--data-withdrawal-bg); color: var(--data-withdrawal-fg); }
-.chart-now-pill--w strong { color: var(--data-withdrawal-fg); }
-.chart-now-pill--i { background: var(--data-injection-bg);  color: var(--data-injection-fg); }
-.chart-now-pill--i strong { color: var(--data-injection-fg); }
 .chart-wrap {
   position: relative;
   height: 260px;

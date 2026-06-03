@@ -89,18 +89,30 @@ let state = {
   lastAttempt: null,
   snapshotFetchedAt: null,
   snapshotAgeSeconds: null,
+  history: [],   // dial value samples for the sparklines
 };
 
 async function loadData() {
   const allSites = els.filterAllSites.checked;
   const url = `/api/data?filter_sites=${allSites ? "false" : "true"}`;
-  const resp = await fetch(url);
+  // Fetch the dial history in parallel — small payload, drives the
+  // sparklines and (later) deltas.
+  const [resp, histResp] = await Promise.all([
+    fetch(url),
+    fetch("/api/history?hours=24").catch(() => null),
+  ]);
   const data = await resp.json();
   state.rows = data.rows || [];
   state.status = data.status;
   state.lastAttempt = data.last_attempt;
   state.snapshotFetchedAt = data.snapshot_fetched_at;
   state.snapshotAgeSeconds = data.snapshot_age_seconds;
+  if (histResp && histResp.ok) {
+    try {
+      const hist = await histResp.json();
+      state.history = hist.samples || [];
+    } catch (e) { state.history = []; }
+  }
   renderBanner();
   populateFilterOptions();
   renderDashboard();
@@ -213,6 +225,9 @@ function renderDial(elId, status) {
       <div class="dial-footer">
         <div class="dial-avail" id="${elId}-avail"></div>
         <div class="dial-tech" id="${elId}-tech"></div>
+        <svg class="dial-spark" id="${elId}-spark"
+             viewBox="0 0 80 20" width="80" height="20"
+             preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
     `;
     el.dataset.built = "1";
@@ -224,6 +239,11 @@ function renderDial(elId, status) {
     `<strong>${formatNum(status.available_now)}</strong> ${status.unit} available`;
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
+
+  // Sparkline of the last 24h of this dial's value. Empty silently while
+  // the history buffer is still warming up (< 2 samples).
+  const sparkEl = document.getElementById(`${elId}-spark`);
+  if (sparkEl) renderSparkline(sparkEl, status.site, status.category, status.tech_max, color);
 
   // Empty-segment colour from CSS so dials follow the theme. In light mode
   // this is a pale slate; in dark mode a darker slate that recedes into the
@@ -283,23 +303,43 @@ const DIAL_STAGGER = {
   "dial-atwick-storage":       5,
 };
 
+// Chart.js plugin that draws a thin dashed "NOW" line at the current time
+// across the chart area, with a tiny label above. Lets the eye instantly
+// separate past from future when the chart spans both.
+const nowLinePlugin = {
+  id: "nowLine",
+  afterDatasetsDraw(chart, args, opts) {
+    if (!opts || opts.enabled === false) return;
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+    const x = xScale.getPixelForValue(opts.now || Date.now());
+    const { top, bottom, left, right } = chart.chartArea;
+    if (x < left || x > right) return;
+    const ctx = chart.ctx;
+    const colour = opts.color || "rgba(100,116,139,0.65)";
+    ctx.save();
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = colour;
+    ctx.font = "600 9px InterVariable, Inter, sans-serif";
+    ctx.fillText("NOW", x + 4, top + 11);
+    ctx.restore();
+  },
+};
+if (window.Chart && !Chart.registry.plugins.get("nowLine")) {
+  Chart.register(nowLinePlugin);
+}
+
 function renderAvailabilityChart(siteKey, timeline) {
   const canvas = document.getElementById(`chart-${siteKey}`);
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext("2d");
-
-  // Render an explicit "Now" badge so the line's current value is
-  // unambiguous. With a 0-160 y-axis a value of 26 looks low and is
-  // easy to misread as 0; the badge eliminates the ambiguity.
-  const nowBadge = document.getElementById(`chart-now-${siteKey}`);
-  if (nowBadge) {
-    const wNow = timeline.withdrawal_data[0]?.y ?? null;
-    const iNow = timeline.injection_data[0]?.y ?? null;
-    nowBadge.innerHTML = `
-      <span class="chart-now-pill chart-now-pill--w">W <strong>${formatNum(wNow)}</strong> / ${formatNum(timeline.withdrawal_tech)}</span>
-      <span class="chart-now-pill chart-now-pill--i">I <strong>${formatNum(iNow)}</strong> / ${formatNum(timeline.injection_tech)}</span>
-    `;
-  }
 
   // Materialise the step function as explicit points so Chart.js can't
   // get it wrong. For each breakpoint (x_i, y_i) — "y_i holds from x_i
@@ -336,7 +376,7 @@ function renderAvailabilityChart(siteKey, timeline) {
   const data = {
     datasets: [
       {
-        label: `Withdrawal available (max ${formatNum(timeline.withdrawal_tech)} GWh/d)`,
+        label: "Withdrawal available",
         data: withdrawalSeries,
         borderColor: theme.withdrawal,
         backgroundColor: "transparent",
@@ -351,7 +391,7 @@ function renderAvailabilityChart(siteKey, timeline) {
         parsing: false,
       },
       {
-        label: `Injection available (max ${formatNum(timeline.injection_tech)} GWh/d)`,
+        label: "Injection available",
         data: injectionSeries,
         borderColor: theme.injection,
         backgroundColor: "transparent",
@@ -407,6 +447,7 @@ function renderAvailabilityChart(siteKey, timeline) {
     // update('none') below so this duration never plays on refresh.
     animation: { duration: 450, easing: "easeOutQuart" },
     plugins: {
+      nowLine: { color: withAlpha(theme.fgSubtle, 0.7), now: timeline.now_ms || Date.now() },
       legend: {
         position: "top",
         align: "end",
@@ -542,6 +583,43 @@ function renderUpcomingForSite(rootEl, site, transitions) {
       </div>
       ${items}
     </div>`;
+}
+
+// Render an 80x20 SVG sparkline of the last 24h of values for one
+// (site, category) dial. Scaled 0..tech_max so absolute level is
+// preserved (a flat line at 26 on a tech 130 dial sits low — that's
+// meaningful), with a soft fill underneath. Stays empty until the
+// rolling history buffer has at least two samples.
+function renderSparkline(svgEl, site, category, techMax, lineColor) {
+  if (!svgEl) return;
+  const key = `${site}.${category}`;
+  const samples = (state.history || [])
+    .map((s) => ({ t: Date.parse(s.t), v: s.values && s.values[key] }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v));
+  if (samples.length < 2) { svgEl.innerHTML = ""; return; }
+
+  const W = 80, H = 20;
+  const tMin = samples[0].t;
+  const tMax = samples[samples.length - 1].t;
+  const tRange = tMax - tMin || 1;
+  const yMax = techMax || Math.max(...samples.map((p) => p.v)) || 1;
+
+  const points = samples.map((p) => {
+    const x = ((p.t - tMin) / tRange) * W;
+    // Pad top by 1.5px so the line never clips the top edge.
+    const y = H - 1.5 - (Math.max(0, Math.min(p.v, yMax)) / yMax) * (H - 3);
+    return [x, y];
+  });
+  const linePath = points
+    .map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`)
+    .join(" ");
+  const fillPath = `${linePath} L ${W} ${H} L 0 ${H} Z`;
+  const fill = withAlpha(lineColor, 0.14);
+
+  svgEl.innerHTML =
+    `<path d="${fillPath}" fill="${fill}" stroke="none"/>` +
+    `<path d="${linePath}" fill="none" stroke="${lineColor}" ` +
+    `stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
 
 function shortenThreadId(tid) {

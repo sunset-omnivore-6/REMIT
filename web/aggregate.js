@@ -186,10 +186,18 @@ function computeSiteHeadline(rows, site, nowMs = Date.now()) {
 
 // --- capacity timeline (per direction, step function over breakpoints) -----
 
-function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, nowMs = Date.now()) {
+const TIMELINE_LOOKBACK_DAYS_DEFAULT = 7;
+
+function computeAvailabilityTimeline(
+  rows,
+  site,
+  days = TIMELINE_DAYS_DEFAULT,
+  nowMs = Date.now(),
+  lookbackDays = TIMELINE_LOOKBACK_DAYS_DEFAULT,
+) {
   // Returns a STEP function — availability is piecewise constant and only
   // changes at REMIT start/stop boundaries. Evaluated per direction
-  // (Withdrawal / Injection). Use stepped:'after' to draw.
+  // (Withdrawal / Injection). Window: [now - lookback, now + horizon].
   //
   // OVERLAP RULE: effective availability at instant t =
   //   MIN(availableCapacity) across all REMITs active at t in this category.
@@ -200,11 +208,11 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
   // Why MIN(available) and not MAX(unavail): individual REMITs report
   // unavailable_capacity as the MARGINAL impact of that REMIT. The
   // availableCapacity field is the absolute system state already accounting
-  // for other concurrent REMITs at publication time. So
-  //   tech_max - unavailable != availableCapacity in general,
-  // and stacking via max(unavail) would miss the cumulative effect.
+  // for other concurrent REMITs at publication time, so taking max(unavail)
+  // misses the cumulative effect.
   //
   // Storage events deliberately excluded — different unit (TWh), not flow.
+  const startMs = nowMs - lookbackDays * 86400 * 1000;
   const endMs = nowMs + days * 86400 * 1000;
   const techWithdrawal = TECH_CAPACITY[site].Withdrawal;
   const techInjection = TECH_CAPACITY[site].Injection;
@@ -223,15 +231,18 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
           ? Number(r.unavailable_capacity)
           : null,
       }))
+      // Keep any row whose window touches [startMs, endMs]. The lookback
+      // pulls in Inactive rows whose stop has passed but is still within
+      // the lookback window — that's how we get history into the chart.
       .filter((r) =>
         r.start != null && r.stop != null &&
-        r.stop > nowMs && r.start < endMs
+        r.stop > startMs && r.start < endMs
       );
 
-    const bps = new Set([nowMs, endMs]);
+    const bps = new Set([startMs, endMs]);
     for (const r of catRows) {
-      if (r.start > nowMs && r.start < endMs) bps.add(r.start);
-      if (r.stop > nowMs && r.stop < endMs) bps.add(r.stop);
+      if (r.start > startMs && r.start < endMs) bps.add(r.start);
+      if (r.stop > startMs && r.stop < endMs) bps.add(r.stop);
     }
     const sorted = [...bps].sort((a, b) => a - b);
 
@@ -257,7 +268,7 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
       data.push({ x: t1, y: value });
     }
     if (data.length === 0) {
-      data.push({ x: nowMs, y: tech });
+      data.push({ x: startMs, y: tech });
     }
     data.push({ x: endMs, y: data[data.length - 1].y });
     return data;
@@ -268,8 +279,9 @@ function computeAvailabilityTimeline(rows, site, days = TIMELINE_DAYS_DEFAULT, n
     injection_data: lineFor("Injection", techInjection),
     withdrawal_tech: techWithdrawal,
     injection_tech: techInjection,
-    start_ms: nowMs,
+    start_ms: startMs,
     end_ms: endMs,
+    now_ms: nowMs,
   };
 }
 

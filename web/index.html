@@ -145,8 +145,7 @@
     <section class="charts">
       <div class="chart-card">
         <div class="chart-head">
-          <h3>Aldbrough — available capacity (next 30 days)</h3>
-          <div class="chart-now" id="chart-now-aldbrough"></div>
+          <h3>Aldbrough — capacity (last 7d + next 30d)</h3>
         </div>
         <div class="chart-wrap">
           <canvas id="chart-aldbrough"></canvas>
@@ -155,8 +154,7 @@
       </div>
       <div class="chart-card">
         <div class="chart-head">
-          <h3>Atwick — available capacity (next 30 days)</h3>
-          <div class="chart-now" id="chart-now-atwick"></div>
+          <h3>Atwick — capacity (last 7d + next 30d)</h3>
         </div>
         <div class="chart-wrap">
           <canvas id="chart-atwick"></canvas>
@@ -305,7 +303,7 @@
   <script>
     // Cache-bust local scripts with a build tag so a `git pull` is enough —
     // no need for users to hard-refresh or clear cache.
-    var BUILD = "20260603j";
+    var BUILD = "20260604a";
     document.write('<scr' + 'ipt src="/web/aggregate.js?v=' + BUILD + '"></scr' + 'ipt>');
     document.write('<scr' + 'ipt src="/web/app.js?v=' + BUILD + '"></scr' + 'ipt>');
   </script>
