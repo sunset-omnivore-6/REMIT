@@ -27,10 +27,136 @@ const els = {
   conflictsAldbrough: document.getElementById("conflicts-aldbrough"),
   conflictsAtwick: document.getElementById("conflicts-atwick"),
   themeToggle: document.getElementById("theme-toggle"),
+  modalOverlay: document.getElementById("modal-overlay"),
+  modalTitle: document.getElementById("modal-title"),
+  modalBody: document.getElementById("modal-body"),
+  modalClose: document.getElementById("modal-close"),
 };
 
 const charts = { aldbrough: null, atwick: null };
 const dialCharts = {};  // keyed "site-category" lowercase
+
+
+// --- REMIT detail modal ---------------------------------------------------
+// Click handlers throughout the page (headlines values, upcoming transition
+// numbers, thread-id chips in conflicts/upcoming) tag elements with
+// data-action attributes. A single delegated listener routes those clicks
+// here. The modal pops with one or more REMIT detail cards.
+
+function showRemitModal(remits, title) {
+  if (!remits || remits.length === 0) return;
+  els.modalTitle.textContent = title || (remits.length === 1 ? "REMIT details" : `${remits.length} REMITs`);
+  els.modalBody.innerHTML = remits.map(renderRemitDetailHtml).join("");
+  els.modalOverlay.hidden = false;
+  // Reflow so the transition triggers from data-open=false to true.
+  void els.modalOverlay.offsetWidth;
+  els.modalOverlay.setAttribute("data-open", "true");
+  // Move focus inside for keyboard a11y.
+  els.modalClose.focus();
+}
+
+function closeRemitModal() {
+  if (els.modalOverlay.getAttribute("data-open") !== "true") return;
+  els.modalOverlay.setAttribute("data-open", "false");
+  // Hide after transition so it can't capture clicks while invisible.
+  setTimeout(() => {
+    if (els.modalOverlay.getAttribute("data-open") === "false") {
+      els.modalOverlay.hidden = true;
+    }
+  }, 250);
+}
+
+function renderRemitDetailHtml(r) {
+  if (!r) return "";
+  const startMs = Date.parse(r.event_start || "");
+  const stopMs = Date.parse(r.event_stop || "");
+  const dur = (Number.isFinite(startMs) && Number.isFinite(stopMs))
+    ? formatDuration((stopMs - startMs) / 3600000) : "";
+  const cat = r.type_of_event || "—";
+  const status = r.event_status || "";
+  const ut = r.type_of_unavailability || "";
+  const techMax = r.technical_capacity != null ? formatNum(r.technical_capacity) + " " + (r.unit_of_measurement || "") : "—";
+  const avail = r.available_capacity != null
+    ? `<span class="meta-strong">${formatNum(r.available_capacity)}</span> ${escapeHtml(r.unit_of_measurement || "")}`
+    : "—";
+  const unavail = r.unavailable_capacity != null
+    ? `<span class="meta-strong">${formatNum(r.unavailable_capacity)}</span> ${escapeHtml(r.unit_of_measurement || "")} <span class="muted">(this REMIT's marginal contribution)</span>`
+    : "—";
+  const pillsHtml = [
+    status ? statusPill(status) : "",
+    ut ? unavailPill(ut) : "",
+  ].join(" ");
+  return `
+    <div class="remit-detail">
+      <div class="remit-detail-head">
+        <code class="remit-detail-id">${escapeHtml(r.thread_id || "")}</code>
+        ${pillsHtml}
+        <span class="muted">rev ${escapeHtml(String(r.revision_number ?? "?"))}</span>
+      </div>
+      <dl class="remit-detail-grid">
+        <dt>Site</dt><dd>${escapeHtml(r.asset || "—")}</dd>
+        <dt>Event type</dt><dd>${escapeHtml(cat)}</dd>
+        <dt>Window</dt><dd>${formatTs(r.event_start)} → ${formatTs(r.event_stop)} ${dur ? `<span class="muted">(${dur})</span>` : ""}</dd>
+        <dt>Available</dt><dd>${avail}</dd>
+        <dt>Unavailable</dt><dd>${unavail}</dd>
+        <dt>Technical max</dt><dd>${techMax}</dd>
+        <dt>Published</dt><dd>${formatTs(r.publication_dt)}</dd>
+      </dl>
+      ${(r.reason || r.remarks) ? `
+        <dl class="remit-detail-text">
+          ${r.reason  ? `<dt>Reason</dt><dd>${escapeHtml(r.reason)}</dd>` : ""}
+          ${r.remarks ? `<dt>Remarks</dt><dd>${escapeHtml(r.remarks)}</dd>` : ""}
+        </dl>` : ""}
+    </div>`;
+}
+
+function findRemitByThreadId(threadId) {
+  if (!threadId) return null;
+  return state.rows.find((r) => r.thread_id === threadId) || null;
+}
+
+function findLiveRemitsForCategory(site, category) {
+  const nowMs = Date.now();
+  const siteLower = site.toLowerCase();
+  return state.rows.filter((r) => {
+    if ((r.event_status || "").toLowerCase() === "dismissed") return false;
+    if ((r.asset || "").toLowerCase() !== siteLower) return false;
+    const cat = (r.type_of_event || "").split(/\s+/)[0];
+    if (cat !== category) return false;
+    const start = Date.parse(r.event_start);
+    const stop = Date.parse(r.event_stop);
+    return Number.isFinite(start) && Number.isFinite(stop) && start <= nowMs && nowMs <= stop;
+  });
+}
+
+// Delegated click handler — routes any [data-action] click to the modal.
+document.addEventListener("click", (e) => {
+  const tgt = e.target.closest("[data-action]");
+  if (!tgt) return;
+  const action = tgt.dataset.action;
+  if (action === "show-remit") {
+    const r = findRemitByThreadId(tgt.dataset.threadId);
+    if (r) showRemitModal([r], `${shortenThreadId(r.thread_id)}`);
+  } else if (action === "show-live-category") {
+    const site = tgt.dataset.site;
+    const category = tgt.dataset.category;
+    const remits = findLiveRemitsForCategory(site, category);
+    if (remits.length > 0) showRemitModal(remits, `${site} · ${category} live now (${remits.length})`);
+  } else if (action === "show-transition") {
+    const tids = (tgt.dataset.threadIds || "").split(",").filter(Boolean);
+    const remits = tids.map(findRemitByThreadId).filter(Boolean);
+    if (remits.length > 0) showRemitModal(remits, tgt.dataset.title || "Transition");
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeRemitModal();
+});
+// Close on backdrop click (not on clicks inside .modal)
+document.getElementById("modal-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "modal-overlay") closeRemitModal();
+});
+document.getElementById("modal-close").addEventListener("click", closeRemitModal);
 
 
 // --- theme ----------------------------------------------------------------
@@ -171,19 +297,21 @@ function renderDashboard() {
 function renderHeadline(el, h) {
   el.className = `headline headline--${h.state}`;
   const linesHtml = h.lines.map((l) => {
-    // Flip: show what's AVAILABLE right now (matches the dial's headline
-    // number underneath). Red text when reduced; green "all available"
-    // when at nameplate tech max.
     const isReduced = l.available != null && l.tech_max != null
       ? l.available < l.tech_max
       : false;
-    const valStr = isReduced
+    // Clickable only when there's actually something live to show.
+    const clickable = l.live_count > 0;
+    const valInner = isReduced
       ? `${formatNum(l.available)} ${l.unit}`
       : `<span class="headline-ok">all available</span>`;
+    const valAttrs = clickable
+      ? ` data-action="show-live-category" data-site="${escapeHtml(h.site)}" data-category="${escapeHtml(l.category)}" tabindex="0" role="button"`
+      : "";
     return `
       <div class="headline-line${isReduced ? " headline-line--offline" : ""}">
         <span class="headline-cat">${escapeHtml(l.category)}</span>
-        <span class="headline-val">${valStr}</span>
+        <span class="headline-val"${valAttrs}>${valInner}</span>
         ${l.live_count > 0 ? `<span class="headline-count">${l.live_count} live</span>` : ""}
       </div>
     `;
@@ -629,12 +757,17 @@ function renderUpcomingForSite(rootEl, site, transitions) {
   const nowMs = Date.now();
   const items = transitions.map((t) => {
     const dir = t.delta > 0 ? "up" : "down";
+    const allTids = [...t.ending.map((r) => r.thread_id), ...t.starting.map((r) => r.thread_id)].filter(Boolean);
+    const title = `${site} · ${t.category} ${formatNum(t.from)} → ${formatNum(t.to)} ${t.unit}`;
     const causes = [
-      ...t.ending.map((r) => `<code>${escapeHtml(shortenThreadId(r.thread_id))}</code> ends`),
-      ...t.starting.map((r) => `<code>${escapeHtml(shortenThreadId(r.thread_id))}</code> begins`),
+      ...t.ending.map((r) => `<code data-action="show-remit" data-thread-id="${escapeHtml(r.thread_id || "")}" tabindex="0" role="button">${escapeHtml(shortenThreadId(r.thread_id))}</code> ends`),
+      ...t.starting.map((r) => `<code data-action="show-remit" data-thread-id="${escapeHtml(r.thread_id || "")}" tabindex="0" role="button">${escapeHtml(shortenThreadId(r.thread_id))}</code> begins`),
     ].join(" · ");
     const countdown = formatCountdown(t.at_ms - nowMs);
     const unit = escapeHtml(t.unit || "");
+    const transAttrs = allTids.length > 0
+      ? ` data-action="show-transition" data-thread-ids="${escapeHtml(allTids.join(","))}" data-title="${escapeHtml(title)}" tabindex="0" role="button"`
+      : "";
     return `
       <div class="upcoming-item upcoming-item--${dir}">
         <div class="upcoming-time">
@@ -643,9 +776,9 @@ function renderUpcomingForSite(rootEl, site, transitions) {
         </div>
         <div class="upcoming-body">
           <strong class="upcoming-cat">${escapeHtml(t.category)}</strong>
-          <span class="upcoming-from">${formatNum(t.from)}</span>
+          <span class="upcoming-from"${transAttrs}>${formatNum(t.from)}</span>
           <span class="upcoming-arrow">→</span>
-          <strong class="upcoming-to">${formatNum(t.to)} ${unit}</strong>
+          <strong class="upcoming-to"${transAttrs}>${formatNum(t.to)} ${unit}</strong>
         </div>
         <div class="upcoming-remarks">${causes}</div>
       </div>`;
@@ -742,7 +875,7 @@ function conflictItemHtml(c, bucket) {
     : ` <span class="conflict-windowhint">(staggered)</span>`;
   const membersHtml = (c.members || []).map((m) => `
     <div class="conflict-member">
-      <code>${escapeHtml(shortenThreadId(m.thread_id || ""))}</code>
+      <code data-action="show-remit" data-thread-id="${escapeHtml(m.thread_id || "")}" tabindex="0" role="button">${escapeHtml(shortenThreadId(m.thread_id || ""))}</code>
       <span class="conflict-member-window">${formatTs(m.event_start)} → ${formatTs(m.event_stop)}</span>
       <span class="conflict-member-avail">avail ${formatNum(m.available_capacity)}</span>
     </div>`).join("");
@@ -843,8 +976,9 @@ function renderTable() {
 function rowHtml(r, nowMs) {
   const live = isLive(r, nowMs);
   const cls = live ? ' class="row--live"' : "";
+  const tid = r.thread_id || "";
   return `<tr${cls}>
-    <td>${escapeHtml(r.thread_id || "")}${live ? ' <span class="pill pill--live">LIVE</span>' : ""}</td>
+    <td><span data-action="show-remit" data-thread-id="${escapeHtml(tid)}" tabindex="0" role="button" class="table-tid">${escapeHtml(tid)}</span>${live ? ' <span class="pill pill--live">LIVE</span>' : ""}</td>
     <td class="num">${escapeHtml(String(r.revision_number ?? ""))}</td>
     <td>${escapeHtml(r.asset || "")}</td>
     <td>${statusPill(r.event_status)}</td>
