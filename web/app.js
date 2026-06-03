@@ -133,6 +133,8 @@ function renderDashboard() {
     const t = (r.thread_id || "").toLowerCase();
     return a === "aldbrough" || a === "atwick" || t.startsWith("ald_") || t.startsWith("atw_");
   });
+  // Cache for the sparkline renderer, which needs the same SSE-only filter.
+  state.siteRows = siteRows;
 
   // Recent changes banner
   const changes = agg.computeRecentChanges(siteRows, 24);
@@ -228,7 +230,7 @@ function renderDial(elId, status) {
         <div class="dial-avail" id="${elId}-avail"></div>
         <div class="dial-tech" id="${elId}-tech"></div>
         <svg class="dial-spark" id="${elId}-spark"
-             viewBox="0 0 80 20" width="80" height="20"
+             viewBox="0 0 100 22" width="100" height="22"
              preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
     `;
@@ -242,12 +244,11 @@ function renderDial(elId, status) {
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
 
-  // Sparkline of the last 24h of this dial's value. Falls back to a
-  // faint baseline + current-value dot while the history buffer warms up.
+  // Sparkline of the last 24h of this dial's value — computed live from
+  // the current snapshot, no history buffer needed.
   const sparkEl = document.getElementById(`${elId}-spark`);
   if (sparkEl) {
-    renderSparkline(sparkEl, status.site, status.category, status.tech_max,
-                    status.available_now, color);
+    renderSparkline(sparkEl, status.site, status.category, status.tech_max, color);
   }
 
   // Empty-segment colour from CSS so dials follow the theme. In light mode
@@ -406,11 +407,17 @@ function renderAvailabilityChart(siteKey, timeline) {
   const ctx = canvas.getContext("2d");
 
   // Materialise the step function as explicit points so Chart.js can't
-  // get it wrong. For each breakpoint (x_i, y_i) — "y_i holds from x_i
+  // misrender it. For each breakpoint (x_i, y_i) — "y_i holds from x_i
   // until the next breakpoint" — emit:
-  //   (x_i, y_i)         — start of segment
-  //   (x_{i+1}-1ms, y_i) — end of segment, 1ms before the jump
+  //   (x_i, y_i)             — start of segment
+  //   hourly points (x, y_i) — held value, one per hour within the
+  //                            segment, gives hover a precise place to
+  //                            land at every cursor x; default 'nearest'
+  //                            mode picks one of these and tooltip shows
+  //                            the correct held value
+  //   (x_{i+1}-1ms, y_i)     — end of segment, 1ms before the jump
   // Straight-line interpolation then yields a clean step function.
+  const HOUR_MS = 60 * 60 * 1000;
   function materialiseStepSeries(stepPoints) {
     if (!stepPoints || stepPoints.length === 0) return [];
     const out = [];
@@ -419,6 +426,14 @@ function renderAvailabilityChart(siteKey, timeline) {
       out.push({ x: p.x, y: p.y });
       if (i < stepPoints.length - 1) {
         const next = stepPoints[i + 1];
+        // Fill intermediate hourly points carrying the segment's held
+        // value, so wherever the cursor lands within the segment the
+        // nearest data point still has y=p.y (not the next change).
+        let t = p.x + HOUR_MS;
+        while (t < next.x - HOUR_MS) {
+          out.push({ x: t, y: p.y });
+          t += HOUR_MS;
+        }
         if (next.x > p.x + 1) {
           out.push({ x: next.x - 1, y: p.y });
         }
@@ -506,11 +521,12 @@ function renderAvailabilityChart(siteKey, timeline) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    // cursorStep: tooltip follows the cursor x and returns the value of
-    // the step-function segment HELD at that x. Default 'nearest' mode
-    // snaps to the nearest data point which on a step function locks
-    // onto the next change point — confusing the user.
-    interaction: { mode: "cursorStep", axis: "x", intersect: false },
+    // 'nearest' mode picks the data point with the smallest pixel
+    // distance from the cursor. The materialised series above places
+    // hourly points within every step segment, all carrying that
+    // segment's value, so wherever the cursor lands the nearest point
+    // already has the correct held value — no custom mode needed.
+    interaction: { mode: "nearest", axis: "x", intersect: false },
     // Subtle entry animation on first mount only. Periodic refreshes use
     // update('none') below so this duration never plays on refresh.
     animation: { duration: 450, easing: "easeOutQuart" },
@@ -658,51 +674,45 @@ function renderUpcomingForSite(rootEl, site, transitions) {
     </div>`;
 }
 
-// Render an 80x20 SVG sparkline of the last 24h of values for one
-// (site, category) dial. Scaled 0..tech_max so absolute level is
-// preserved. Soft fill underneath in the dial's gradient colour.
-// When fewer than 2 history samples exist (the buffer is warming up
-// after a fresh deploy), draws a faint dashed baseline at the current
-// value with a dot marker — signals "we're here, more data coming".
-function renderSparkline(svgEl, site, category, techMax, currentValue, lineColor) {
+// Render a 100x22 SVG sparkline of the last 24h of effective availability
+// for one (site, category) dial. Data is computed from the current
+// snapshot (hourly samples via computeSparklineData) so it works from
+// the very first page load — no warming-up period. Y scaled to
+// 0..tech_max so a flat line at 26 on a 130-max dial sits low, which is
+// the meaningful signal. Soft fill underneath in the dial's gradient
+// colour. A subtle dot marks the most recent point.
+function renderSparkline(svgEl, site, category, techMax, lineColor) {
   if (!svgEl) return;
-  const key = `${site}.${category}`;
-  const samples = (state.history || [])
-    .map((s) => ({ t: Date.parse(s.t), v: s.values && s.values[key] }))
-    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v));
+  const agg = window.REMITAggregates;
+  if (!agg || !agg.computeSparklineData) { svgEl.innerHTML = ""; return; }
+  const samples = agg.computeSparklineData(state.siteRows || [], site, category, 24);
+  if (samples.length < 2) { svgEl.innerHTML = ""; return; }
 
-  const W = 80, H = 20;
+  const W = 100, H = 22;
   const yMax = techMax || 1;
-
-  if (samples.length < 2) {
-    if (currentValue == null) { svgEl.innerHTML = ""; return; }
-    const y = (H - 1.5 - (Math.max(0, Math.min(currentValue, yMax)) / yMax) * (H - 3)).toFixed(1);
-    svgEl.innerHTML =
-      `<line x1="0" y1="${y}" x2="${W - 4}" y2="${y}" ` +
-      `stroke="${withAlpha(lineColor, 0.35)}" stroke-width="1" stroke-dasharray="2 2"/>` +
-      `<circle cx="${W - 3}" cy="${y}" r="1.8" fill="${lineColor}"/>`;
-    return;
-  }
-
   const tMin = samples[0].t;
   const tMax = samples[samples.length - 1].t;
   const tRange = tMax - tMin || 1;
 
   const points = samples.map((p) => {
     const x = ((p.t - tMin) / tRange) * W;
-    const y = H - 1.5 - (Math.max(0, Math.min(p.v, yMax)) / yMax) * (H - 3);
+    // Pad top by 2px so the line never clips the top edge; pad bottom
+    // by 2px so a zero value isn't flush against the canvas edge.
+    const y = H - 2 - (Math.max(0, Math.min(p.v, yMax)) / yMax) * (H - 4);
     return [x, y];
   });
   const linePath = points
     .map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`)
     .join(" ");
   const fillPath = `${linePath} L ${W} ${H} L 0 ${H} Z`;
-  const fill = withAlpha(lineColor, 0.14);
+  const fill = withAlpha(lineColor, 0.18);
+  const [lastX, lastY] = points[points.length - 1];
 
   svgEl.innerHTML =
     `<path d="${fillPath}" fill="${fill}" stroke="none"/>` +
     `<path d="${linePath}" fill="none" stroke="${lineColor}" ` +
-    `stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    `stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="2" fill="${lineColor}"/>`;
 }
 
 function shortenThreadId(tid) {
