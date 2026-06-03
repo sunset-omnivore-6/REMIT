@@ -44,26 +44,17 @@ const dialCharts = {};  // keyed "site-category" lowercase
 // here. The modal pops with one or more REMIT detail cards.
 
 function showRemitModal(remits, title) {
-  if (!remits || remits.length === 0) return;
-  els.modalTitle.textContent = title || (remits.length === 1 ? "REMIT details" : `${remits.length} REMITs`);
-  els.modalBody.innerHTML = remits.map(renderRemitDetailHtml).join("");
-  els.modalOverlay.hidden = false;
-  // Reflow so the transition triggers from data-open=false to true.
-  void els.modalOverlay.offsetWidth;
+  const list = Array.isArray(remits) ? remits.filter(Boolean) : [];
+  els.modalTitle.textContent = title || (list.length === 1 ? "REMIT details" : `${list.length} REMITs`);
+  els.modalBody.innerHTML = list.length === 0
+    ? `<div class="remit-detail-empty">No matching REMIT found.</div>`
+    : list.map(renderRemitDetailHtml).join("");
   els.modalOverlay.setAttribute("data-open", "true");
-  // Move focus inside for keyboard a11y.
   els.modalClose.focus();
 }
 
 function closeRemitModal() {
-  if (els.modalOverlay.getAttribute("data-open") !== "true") return;
   els.modalOverlay.setAttribute("data-open", "false");
-  // Hide after transition so it can't capture clicks while invisible.
-  setTimeout(() => {
-    if (els.modalOverlay.getAttribute("data-open") === "false") {
-      els.modalOverlay.hidden = true;
-    }
-  }, 250);
 }
 
 function renderRemitDetailHtml(r) {
@@ -136,16 +127,16 @@ document.addEventListener("click", (e) => {
   const action = tgt.dataset.action;
   if (action === "show-remit") {
     const r = findRemitByThreadId(tgt.dataset.threadId);
-    if (r) showRemitModal([r], `${shortenThreadId(r.thread_id)}`);
+    showRemitModal(r ? [r] : [], r ? shortenThreadId(r.thread_id) : "REMIT not found");
   } else if (action === "show-live-category") {
-    const site = tgt.dataset.site;
-    const category = tgt.dataset.category;
+    const site = tgt.dataset.site || "";
+    const category = tgt.dataset.category || "";
     const remits = findLiveRemitsForCategory(site, category);
-    if (remits.length > 0) showRemitModal(remits, `${site} · ${category} live now (${remits.length})`);
+    showRemitModal(remits, `${site} · ${category} live now (${remits.length})`);
   } else if (action === "show-transition") {
     const tids = (tgt.dataset.threadIds || "").split(",").filter(Boolean);
     const remits = tids.map(findRemitByThreadId).filter(Boolean);
-    if (remits.length > 0) showRemitModal(remits, tgt.dataset.title || "Transition");
+    showRemitModal(remits, tgt.dataset.title || "Transition");
   }
 });
 

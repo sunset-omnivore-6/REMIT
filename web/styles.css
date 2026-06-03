@@ -1173,6 +1173,9 @@ code[data-action]:hover {
 
 /* =============================================================
    REMIT detail modal
+   Visibility via visibility+opacity so we can transition cleanly
+   without the display:none / [hidden] race that can swallow data-open
+   if both attributes are toggled in the same tick.
    ============================================================= */
 .modal-overlay {
   position: fixed;
@@ -1183,15 +1186,19 @@ code[data-action]:hover {
   justify-content: center;
   z-index: var(--z-modal);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--duration-base) var(--ease-out);
+  transition: opacity var(--duration-base) var(--ease-out),
+              visibility 0s linear var(--duration-base);
   padding: var(--space-4);
 }
 .modal-overlay[data-open="true"] {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  transition: opacity var(--duration-base) var(--ease-out),
+              visibility 0s linear 0s;
 }
-.modal-overlay[hidden] { display: none; }
 
 .modal {
   background: var(--surface-1);

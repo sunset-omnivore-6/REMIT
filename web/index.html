@@ -298,11 +298,11 @@
     </section>
   </main>
 
-  <!-- REMIT detail modal. Hidden by default; populated and shown by JS
-       when the user clicks a capacity number, a transition value, or
-       any thread-ID chip. Close via X, Esc, or clicking the backdrop. -->
+  <!-- REMIT detail modal. Populated and shown by JS when the user
+       clicks a capacity number, a transition value, or any thread-ID
+       chip. Close via X, Esc, or clicking the backdrop. -->
   <div id="modal-overlay" class="modal-overlay" data-open="false"
-       role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+       role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal" role="document">
       <div class="modal-header">
         <h2 class="modal-title" id="modal-title">REMIT details</h2>
@@ -321,7 +321,7 @@
   <script>
     // Cache-bust local scripts with a build tag so a `git pull` is enough —
     // no need for users to hard-refresh or clear cache.
-    var BUILD = "20260604g";
+    var BUILD = "20260604h";
     document.write('<scr' + 'ipt src="/web/aggregate.js?v=' + BUILD + '"></scr' + 'ipt>');
     document.write('<scr' + 'ipt src="/web/app.js?v=' + BUILD + '"></scr' + 'ipt>');
   </script>
