@@ -605,15 +605,6 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .dial-avail { color: var(--fg-default); }
 .dial-avail strong { font-size: var(--text-base); }
 .dial-tech  { color: var(--fg-subtle); }
-/* Sparkline: tiny 24h trend under each dial. Empty until the history
-   buffer has 2+ samples — silently invisible while it warms up. */
-.dial-spark {
-  display: block;
-  margin: var(--space-2) auto 0;
-  width: 100px;
-  height: 22px;
-  overflow: visible;
-}
 
 
 /* =============================================================

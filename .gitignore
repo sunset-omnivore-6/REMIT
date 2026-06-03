@@ -7,3 +7,4 @@ venv/
 .DS_Store
 data/last_good.json
 data/fetch_log.jsonl
+data/dial_history.jsonl

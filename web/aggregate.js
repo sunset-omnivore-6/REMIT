@@ -287,55 +287,6 @@ function computeAvailabilityTimeline(
 
 // --- upcoming events (next N days, text list) -------------------------------
 
-// Sparkline data for one (site, category) — hourly samples of the
-// effective availability over the last N hours, derived directly from
-// the current snapshot. Doesn't depend on the rolling history buffer,
-// so the sparkline is meaningful from the first page load. Uses the
-// SAME min(availableCapacity) rule as the dial + chart + conflicts, so
-// every view of "what's available right now" agrees.
-function computeSparklineData(rows, site, category, hoursBack = 24, nowMs = Date.now()) {
-  const techRoot = TECH_CAPACITY[site];
-  if (!techRoot) return [];
-  const tech = techRoot[category];
-  if (tech == null) return [];
-
-  const startMs = nowMs - hoursBack * 3600 * 1000;
-  const intervalMs = 60 * 60 * 1000; // 1-hour samples
-
-  const opRows = operationalRows(rows);
-  const catRows = rowsForSiteCategory(opRows, site, category)
-    .map((r) => ({
-      start: parseTs(r.event_start),
-      stop: parseTs(r.event_stop),
-      avail: r.available_capacity != null && r.available_capacity !== ""
-        ? Number(r.available_capacity) : null,
-      unavail: Number(r.unavailable_capacity) || 0,
-    }))
-    .filter((r) =>
-      r.start != null && r.stop != null &&
-      r.stop > startMs && r.start <= nowMs
-    );
-
-  const samples = [];
-  for (let t = startMs; t <= nowMs; t += intervalMs) {
-    const active = catRows.filter((r) => r.start <= t && t < r.stop);
-    let value;
-    if (active.length === 0) {
-      value = tech;
-    } else {
-      const reportedAvails = active.map((r) => r.avail).filter((v) => v != null && !Number.isNaN(v));
-      if (reportedAvails.length > 0) {
-        value = Math.min(...reportedAvails);
-      } else {
-        const unavailSum = active.reduce((acc, r) => acc + (r.unavail || 0), 0);
-        value = Math.max(0, tech - unavailSum);
-      }
-    }
-    samples.push({ t, v: value });
-  }
-  return samples;
-}
-
 function computeUpcomingNext(rows, site, days = 7, nowMs = Date.now()) {
   // Kept for backwards compatibility / future reuse — see
   // computeUpcomingTransitions for the active view the UI renders.
@@ -623,7 +574,6 @@ window.REMITAggregates = {
   computeSiteCategoryStatus,
   computeSiteHeadline,
   computeAvailabilityTimeline,
-  computeSparklineData,
   computeUpcomingNext,
   computeUpcomingTransitions,
   computeConflicts,

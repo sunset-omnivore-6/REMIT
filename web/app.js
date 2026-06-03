@@ -91,30 +91,18 @@ let state = {
   lastAttempt: null,
   snapshotFetchedAt: null,
   snapshotAgeSeconds: null,
-  history: [],   // dial value samples for the sparklines
 };
 
 async function loadData() {
   const allSites = els.filterAllSites.checked;
   const url = `/api/data?filter_sites=${allSites ? "false" : "true"}`;
-  // Fetch the dial history in parallel — small payload, drives the
-  // sparklines and (later) deltas.
-  const [resp, histResp] = await Promise.all([
-    fetch(url),
-    fetch("/api/history?hours=24").catch(() => null),
-  ]);
+  const resp = await fetch(url);
   const data = await resp.json();
   state.rows = data.rows || [];
   state.status = data.status;
   state.lastAttempt = data.last_attempt;
   state.snapshotFetchedAt = data.snapshot_fetched_at;
   state.snapshotAgeSeconds = data.snapshot_age_seconds;
-  if (histResp && histResp.ok) {
-    try {
-      const hist = await histResp.json();
-      state.history = hist.samples || [];
-    } catch (e) { state.history = []; }
-  }
   renderBanner();
   populateFilterOptions();
   renderDashboard();
@@ -133,8 +121,6 @@ function renderDashboard() {
     const t = (r.thread_id || "").toLowerCase();
     return a === "aldbrough" || a === "atwick" || t.startsWith("ald_") || t.startsWith("atw_");
   });
-  // Cache for the sparkline renderer, which needs the same SSE-only filter.
-  state.siteRows = siteRows;
 
   // Recent changes banner
   const changes = agg.computeRecentChanges(siteRows, 24);
@@ -229,9 +215,6 @@ function renderDial(elId, status) {
       <div class="dial-footer">
         <div class="dial-avail" id="${elId}-avail"></div>
         <div class="dial-tech" id="${elId}-tech"></div>
-        <svg class="dial-spark" id="${elId}-spark"
-             viewBox="0 0 100 22" width="100" height="22"
-             preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
     `;
     el.dataset.built = "1";
@@ -243,13 +226,6 @@ function renderDial(elId, status) {
     `<strong>${formatNum(status.available_now)}</strong> ${status.unit} available`;
   document.getElementById(`${elId}-tech`).textContent =
     `of ${formatNum(status.tech_max)} ${status.unit} max`;
-
-  // Sparkline of the last 24h of this dial's value — computed live from
-  // the current snapshot, no history buffer needed.
-  const sparkEl = document.getElementById(`${elId}-spark`);
-  if (sparkEl) {
-    renderSparkline(sparkEl, status.site, status.category, status.tech_max, color);
-  }
 
   // Empty-segment colour from CSS so dials follow the theme. In light mode
   // this is a pale slate; in dark mode a darker slate that recedes into the
@@ -672,47 +648,6 @@ function renderUpcomingForSite(rootEl, site, transitions) {
       </div>
       ${items}
     </div>`;
-}
-
-// Render a 100x22 SVG sparkline of the last 24h of effective availability
-// for one (site, category) dial. Data is computed from the current
-// snapshot (hourly samples via computeSparklineData) so it works from
-// the very first page load — no warming-up period. Y scaled to
-// 0..tech_max so a flat line at 26 on a 130-max dial sits low, which is
-// the meaningful signal. Soft fill underneath in the dial's gradient
-// colour. A subtle dot marks the most recent point.
-function renderSparkline(svgEl, site, category, techMax, lineColor) {
-  if (!svgEl) return;
-  const agg = window.REMITAggregates;
-  if (!agg || !agg.computeSparklineData) { svgEl.innerHTML = ""; return; }
-  const samples = agg.computeSparklineData(state.siteRows || [], site, category, 24);
-  if (samples.length < 2) { svgEl.innerHTML = ""; return; }
-
-  const W = 100, H = 22;
-  const yMax = techMax || 1;
-  const tMin = samples[0].t;
-  const tMax = samples[samples.length - 1].t;
-  const tRange = tMax - tMin || 1;
-
-  const points = samples.map((p) => {
-    const x = ((p.t - tMin) / tRange) * W;
-    // Pad top by 2px so the line never clips the top edge; pad bottom
-    // by 2px so a zero value isn't flush against the canvas edge.
-    const y = H - 2 - (Math.max(0, Math.min(p.v, yMax)) / yMax) * (H - 4);
-    return [x, y];
-  });
-  const linePath = points
-    .map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`)
-    .join(" ");
-  const fillPath = `${linePath} L ${W} ${H} L 0 ${H} Z`;
-  const fill = withAlpha(lineColor, 0.18);
-  const [lastX, lastY] = points[points.length - 1];
-
-  svgEl.innerHTML =
-    `<path d="${fillPath}" fill="${fill}" stroke="none"/>` +
-    `<path d="${linePath}" fill="none" stroke="${lineColor}" ` +
-    `stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="2" fill="${lineColor}"/>`;
 }
 
 function shortenThreadId(tid) {

@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from server import cache, history
+from server import cache
 from server.fetch_sse import fetch_remit
 from server.normalise import (
     collect_raw_field_names,
@@ -92,12 +92,6 @@ async def refresh_once() -> dict[str, Any]:
 
         if result.success and result.rows:
             cache.save_snapshot(result.rows, result.fetched_at)
-            # Sample the current dial values into the rolling history buffer.
-            # Powers the sparklines under each dial.
-            try:
-                history.append_sample(normalise_rows(result.rows), result.fetched_at)
-            except Exception:
-                logger.exception("history sample append failed")
             logger.info("refresh ok — %d rows (%d pages)", len(result.rows), result.pages_fetched)
         else:
             logger.warning(
@@ -168,12 +162,6 @@ async def api_refresh() -> JSONResponse:
 @app.get("/api/log")
 async def api_log(limit: int = 50) -> JSONResponse:
     return JSONResponse({"entries": cache.read_log(limit=limit)})
-
-
-@app.get("/api/history")
-async def api_history(hours: int = 24) -> JSONResponse:
-    """Rolling dial-value history for the sparklines under each dial."""
-    return JSONResponse({"hours": hours, "samples": history.read_samples(hours=hours)})
 
 
 @app.get("/api/debug/raw_schema")
