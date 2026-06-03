@@ -248,7 +248,8 @@
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
 /* Cards / surfaces transition smoothly when the toggle flips. Limited to
-   colour properties only — layout never animates. */
+   colour properties + the hover-lift props (shadow, transform); layout
+   never animates. */
 html, body, .headline, .kpi, .dials-site, .chart-card, .upcoming-card,
 .conflicts-card, .controls, .table-wrap, .banner, .changes, .conflict-item,
 .upcoming-item, .pill, .conflicts-beyond summary,
@@ -256,13 +257,15 @@ button {
   transition: background-color var(--duration-base) var(--ease-out),
               border-color     var(--duration-base) var(--ease-out),
               color            var(--duration-base) var(--ease-out),
-              box-shadow       var(--duration-base) var(--ease-out);
+              box-shadow       var(--duration-base) var(--ease-out),
+              transform        var(--duration-fast) var(--ease-out);
 }
 
 /* =============================================================
-   Hover lift on the main surface cards. Shadow rises one step on
-   pointer hover. No transform — staying restrained so it never
-   reads as a clickable affordance.
+   Hover lift on the main surface cards. Shadow rises one step AND
+   the card lifts 2px on pointer hover — small but unmistakably
+   responsive. transform never affects surrounding layout, so the
+   grid stays stable.
    ============================================================= */
 .headline:hover,
 .dials-site:hover,
@@ -270,6 +273,14 @@ button {
 .upcoming-card:hover,
 .conflicts-card:hover {
   box-shadow: var(--elev-2);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headline:hover, .dials-site:hover, .chart-card:hover,
+  .upcoming-card:hover, .conflicts-card:hover {
+    transform: none;
+  }
 }
 
 /* Focus-visible rings on every interactive control. Only shows on
