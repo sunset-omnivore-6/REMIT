@@ -171,6 +171,7 @@ function renderDashboard() {
 
 function renderHeadline(el, h) {
   el.className = `headline headline--${h.state}`;
+  const nowMs = Date.now();
   const linesHtml = h.lines.map((l) => {
     const isReduced = l.available != null && l.tech_max != null
       ? l.available < l.tech_max
@@ -178,10 +179,23 @@ function renderHeadline(el, h) {
     const valStr = isReduced
       ? `${formatNum(l.available)} ${l.unit}`
       : `<span class="headline-ok">all available</span>`;
+
+    // Delta indicator — only shown when availability actually changed
+    // in the last 24h. Direction follows current vs previous: ▲ when
+    // capacity went UP (good), ▼ when it dropped.
+    let deltaHtml = "";
+    if (l.change_from != null && l.change_at_ms != null && l.available != null) {
+      const up = l.available > l.change_from;
+      const arrow = up ? "▲" : "▼";
+      const cls = up ? "headline-delta--up" : "headline-delta--down";
+      const ago = formatRelativeAgo(nowMs - l.change_at_ms);
+      deltaHtml = `<span class="headline-delta ${cls}">${arrow} from ${formatNum(l.change_from)} ${escapeHtml(l.unit || "")} <span class="headline-delta-when">(${ago})</span></span>`;
+    }
+
     return `
       <div class="headline-line${isReduced ? " headline-line--offline" : ""}">
         <span class="headline-cat">${escapeHtml(l.category)}</span>
-        <span class="headline-val">${valStr}</span>
+        <span class="headline-val">${valStr}${deltaHtml}</span>
         ${l.live_count > 0 ? `<span class="headline-count">${l.live_count} live</span>` : ""}
       </div>
     `;
@@ -190,6 +204,17 @@ function renderHeadline(el, h) {
     <div class="headline-site">${escapeHtml(h.site)}</div>
     ${linesHtml}
   `;
+}
+
+function formatRelativeAgo(deltaMs) {
+  if (!Number.isFinite(deltaMs) || deltaMs < 0) return "just now";
+  const totalMin = Math.floor(deltaMs / 60000);
+  if (totalMin < 1) return "just now";
+  if (totalMin < 60) return `${totalMin}m ago`;
+  const totalHr = Math.floor(totalMin / 60);
+  if (totalHr < 24) return `${totalHr}h ago`;
+  const totalDay = Math.floor(totalHr / 24);
+  return `${totalDay}d ago`;
 }
 
 function renderDial(elId, status) {

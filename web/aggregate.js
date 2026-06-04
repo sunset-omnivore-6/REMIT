@@ -157,17 +157,75 @@ function computeSiteCategoryStatus(rows, site, category, nowMs = Date.now()) {
   };
 }
 
+// Most-recent availability change for one (site, category) within the last
+// N hours, computed from the current snapshot. Returns null when nothing
+// changed in the window. Powers the delta indicator on the per-site
+// headline cards.
+function computeRecentChange(rows, site, category, hoursBack = 24, nowMs = Date.now()) {
+  const techRoot = TECH_CAPACITY[site];
+  if (!techRoot) return null;
+  const tech = techRoot[category];
+  if (tech == null) return null;
+
+  const startMs = nowMs - hoursBack * 3600 * 1000;
+  const opRows = operationalRows(rows);
+  const catRows = rowsForSiteCategory(opRows, site, category)
+    .map((r) => ({
+      start: parseTs(r.event_start),
+      stop: parseTs(r.event_stop),
+      avail: r.available_capacity != null && r.available_capacity !== ""
+        ? Number(r.available_capacity) : null,
+      unavail: Number(r.unavailable_capacity) || 0,
+    }))
+    .filter((r) =>
+      r.start != null && r.stop != null &&
+      r.stop > startMs && r.start <= nowMs
+    );
+
+  function availAt(t) {
+    const active = catRows.filter((r) => r.start <= t && t < r.stop);
+    if (active.length === 0) return tech;
+    const reportedAvails = active.map((r) => r.avail).filter((v) => v != null && !Number.isNaN(v));
+    if (reportedAvails.length > 0) return Math.min(...reportedAvails);
+    const unavailSum = active.reduce((acc, r) => acc + (r.unavail || 0), 0);
+    return Math.max(0, tech - unavailSum);
+  }
+
+  // Collect every breakpoint that falls inside (startMs, nowMs] and walk
+  // them in reverse chronological order looking for the first one that
+  // actually changed availability. That's the most-recent change.
+  const bps = new Set();
+  for (const r of catRows) {
+    if (r.start > startMs && r.start <= nowMs) bps.add(r.start);
+    if (r.stop > startMs && r.stop <= nowMs) bps.add(r.stop);
+  }
+  if (bps.size === 0) return null;
+
+  const sorted = [...bps].sort((a, b) => b - a);
+  for (const bp of sorted) {
+    const before = availAt(bp - 1);
+    const after = availAt(bp + 1);
+    if (Math.abs(before - after) > 0.001) {
+      return { from: before, to: after, at_ms: bp };
+    }
+  }
+  return null;
+}
+
 function computeSiteHeadline(rows, site, nowMs = Date.now()) {
   // Headline shows per-category unavailable for the site. Never sums across
   // categories (TWh and GWh/d don't add).
   const lines = CATEGORIES.map((cat) => {
     const s = computeSiteCategoryStatus(rows, site, cat, nowMs);
+    const change = computeRecentChange(rows, site, cat, 24, nowMs);
     return {
       category: cat,
       unit: s.unit,
       available: s.available_now,
       tech_max: s.tech_max,
       live_count: s.live_remits.length,
+      change_from: change ? change.from : null,
+      change_at_ms: change ? change.at_ms : null,
     };
   });
   const anyLive = lines.some((l) => l.live_count > 0);
@@ -574,6 +632,7 @@ window.REMITAggregates = {
   computeSiteCategoryStatus,
   computeSiteHeadline,
   computeAvailabilityTimeline,
+  computeRecentChange,
   computeUpcomingNext,
   computeUpcomingTransitions,
   computeConflicts,

@@ -569,6 +569,25 @@ button:disabled { opacity: 0.6; cursor: wait; }
 }
 .headline-line--offline .headline-val { color: var(--status-danger-fg); }
 .headline-ok { color: var(--status-success-fg); font-weight: var(--weight-medium); font-size: var(--text-md); }
+
+/* Delta indicator on each headline line — appears only when availability
+   actually changed in the last 24h. Arrow direction + colour reflect
+   whether capacity went up (▲ green, good) or down (▼ red, bad). */
+.headline-delta {
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+.headline-delta--up   { color: var(--status-success); }
+.headline-delta--down { color: var(--status-danger); }
+.headline-delta-when {
+  color: var(--fg-subtle);
+  font-weight: var(--weight-regular);
+  margin-left: 2px;
+}
 .headline-count {
   font-size: var(--text-xs);
   color: var(--fg-subtle);
