@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -9,16 +10,6 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-
-try:
-    import feedparser  # used by the Non-SSE Sites tab
-except ImportError:
-    feedparser = None
-
-try:
-    from bs4 import BeautifulSoup  # used by the Stublach HTML scraper
-except ImportError:
-    BeautifulSoup = None  # type: ignore[assignment]
 
 # curl_cffi speaks Chrome's actual TLS handshake (JA3/JA4) so we look like
 # Chromium at the socket level, not just the HTTP layer. This is the durable
@@ -33,15 +24,13 @@ except ImportError:
     _HAS_IMPERSONATE = False
 _IMPERSONATE_TARGET = "chrome131"
 
-# Playwright drives a real headless Chromium that can clear the JS-based WAF
-# challenge SSE now serves. This is the durable fix once header + TLS
-# impersonation stops working. Falls back to curl_cffi when not installed.
-try:
-    from playwright.sync_api import sync_playwright
-    _HAS_PLAYWRIGHT = True
-except ImportError:
-    sync_playwright = None  # type: ignore[assignment]
-    _HAS_PLAYWRIGHT = False
+# NOTE: A Playwright (headless-Chromium) fetch path used to live here. It was
+# removed because it cannot work on Streamlit Community Cloud — `pip install
+# playwright` does not install the Chromium binary, so the launch always failed
+# and, since it was the *preferred* path, the app crashed (st.stop) on every
+# cold start / wake. The curl_cffi TLS-impersonation path below is sufficient:
+# it returns HTTP 200 from cloud datacenter IPs (verified), and transient WAF
+# 403s are now handled by retry rather than a hard failure.
 
 API_URL = "https://thermaloutages.sse.com/api/v1/outages/gasuof"
 LANDING_URL = "https://thermaloutages.sse.com/gas-uof"
@@ -49,6 +38,15 @@ SITES = ["Aldbrough", "Atwick"]
 CATEGORIES = ["Withdrawal", "Injection", "Storage"]
 PAGE_SIZE = 100
 FAR_FUTURE = pd.Timestamp("2099-01-01", tz="UTC")
+
+# SSE's Azure Front Door WAF intermittently 403s an otherwise-valid request
+# (the same request shape returns 200 on retry — verified from a cloud IP).
+# This — not any IP/header issue — is the real cause of the historical "breaks
+# every couple of days / won't come back after sleep" symptom. We retry through
+# these transient statuses instead of failing the whole load.
+RETRYABLE_STATUSES = frozenset({403, 408, 429, 500, 502, 503, 504})
+MAX_FETCH_RETRIES = 4               # total attempts (1 try + 3 retries)
+RETRY_BACKOFF_SECONDS = (1, 3, 6)   # waited before retries 2, 3, 4
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -118,18 +116,45 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
+        /* Match the desktop dashboard's typography (Inter) and page surface. */
+        @import url('https://rsms.me/inter/inter.css');
         :root {
           --remit-ok: #16a34a;
           --remit-warn: #d97706;
           --remit-bad: #dc2626;
           --remit-info: #2563eb;
           --remit-muted: #64748b;
-          --remit-ink: #1e293b;
+          --remit-ink: #0f172a;
           --remit-ink-soft: #475569;
           --remit-surface: #f8fafc;
+          --remit-page: #f6f8fb;
           --remit-border: #e2e8f0;
-          --remit-radius: 8px;
-          --remit-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+          --remit-radius: 10px;
+          --remit-shadow: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
+        }
+        html, body, [class*="css"], .stApp, button, input, textarea, select {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+            Roboto, Helvetica, Arial, sans-serif !important;
+          font-feature-settings: 'cv11', 'ss01';
+        }
+        /* Desktop page surface tint. */
+        .stApp { background: var(--remit-page); }
+        .block-container { padding-top: 2.2rem; max-width: 1280px; }
+        /* Capacity dials (per-site headline) */
+        .remit-sitecard__title {
+          font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
+          letter-spacing: -0.01em; margin: 0.1rem 0 0.35rem;
+        }
+        .remit-dial__cat {
+          font-size: 0.82rem; font-weight: 600; color: var(--remit-ink-soft);
+          text-align: center; white-space: nowrap;
+        }
+        .remit-dial__sub {
+          font-size: 0.82rem; font-weight: 600; color: var(--remit-ink);
+          text-align: center; margin-top: -0.4rem;
+        }
+        .remit-dial__count {
+          font-size: 0.72rem; color: var(--remit-muted); text-align: center;
         }
         /* Card */
         .remit-card {
@@ -312,53 +337,70 @@ def _accumulate_payload(payload, rows: list[dict]) -> tuple[int, int | None]:
     return len(items), total
 
 
+def _get_page_with_retry(session, params: dict):
+    """GET one API page, retrying through SSE's intermittent WAF rejections.
+
+    Returns (payload, session) — session is returned because a retry may
+    re-prime it (fresh WAF cookies). Raises RuntimeError with a rich
+    diagnostic only after every attempt is exhausted.
+    """
+    last_resp = None
+    for attempt in range(MAX_FETCH_RETRIES):
+        try:
+            resp = session.get(API_URL, params=params, timeout=30)
+        except Exception as exc:
+            # Transport-level failure (DNS / connect / timeout) — common on the
+            # very first request right after a cold start / wake. Retry.
+            if attempt == MAX_FETCH_RETRIES - 1:
+                raise RuntimeError(
+                    f"SSE request failed: {type(exc).__name__}: {exc}"
+                ) from exc
+            time.sleep(RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS) - 1)])
+            _remit_session.clear()
+            session = _remit_session()
+            continue
+
+        last_resp = resp
+        if resp.status_code == 200:
+            return resp.json(), session
+
+        # Transient WAF status with attempts remaining: back off, re-prime, retry.
+        if resp.status_code in RETRYABLE_STATUSES and attempt < MAX_FETCH_RETRIES - 1:
+            time.sleep(RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS) - 1)])
+            _remit_session.clear()       # drop possibly-stale WAF cookies
+            session = _remit_session()   # re-prime via the landing page
+            continue
+
+        break  # non-retryable status, or retries exhausted
+
+    resp = last_resp
+    transport = (
+        f"curl_cffi/{_IMPERSONATE_TARGET}" if _HAS_IMPERSONATE
+        else "requests (no TLS impersonation)"
+    )
+    deny = resp.headers.get("x-deny-reason", "(none)")
+    server = resp.headers.get("server", "(unknown)")
+    try:
+        body_snippet = " ".join(resp.text[:300].split())
+    except Exception:
+        body_snippet = "(body unreadable)"
+    raise RuntimeError(
+        f"SSE returned {resp.status_code} after {MAX_FETCH_RETRIES} attempts. "
+        f"Transport: {transport}. x-deny-reason: {deny}. Server: {server}. "
+        f"Body[:300]: {body_snippet}"
+    )
+
+
 def _fetch_remit_via_session(revisions: str) -> pd.DataFrame:
-    """Static fetch path via curl_cffi (TLS impersonation) or plain requests.
-    Used when Playwright is not installed. Will hit the WAF JS challenge if
-    SSE has deployed one, returning a rich 403 diagnostic so we know what's
-    blocking us."""
+    """Fetch every page via curl_cffi (Chrome TLS impersonation) or plain
+    requests, retrying through SSE's intermittent WAF 403s."""
     session = _remit_session()
     rows: list[dict] = []
     page = 1
     while True:
         params = _api_params(page, revisions)
-        resp = session.get(API_URL, params=params, timeout=30)
-        if resp.status_code == 403 and page == 1:
-            # Cookies may have expired since the session was primed; re-prime once.
-            _remit_session.clear()
-            session = _remit_session()
-            resp = session.get(API_URL, params=params, timeout=30)
-        if resp.status_code == 403:
-            transport = (
-                f"curl_cffi/{_IMPERSONATE_TARGET}"
-                if _HAS_IMPERSONATE
-                else "requests (no TLS impersonation)"
-            )
-            deny = resp.headers.get("x-deny-reason", "(none)")
-            server = resp.headers.get("server", "(unknown)")
-            cf_ray = resp.headers.get("cf-ray", "")
-            cookie_names = []
-            jar = getattr(session, "cookies", None)
-            if jar is not None:
-                try:
-                    cookie_names = sorted({c.name for c in jar})
-                except Exception:
-                    pass
-            try:
-                body_snippet = " ".join(resp.text[:300].split())
-            except Exception:
-                body_snippet = "(body unreadable)"
-            raise RuntimeError(
-                f"SSE returned 403 Forbidden. "
-                f"Transport: {transport}. "
-                f"x-deny-reason: {deny}. "
-                f"Server: {server}. "
-                f"cf-ray: {cf_ray or '(none)'}. "
-                f"Cookies on session: {cookie_names or '(none)'}. "
-                f"Body[:300]: {body_snippet}"
-            )
-        resp.raise_for_status()
-        n_items, total = _accumulate_payload(resp.json(), rows)
+        payload, session = _get_page_with_retry(session, params)
+        n_items, total = _accumulate_payload(payload, rows)
         if not n_items:
             break
         if total is not None and len(rows) >= total:
@@ -372,82 +414,11 @@ def _fetch_remit_via_session(revisions: str) -> pd.DataFrame:
     return pd.json_normalize(rows)
 
 
-def _fetch_remit_via_playwright(revisions: str) -> pd.DataFrame:
-    """Headless-Chromium fetch path: launch a fresh browser, visit the SSE
-    landing page so any JS-based WAF challenge runs and sets its cookie,
-    then issue the paginated API calls through the browser's own network
-    context (cookies + TLS fingerprint + JS-set headers all come from the
-    real browser). The browser is torn down before returning so we don't
-    leak processes between Streamlit reruns."""
-    from urllib.parse import urlencode
-
-    rows: list[dict] = []
-    with sync_playwright() as pw:
-        try:
-            browser = pw.chromium.launch(headless=True)
-        except Exception as exc:
-            msg = str(exc)
-            if "Executable doesn't exist" in msg or "playwright install" in msg.lower():
-                raise RuntimeError(
-                    "Playwright is installed but the Chromium binary is "
-                    "missing. Run `playwright install chromium` once after "
-                    "`pip install -r requirements.txt`."
-                ) from exc
-            raise
-
-        try:
-            context = browser.new_context(
-                user_agent=HEADERS["User-Agent"],
-                locale="en-GB",
-                viewport={"width": 1280, "height": 800},
-            )
-            page = context.new_page()
-            page.goto(LANDING_URL, wait_until="networkidle", timeout=60_000)
-            # Give any deferred JS challenge a moment to set its cookie.
-            page.wait_for_timeout(2000)
-
-            api_page = 1
-            while True:
-                params = _api_params(api_page, revisions)
-                full_url = f"{API_URL}?{urlencode(params)}"
-                resp = page.request.get(
-                    full_url, headers={"Accept": "application/json, */*"}
-                )
-                if not resp.ok:
-                    body = ""
-                    try:
-                        body = " ".join(resp.text()[:300].split())
-                    except Exception:
-                        pass
-                    raise RuntimeError(
-                        f"SSE returned {resp.status} via Playwright on page "
-                        f"{api_page}. Body[:300]: {body}"
-                    )
-                n_items, total = _accumulate_payload(resp.json(), rows)
-                if not n_items:
-                    break
-                if total is not None and len(rows) >= total:
-                    break
-                if n_items < PAGE_SIZE:
-                    break
-                api_page += 1
-                if api_page > 200:
-                    break
-        finally:
-            browser.close()
-
-    return pd.json_normalize(rows)
-
-
 @st.cache_data(ttl=300, show_spinner="Fetching REMIT data…")
 def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
-    """Outer dispatcher. Prefers Playwright (real browser, clears the WAF
-    JS challenge) when available; falls back to the static curl_cffi /
-    requests path otherwise. Cached for 5 minutes to match the auto-refresh
-    cycle, so Chromium launches once per cycle, not once per Streamlit
-    rerun."""
-    if _HAS_PLAYWRIGHT:
-        return _fetch_remit_via_playwright(revisions)
+    """Fetch + paginate the SSE REMIT API, cached for 5 minutes to match the
+    auto-refresh cycle. Raises on failure; the caller keeps the last good
+    snapshot and shows a banner instead of crashing."""
     return _fetch_remit_via_session(revisions)
 
 
@@ -1152,6 +1123,38 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     )
 
 
+def dial_figure(pct: float, color: str) -> go.Figure:
+    """A doughnut 'dial' showing percent-available, mirroring the desktop
+    dashboard's capacity dials (Chart.js doughnuts there, Plotly here)."""
+    pct = max(0.0, min(100.0, float(pct)))
+    fig = go.Figure(
+        go.Pie(
+            values=[pct, 100 - pct],
+            hole=0.72,
+            sort=False,
+            direction="clockwise",
+            rotation=0,
+            marker=dict(colors=[color, "#eef2f7"], line=dict(width=0)),
+            textinfo="none",
+            hoverinfo="skip",
+            showlegend=False,
+        )
+    )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=128,
+        paper_bgcolor="rgba(0,0,0,0)",
+        annotations=[
+            dict(
+                text=f"<b>{pct:.0f}%</b>",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=24, color=color),
+            )
+        ],
+    )
+    return fig
+
+
 def render_site_headline(
     site: str,
     df_active_site: pd.DataFrame,
@@ -1160,12 +1163,12 @@ def render_site_headline(
     categories: list[str],
 ) -> None:
     st.markdown(
-        f"<div class='remit-kpi__cat' style='font-size:1rem;"
-        f"margin-bottom:0.2rem'>{site}</div>",
+        f"<div class='remit-sitecard__title'>{site}</div>",
         unsafe_allow_html=True,
     )
 
-    for cat in categories:
+    cols = st.columns(len(categories), gap="small")
+    for col, cat in zip(cols, categories):
         tech, avail, unavail, has_unplanned, n = site_category_headline(
             df_active_site, df_all_site_future, site, cat
         )
@@ -1195,31 +1198,33 @@ def render_site_headline(
             unit_str = DEFAULT_UNIT.get(cat, "")
 
         count_txt = f"{n} active event{'s' if n != 1 else ''}"
-        if pd.notna(pct):
-            avail_str = f"{avail:g}" if pd.notna(avail) else "—"
-            tech_str = f"{tech:g}" if pd.notna(tech) else "—"
-            body = (
-                f"<div class='remit-kpi__value' style='color:{color}'>"
-                f"{pct:.0f}% available</div>"
-                f"<div class='remit-kpi__sub'>"
-                f"{avail_str} of {tech_str} {unit_str}</div>"
-                f"{progress_bar(pct, color)}"
+        with col:
+            st.markdown(
+                f"<div class='remit-dial__cat'>"
+                f"<span style='color:{cat_color}'>●</span> {cat}</div>",
+                unsafe_allow_html=True,
             )
-        else:
-            body = (
-                "<div class='remit-kpi__sub'><i>no capacity "
-                "reference</i></div>"
-            )
-
-        st.markdown(
-            f"<div class='remit-kpi'>"
-            f"<div class='remit-kpi__head'>"
-            f"<div class='remit-kpi__cat'>"
-            f"<span style='color:{cat_color}'>●</span> {cat}</div>"
-            f"<div class='remit-kpi__count'>{count_txt}</div>"
-            f"</div>{body}</div>",
-            unsafe_allow_html=True,
-        )
+            if pd.notna(pct):
+                st.plotly_chart(
+                    dial_figure(pct, color),
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                    key=f"dial-{site}-{cat}",
+                )
+                avail_str = f"{avail:g}" if pd.notna(avail) else "—"
+                tech_str = f"{tech:g}" if pd.notna(tech) else "—"
+                st.markdown(
+                    f"<div class='remit-dial__sub'>{avail_str} / {tech_str} "
+                    f"{unit_str}</div>"
+                    f"<div class='remit-dial__count'>{count_txt}</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<div class='remit-dial__sub'><i>no capacity "
+                    "reference</i></div>",
+                    unsafe_allow_html=True,
+                )
 
 
 def render_site_active(
@@ -1809,726 +1814,6 @@ def render_revisions(
 
 
 # ---------------------------------------------------------------------------
-# Non-SSE Sites — external REMIT/UMM feeds for UK gas storage facilities
-# outside SSE's publication. Each source fetched independently with hourly
-# caching; a failure in one source does not block the others.
-# ---------------------------------------------------------------------------
-
-NONSSE_KEYWORDS_KISTOS = ("kistos", "edf energy", "hill top", "hole house")
-
-
-def _parsed_struct_to_ts(parsed) -> pd.Timestamp | None:
-    """Convert feedparser's struct_time to a UTC pandas Timestamp."""
-    if not parsed:
-        return None
-    try:
-        return pd.Timestamp(datetime(*parsed[:6]), tz="UTC")
-    except Exception:
-        return None
-
-
-def _coerce_ts(value) -> pd.Timestamp | None:
-    if value in (None, "", "null"):
-        return None
-    try:
-        ts = pd.to_datetime(value, utc=True, errors="coerce")
-        return None if pd.isna(ts) else ts
-    except Exception:
-        return None
-
-
-def _rss_entry_to_record(entry, facility: str, operator: str, source_url: str) -> dict:
-    pub = _parsed_struct_to_ts(
-        entry.get("published_parsed") or entry.get("updated_parsed")
-    )
-    return {
-        "facility": facility,
-        "operator": operator,
-        "publication": pub,
-        "title": (entry.get("title") or "").strip(),
-        "summary": (entry.get("summary") or entry.get("description") or "").strip(),
-        "source_url": entry.get("link") or source_url,
-    }
-
-
-def _discover_feed_url(page_url: str, attempts: list[str]) -> str | None:
-    """GET the landing page and look for <link rel='alternate'> RSS/Atom URLs,
-    or detect that the page itself is the feed (XML content-type). Always logs
-    the probe outcome to `attempts`."""
-    try:
-        resp = requests.get(
-            page_url,
-            timeout=20,
-            headers={
-                "User-Agent": HEADERS["User-Agent"],
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-        )
-        ctype = resp.headers.get("Content-Type", "")
-        attempts.append(
-            f"HTML probe {page_url} → {resp.status_code} · {ctype or '?'}"
-        )
-        if resp.status_code != 200:
-            return None
-        # Page itself might be the feed (some sites serve RSS at the canonical URL).
-        if any(t in ctype.lower() for t in ("rss", "atom", "xml")):
-            return page_url
-        # Look for <link rel="alternate" type="application/(rss|atom)+xml" href="...">
-        import re
-        from urllib.parse import urljoin
-        pattern = re.compile(
-            r"<link[^>]+(?:"
-            r"rel=['\"]alternate['\"][^>]+type=['\"]application/(?:rss|atom)\+xml['\"]"
-            r"|"
-            r"type=['\"]application/(?:rss|atom)\+xml['\"][^>]+rel=['\"]alternate['\"]"
-            r")[^>]+href=['\"]([^'\"]+)['\"]",
-            re.IGNORECASE,
-        )
-        m = pattern.search(resp.text)
-        if m:
-            href = urljoin(page_url, m.group(1))
-            attempts.append(f"Discovered feed link: {href}")
-            return href
-    except Exception as exc:
-        attempts.append(f"HTML probe error: {exc}")
-    return None
-
-
-def _try_feed_url(url: str, attempts: list[str]) -> list:
-    """Fetch a URL and run it through feedparser. Logs status code,
-    content-type, entry count and any bozo exception. Returns entries (may be
-    empty). When the response was a 200 with zero entries, the first 600
-    chars of the body are dumped to attempts so we can see what the server
-    actually sent."""
-    if feedparser is None:
-        return []
-    try:
-        resp = requests.get(
-            url,
-            timeout=20,
-            headers={
-                "User-Agent": HEADERS["User-Agent"],
-                "Accept": "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.5",
-            },
-        )
-        ctype = resp.headers.get("Content-Type", "")
-        feed = feedparser.parse(resp.content)
-        n = len(feed.entries)
-        bozo_note = ""
-        if getattr(feed, "bozo", 0):
-            bozo_note = f" · bozo: {getattr(feed, 'bozo_exception', '?')}"
-        attempts.append(
-            f"GET {url} → {resp.status_code} · {ctype or '?'} · "
-            f"{n} entries{bozo_note}"
-        )
-        if resp.status_code == 200 and n == 0:
-            snippet = " ".join(resp.text[:600].split())
-            if snippet:
-                attempts.append(f"  Body[:600]: {snippet}")
-        return list(feed.entries)
-    except Exception as exc:
-        attempts.append(f"GET {url} → error: {exc}")
-        return []
-
-
-_STORENGY_DT_FORMATS = (
-    "%A %d %B %Y at %I:%M%p",
-    "%A %d %B %Y %I:%M%p",
-)
-_STORENGY_TITLE_RE = re.compile(
-    r"(Planned|Unplanned)\s+(Injection|Withdrawal|Storage)\s+"
-    r"unavailability\s+at\s+(.+)",
-    re.IGNORECASE,
-)
-_STORENGY_NUM_RE = re.compile(r"([\d,]+(?:\.\d+)?)\s*(\S+)?")
-
-
-def _parse_storengy_dt(s: str) -> pd.Timestamp | None:
-    """Parse Storengy's 'Saturday 8th November 2025 at 12:32pm' format."""
-    if not s:
-        return None
-    cleaned = re.sub(r"(\d+)(st|nd|rd|th)\b", r"\1", s.strip())
-    cleaned = cleaned.replace("am", "AM").replace("pm", "PM")
-    for fmt in _STORENGY_DT_FORMATS:
-        try:
-            return pd.Timestamp(datetime.strptime(cleaned, fmt), tz="UTC")
-        except ValueError:
-            continue
-    return None
-
-
-def _scrape_storengy_html(html: str) -> list[dict]:
-    """Parse the Storengy UMM page. Each UMM is a server-rendered block of
-    <h3 id> + metadata <p> + Time period + Reason + capacity <table>. We
-    dedupe to the latest revision per thread for parity with the SSE side."""
-    if BeautifulSoup is None:
-        raise RuntimeError(
-            "beautifulsoup4 not installed — pip install -r requirements.txt"
-        )
-
-    soup = BeautifulSoup(html, "html.parser")
-    records: list[dict] = []
-
-    for h3 in soup.find_all("h3", id=True):
-        msg_id = h3.get("id", "")
-        title = h3.get_text(" ", strip=True)
-        m = _STORENGY_TITLE_RE.search(title)
-        if not m:
-            continue
-        unavail_type = m.group(1).capitalize()
-        interruption = m.group(2).capitalize()
-        facility = m.group(3).strip()
-
-        thread_id, rev_num = msg_id, 1
-        if "-" in msg_id:
-            base, _, rev = msg_id.rpartition("-")
-            if rev.isdigit():
-                thread_id, rev_num = base, int(rev)
-
-        # Header paragraph: published-on text + status label
-        meta_p = h3.find_next_sibling("p")
-        published_str = ""
-        status = ""
-        if meta_p:
-            label_el = meta_p.find("span", class_="label")
-            if label_el:
-                status = label_el.get_text(strip=True)
-            text = meta_p.get_text(" ", strip=True)
-            pub_match = re.search(
-                r"Published on\s+(.+?)(?:\s+Storengy|\s+(?:Active|Inactive|Dismissed)|$)",
-                text,
-            )
-            if pub_match:
-                published_str = pub_match.group(1).strip()
-
-        # Time period
-        event_start = event_end = None
-        period_h4 = meta_p.find_next_sibling("h4") if meta_p else None
-        reason_h4 = None
-        if period_h4 and "Time period" in period_h4.get_text():
-            period_p = period_h4.find_next_sibling("p")
-            if period_p:
-                spans = period_p.find_all("span")
-                if len(spans) >= 2:
-                    event_start = _parse_storengy_dt(
-                        spans[0].get_text(strip=True)
-                    )
-                    event_end = _parse_storengy_dt(
-                        spans[1].get_text(strip=True)
-                    )
-            reason_h4 = period_h4.find_next_sibling("h4")
-
-        # Reason + capacity table
-        reason = ""
-        table = None
-        if reason_h4 and "Reason" in reason_h4.get_text():
-            reason_p = reason_h4.find_next_sibling("p")
-            if reason_p:
-                reason = reason_p.get_text(" ", strip=True)
-            table = reason_h4.find_next_sibling("table")
-        if table is None:
-            table = h3.find_next_sibling("table")
-
-        unavail_cap = avail_cap = tech_cap = None
-        unit = ""
-        if table:
-            for tr in table.find_all("tr"):
-                th = tr.find("th")
-                td = tr.find("td")
-                if not th or not td:
-                    continue
-                lbl = th.get_text(strip=True).lower()
-                nm = _STORENGY_NUM_RE.match(td.get_text(strip=True))
-                if not nm:
-                    continue
-                try:
-                    val = float(nm.group(1).replace(",", ""))
-                except ValueError:
-                    continue
-                if nm.group(2):
-                    unit = nm.group(2)
-                if "unavailable" in lbl:
-                    unavail_cap = val
-                elif "available" in lbl:
-                    avail_cap = val
-                elif "technical" in lbl:
-                    tech_cap = val
-
-        # Storengy publishes in kWh/d; convert to GWh/d for parity with SSE.
-        if unit.lower() in ("kwh/d", "kwh/day"):
-            scale = 1_000_000
-            unavail_cap = unavail_cap / scale if unavail_cap is not None else None
-            avail_cap = avail_cap / scale if avail_cap is not None else None
-            tech_cap = tech_cap / scale if tech_cap is not None else None
-            unit = "GWh/d"
-
-        records.append(
-            {
-                "facility": facility,
-                "operator": "Storengy UK",
-                "publication": _parse_storengy_dt(published_str),
-                "event_start": event_start,
-                "event_end": event_end,
-                "event_status": status,
-                "unavailability_type": unavail_type,
-                "interruption_type": interruption,
-                "unavailable_capacity": unavail_cap,
-                "available_capacity": avail_cap,
-                "technical_capacity": tech_cap,
-                "capacity_unit": unit,
-                "title": title,
-                "summary": reason,
-                "source_url": (
-                    "https://nemo.storengy.co.uk/maintenance/umms"
-                    f"#{msg_id}"
-                ),
-                "thread_id": thread_id,
-                "rev_num": rev_num,
-            }
-        )
-
-    # Dedupe to the latest revision per thread, like SSE.
-    latest: dict[str, dict] = {}
-    for r in records:
-        prev = latest.get(r["thread_id"])
-        if prev is None or r["rev_num"] > prev["rev_num"]:
-            latest[r["thread_id"]] = r
-    deduped = list(latest.values())
-    deduped.sort(
-        key=lambda r: r["publication"] or pd.Timestamp(0, tz="UTC"),
-        reverse=True,
-    )
-    return deduped
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_storengy_stublach() -> tuple[list[dict], list[str]]:
-    """Stublach UMMs by scraping the Storengy UMM HTML page. The page is
-    server-rendered with each UMM as a structured block — simpler and more
-    reliable than the underlying RSS feed."""
-    attempts: list[str] = []
-    if BeautifulSoup is None:
-        attempts.append(
-            "beautifulsoup4 not installed — pip install -r requirements.txt"
-        )
-        return [], attempts
-
-    url = "https://nemo.storengy.co.uk/maintenance/umms"
-    try:
-        resp = requests.get(
-            url,
-            timeout=20,
-            headers={
-                "User-Agent": HEADERS["User-Agent"],
-                "Accept": "text/html,application/xhtml+xml,*/*;q=0.5",
-            },
-        )
-        attempts.append(
-            f"GET {url} → {resp.status_code} · "
-            f"{resp.headers.get('Content-Type', '?')}"
-        )
-        resp.raise_for_status()
-    except Exception as exc:
-        attempts.append(f"Storengy HTML fetch error: {exc}")
-        return [], attempts
-
-    try:
-        records = _scrape_storengy_html(resp.text)
-    except Exception as exc:
-        attempts.append(f"Storengy HTML parse error: {exc}")
-        return [], attempts
-
-    n_threads = len({r["thread_id"] for r in records})
-    attempts.append(
-        f"Parsed {len(records)} UMMs across {n_threads} unique threads "
-        f"(deduped to latest revision per thread)."
-    )
-    return records, attempts
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_kistos_remit() -> tuple[list[dict], list[str]]:
-    """Kistos / EDF Energy UMMs from remit.gb.net's ACER RSS feed. No
-    per-participant filter exists, so we keep entries whose text mentions
-    Kistos, EDF Energy, Hill Top or Hole House and classify by facility."""
-    attempts: list[str] = []
-    if feedparser is None:
-        attempts.append("feedparser not installed — pip install -r requirements.txt")
-        return [], attempts
-
-    page_url = "https://www.remit.gb.net/"
-    candidates: list[str] = []
-    discovered = _discover_feed_url(page_url, attempts)
-    if discovered:
-        candidates.append(discovered)
-    candidates.extend(
-        [
-            "https://www.remit.gb.net/acer_rss",
-            "https://www.remit.gb.net/acer_rss.xml",
-            "https://www.remit.gb.net/rss",
-            "https://www.remit.gb.net/feed",
-            "https://www.remit.gb.net/umm/rss",
-            "https://www.remit.gb.net/umms/rss",
-            "https://www.remit.gb.net/api/rss",
-            "https://remit.gb.net/acer_rss",
-        ]
-    )
-    seen: set[str] = set()
-    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
-
-    for url in candidates:
-        entries = _try_feed_url(url, attempts)
-        if not entries:
-            continue
-        records: list[dict] = []
-        for entry in entries:
-            blob = " ".join(
-                str(entry.get(k, "")) for k in ("title", "summary", "description")
-            ).lower()
-            if not any(k in blob for k in NONSSE_KEYWORDS_KISTOS):
-                continue
-            facility = "Hole House" if "hole house" in blob else "Hill Top"
-            operator = (
-                "EDF Energy (pre-Apr 2024)"
-                if "edf energy" in blob and "kistos" not in blob
-                else "Kistos Energy Storage Ltd"
-            )
-            records.append(
-                _rss_entry_to_record(entry, facility, operator, url)
-            )
-        # We hit a working feed at this URL; return even if filter dropped
-        # everything (zero Kistos entries is a valid signal).
-        attempts.append(
-            f"Filter kept {len(records)} of {len(entries)} entries "
-            f"(Kistos / EDF / Hill Top / Hole House)."
-        )
-        return records, attempts
-    return [], attempts
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_uniper_holford() -> tuple[list[dict], list[str]]:
-    """Holford maintenance entries from the Uniper Storage Portal API."""
-    attempts: list[str] = []
-    url = "https://storage-portal.uniper.energy/api/facilities/106"
-    try:
-        resp = requests.get(
-            url,
-            timeout=20,
-            headers={
-                "User-Agent": HEADERS["User-Agent"],
-                "Accept": "application/json",
-            },
-        )
-        attempts.append(
-            f"GET {url} → {resp.status_code} · "
-            f"{resp.headers.get('Content-Type', '?')}"
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-    except Exception as exc:
-        attempts.append(f"Uniper Storage Portal API error: {exc}")
-        return [], attempts
-
-    records: list[dict] = []
-    counts: list[str] = []
-    for key in (
-        "maintenances",
-        "in_course_maintenances",
-        "upcoming_maintenance",
-        "running_maintenance",
-    ):
-        items = payload.get(key) or []
-        if not isinstance(items, list):
-            continue
-        counts.append(f"{key}={len(items)}")
-        for item in items:
-            pub = _coerce_ts(
-                item.get("published_at")
-                or item.get("created_at")
-                or item.get("updated_at")
-            )
-            start = _coerce_ts(item.get("start_at") or item.get("event_start"))
-            end = _coerce_ts(item.get("end_at") or item.get("event_stop"))
-            title = (
-                item.get("title")
-                or item.get("name")
-                or key.replace("_", " ").title()
-            )
-            summary_bits = [
-                item.get("description") or item.get("message") or "",
-                f"{fmt_dt(start)} → {fmt_dt(end)}" if start or end else "",
-            ]
-            records.append(
-                {
-                    "facility": "Holford",
-                    "operator": "Uniper Energy Storage Ltd",
-                    "publication": pub,
-                    "title": str(title),
-                    "summary": " · ".join(s for s in summary_bits if s),
-                    "source_url": (
-                        "https://storage-portal.uniper.energy"
-                        "/#/facility/holford/106"
-                    ),
-                }
-            )
-    if counts:
-        attempts.append("Array sizes: " + ", ".join(counts))
-    return records, attempts
-
-
-def render_nonsse_card(rec: dict) -> None:
-    """Render one UMM card. Uses the structured fields (status, capacities,
-    dates) when the source provided them — matching the SSE event-card
-    layout — and falls back to a simple title+summary card for RSS-only
-    entries where the structured fields aren't present."""
-    facility = rec.get("facility", "")
-    title = rec.get("title") or "(untitled)"
-    pub = rec.get("publication")
-    pub_str = fmt_dt(pub) if pub else ""
-    status = rec.get("event_status") or ""
-    interruption = rec.get("interruption_type") or ""
-    unavail_type = rec.get("unavailability_type") or ""
-    start = rec.get("event_start")
-    end = rec.get("event_end")
-    unavail_cap = rec.get("unavailable_capacity")
-    avail_cap = rec.get("available_capacity")
-    tech_cap = rec.get("technical_capacity")
-    unit = rec.get("capacity_unit") or ""
-    summary = rec.get("summary") or ""
-    link = rec.get("source_url") or ""
-    thread = rec.get("thread_id") or ""
-    rev = rec.get("rev_num")
-
-    # Accent: red for active+unplanned, amber for active+planned, grey for
-    # closed (inactive/dismissed), info-blue for entries without status.
-    if status == "Active" and unavail_type == "Unplanned":
-        accent = COLOR["bad"]
-    elif status == "Active":
-        accent = COLOR["warn"]
-    elif status in ("Inactive", "Dismissed"):
-        accent = COLOR["muted"]
-    else:
-        accent = COLOR["info"]
-
-    cat_color = COLOR.get(interruption, COLOR["muted"])
-    plan_color = COLOR.get(unavail_type, COLOR["muted"])
-
-    pills = []
-    if unavail_type:
-        pills.append(pill(unavail_type, plan_color))
-
-    if interruption:
-        head_title = (
-            f"<span style='color:{cat_color}'>●</span> "
-            f"<b>{facility} {interruption}</b>"
-        )
-    else:
-        head_title = f"<b>{facility}</b> — {title}" if facility else title
-
-    head_left = " ".join(pills + [head_title])
-
-    meta_bits = []
-    if thread:
-        meta_bits.append(f"Thread {thread[:8]}")
-    if rev:
-        meta_bits.append(f"rev {rev}")
-    if pub_str:
-        meta_bits.append(f"published {pub_str}")
-    if status:
-        meta_bits.append(status)
-    meta_html = " · ".join(meta_bits)
-
-    body_html = ""
-    if unavail_cap is not None or avail_cap is not None or tech_cap is not None:
-        parts: list[str] = []
-        if unavail_cap is not None:
-            parts.append(f"<b>{unavail_cap:g} {unit}</b> unavailable")
-        if avail_cap is not None:
-            parts.append(f"available {avail_cap:g} {unit}")
-        if tech_cap is not None:
-            parts.append(
-                f"<span class='remit-card__meta'>"
-                f"tech max {tech_cap:g} {unit}</span>"
-            )
-        body_html = f"<div class='remit-card__body'>{' · '.join(parts)}</div>"
-
-    period_html = ""
-    if start or end:
-        period_html = (
-            f"<div class='remit-card__sub'>"
-            f"{fmt_dt(start)} → {fmt_dt(end)}</div>"
-        )
-
-    summary_html = ""
-    if summary:
-        # If we already produced a structured body, the summary is the reason;
-        # render it italic. For RSS-only cards (no structured body) it's the
-        # main content, so render it plain.
-        cls = (
-            "remit-card__sub remit-card__sub--em"
-            if body_html
-            else "remit-card__body"
-        )
-        summary_html = f"<div class='{cls}'>{summary}</div>"
-
-    link_html = ""
-    if link:
-        link_html = (
-            f"<div class='remit-card__sub'>"
-            f"<a href='{link}' target='_blank' rel='noopener'>source ↗</a>"
-            f"</div>"
-        )
-
-    st.markdown(
-        f"<div class='remit-card' style='border-left-color:{accent}'>"
-        f"<div class='remit-card__head'>"
-        f"<div>{head_left}</div>"
-        f"<div class='remit-card__meta'>{meta_html}</div>"
-        f"</div>"
-        f"{body_html}"
-        f"{period_html}"
-        f"{summary_html}"
-        f"{link_html}"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-
-
-def render_nonsse_facility_section(
-    facility: str,
-    operator: str,
-    source_url: str,
-    records: list[dict],
-    attempts: list[str] | None = None,
-    gap_note: str | None = None,
-) -> None:
-    section_header(facility, meta=operator)
-    st.markdown(
-        f"<div class='remit-line__meta' style='margin:-0.1rem 0 0.5rem 0'>"
-        f"Source: <a href='{source_url}' target='_blank' rel='noopener'>"
-        f"{source_url}</a></div>",
-        unsafe_allow_html=True,
-    )
-    if gap_note:
-        st.markdown(
-            f"<div class='remit-banner'>"
-            f"<span class='remit-banner__title'>Coverage gap</span> &mdash; "
-            f"{gap_note}</div>",
-            unsafe_allow_html=True,
-        )
-
-    # If the fetch returned nothing at all, surface a warning and the
-    # diagnostics so we can debug. Otherwise stay quiet — the user only sees
-    # the cards.
-    if not records and not gap_note:
-        st.warning(f"Couldn't load any UMMs for {facility}.")
-        if attempts:
-            with st.expander(
-                f"Fetch diagnostics ({len(attempts)} step(s))", expanded=False
-            ):
-                for line in attempts:
-                    st.text(line)
-        return
-
-    # Filter to current and upcoming events only — drop entries whose end is
-    # in the past. Open-ended entries (event_end = None) are treated as
-    # ongoing and kept.
-    now = pd.Timestamp.now(tz="UTC")
-
-    def _is_current_or_future(rec: dict) -> bool:
-        end = rec.get("event_end")
-        if end is None:
-            return True
-        try:
-            return end >= now
-        except TypeError:
-            return True
-
-    visible = [r for r in records if _is_current_or_future(r)]
-    hidden = len(records) - len(visible)
-
-    if not visible:
-        if records:
-            st.caption(
-                f"No current or upcoming UMMs ({hidden} already ended)."
-            )
-        return
-
-    if hidden:
-        st.caption(
-            f"Showing {len(visible)} current / upcoming UMM(s) — "
-            f"{hidden} already-ended hidden."
-        )
-
-    for rec in visible:
-        render_nonsse_card(rec)
-
-
-def render_nonsse_tab() -> None:
-    st.caption(
-        "REMIT / UMM notifications for UK gas storage facilities outside "
-        "SSE's publication. Each feed fetched independently with a 1-hour "
-        "cache; a failure in one source does not block the others."
-    )
-
-    stublach_records, stublach_attempts = fetch_storengy_stublach()
-    render_nonsse_facility_section(
-        "Stublach",
-        "Storengy UK",
-        "https://nemo.storengy.co.uk/maintenance/umms",
-        stublach_records,
-        attempts=stublach_attempts,
-    )
-
-    st.divider()
-
-    kistos_records, kistos_attempts = fetch_kistos_remit()
-    hill_top = [r for r in kistos_records if r["facility"] == "Hill Top"]
-    hole_house = [r for r in kistos_records if r["facility"] == "Hole House"]
-    render_nonsse_facility_section(
-        "Hill Top",
-        "Kistos Energy Storage Ltd",
-        "https://www.remit.gb.net/",
-        hill_top,
-        attempts=kistos_attempts,
-    )
-    if hole_house:
-        st.divider()
-        render_nonsse_facility_section(
-            "Hole House",
-            "Kistos Energy Storage Ltd",
-            "https://www.remit.gb.net/",
-            hole_house,
-        )
-
-    st.divider()
-
-    holford_records, holford_attempts = fetch_uniper_holford()
-    render_nonsse_facility_section(
-        "Holford",
-        "Uniper Energy Storage Ltd",
-        "https://storage-portal.uniper.energy/#/facility/holford/106",
-        holford_records,
-        attempts=holford_attempts,
-        gap_note=(
-            "No publicly accessible REMIT feed identified post-Brexit. UK "
-            "gas storage assets have no obligation to publish on EU IIPs "
-            "since 2021; Uniper has not established a public GB-specific "
-            "channel for Holford. The Storage Portal API is probed for "
-            "current maintenance entries but these arrays are typically "
-            "empty."
-        ),
-    )
-
-    st.caption(
-        f"Non-SSE feeds last fetched at "
-        f"{pd.Timestamp.utcnow().strftime('%d %b %Y %H:%M UTC')} "
-        "(cache TTL 1 hour)."
-    )
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -2570,15 +1855,54 @@ ACTIVE_CATEGORIES = [
     c for c in CATEGORIES if include_storage or c != "Storage"
 ]
 
+# Load with graceful degradation. The fetch retries through SSE's transient
+# WAF 403s, but if a load still fails — or this is a cold start (wake-from-
+# sleep) while SSE is briefly unreachable — we must NOT crash. Keep the last
+# good snapshot in session_state and render it behind a banner; on a true cold
+# start with nothing cached, show a friendly retry state that self-recovers on
+# the next 5-min auto-refresh.
+_fetch_error: str | None = None
 try:
-    raw = fetch_remit("Latest")
+    _fresh = fetch_remit("Latest")
+    if _fresh.empty:
+        _fetch_error = "API returned no records."
+    else:
+        st.session_state["last_good_raw"] = _fresh
+        st.session_state["last_good_at"] = pd.Timestamp.now(tz="UTC")
 except Exception as exc:
-    st.error(f"Failed to fetch API: {exc}")
+    _fetch_error = str(exc)
+
+raw = st.session_state.get("last_good_raw")
+
+if raw is None or raw.empty:
+    # Cold start and SSE briefly unreachable — show a clean "connecting" state,
+    # never a crash. Auto-refresh (every 5 min) will populate it.
+    st.info(
+        "⏳ Connecting to the SSE REMIT feed — the dashboard populates "
+        "automatically as soon as data arrives, and retries every 5 minutes."
+    )
+    if _fetch_error:
+        with st.expander("Connection detail"):
+            st.write(_fetch_error)
+    if st.button("Retry now"):
+        st.cache_data.clear()
+        st.rerun()
     st.stop()
 
-if raw.empty:
-    st.warning("API returned no records.")
-    st.stop()
+if _fetch_error:
+    # We have last-good data but the latest live fetch failed — show it behind
+    # a staleness banner rather than hiding the whole dashboard.
+    _last_at = st.session_state.get("last_good_at")
+    _age = ""
+    if _last_at is not None:
+        _mins = int((pd.Timestamp.now(tz="UTC") - _last_at).total_seconds() // 60)
+        _age = f" from {_mins} min ago" if _mins > 0 else " from moments ago"
+    st.warning(
+        f"⚠️ Showing last good data{_age} — the live refresh is failing right "
+        "now and will retry automatically."
+    )
+    with st.expander("Live-fetch error detail"):
+        st.write(_fetch_error)
 
 cmap = detect_columns(raw)
 df = normalise(raw, cmap)
@@ -2688,14 +2012,13 @@ section_header("Detail views")
 conflict_label = (
     f"Conflicts ({len(_conflicts)})" if _conflicts else "Conflicts"
 )
-tab_up, tab_gantt, tab_conf, tab_data, tab_rev, tab_nonsse = st.tabs(
+tab_up, tab_gantt, tab_conf, tab_data, tab_rev = st.tabs(
     [
         f"Upcoming ({horizon_days}d)",
         "Outage calendar",
         conflict_label,
         "All data",
         "Revisions",
-        "Non-SSE Sites",
     ]
 )
 
@@ -2729,9 +2052,6 @@ with tab_rev:
             "Enable “Include older revisions” at the top of the page to browse "
             "the revision history of each REMIT thread."
         )
-
-with tab_nonsse:
-    _safe_block("Non-SSE Sites", render_nonsse_tab)
 
 st.caption(
     f"Data refreshed at {now.strftime('%d %b %Y %H:%M UTC')}. "

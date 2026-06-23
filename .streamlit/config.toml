@@ -1,6 +1,11 @@
 [theme]
 primaryColor = "#2563eb"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f1f5f9"
-textColor = "#1e293b"
+backgroundColor = "#f6f8fb"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
 font = "sans serif"
+
+[server]
+# Keep the app responsive on Streamlit Community Cloud; the in-app fetch has
+# its own retry/backoff so we don't want long server-side waits on top.
+runOnSave = false
