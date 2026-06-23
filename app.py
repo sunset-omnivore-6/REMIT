@@ -1123,6 +1123,30 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     )
 
 
+def dial_gradient_color(pct: float) -> str:
+    """Map percent-available to a smooth red(0%) → amber(50%) → green(100%)
+    gradient. Used purely for the capacity dials so the wheel colour reads as
+    a continuous availability scale; planned/unplanned severity is conveyed by
+    the Active outages section below, not by colour here.
+    """
+    pct = max(0.0, min(100.0, float(pct)))
+    # Anchor stops use the existing palette's red and green endpoints with an
+    # amber midpoint, interpolated linearly in RGB.
+    stops = [
+        (0.0, (0xDC, 0x26, 0x26)),    # red    #dc2626
+        (50.0, (0xF5, 0x9E, 0x0B)),   # amber  #f59e0b
+        (100.0, (0x16, 0xA3, 0x4A)),  # green  #16a34a
+    ]
+    for (p0, c0), (p1, c1) in zip(stops, stops[1:]):
+        if pct <= p1:
+            t = (pct - p0) / (p1 - p0) if p1 > p0 else 0.0
+            r = round(c0[0] + (c1[0] - c0[0]) * t)
+            g = round(c0[1] + (c1[1] - c0[1]) * t)
+            b = round(c0[2] + (c1[2] - c0[2]) * t)
+            return f"#{r:02x}{g:02x}{b:02x}"
+    return "#16a34a"
+
+
 def dial_figure(pct: float, color: str) -> go.Figure:
     """A doughnut 'dial' showing percent-available, mirroring the desktop
     dashboard's capacity dials (Chart.js doughnuts there, Plotly here)."""
@@ -1179,7 +1203,7 @@ def render_site_headline(
         else:
             pct = float("nan")
 
-        color = headline_color(pct if pd.notna(pct) else 100, has_unplanned, cat)
+        color = dial_gradient_color(pct if pd.notna(pct) else 100)
         cat_color = COLOR.get(cat, COLOR["muted"])
 
         # Unit string for this site×category, taken from the data
