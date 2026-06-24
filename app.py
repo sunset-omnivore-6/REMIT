@@ -1818,6 +1818,48 @@ def render_revisions(
     st.dataframe(sub[cols], use_container_width=True, hide_index=True)
 
 
+HORIZON_PRESETS = {"7d": 7, "14d": 14, "30d": 30, "60d": 60, "90d": 90}
+
+
+def render_horizon_selector() -> int:
+    """Preset horizon pills + a 'Custom…' popover (validated 1–730 days).
+
+    Returns the chosen horizon in days. The selection persists across reruns
+    via widget keys, so the 5-minute auto-refresh doesn't reset it. The
+    number_input natively prevents non-integer / out-of-range entries.
+    """
+    options = list(HORIZON_PRESETS.keys()) + ["Custom…"]
+    if "horizon_choice" not in st.session_state:
+        st.session_state["horizon_choice"] = "30d"
+
+    choice = st.segmented_control(
+        "Horizon",
+        options,
+        key="horizon_choice",
+    )
+
+    if choice == "Custom…":
+        if "horizon_custom" not in st.session_state:
+            st.session_state["horizon_custom"] = 30
+        with st.popover("Custom horizon…"):
+            st.number_input(
+                "Number of days",
+                min_value=1,
+                max_value=730,
+                step=1,
+                key="horizon_custom",
+                help="Whole number of days, 1 to 730 (max 2 years).",
+            )
+            st.caption("Integer between 1 and 730 days (≤ 2 years).")
+        return int(st.session_state["horizon_custom"])
+
+    if choice is None:
+        # Deselected — fall back to the default preset.
+        return HORIZON_PRESETS["30d"]
+
+    return HORIZON_PRESETS[choice]
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1833,11 +1875,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-ctrl_l, ctrl_m, ctrl_s, ctrl_r = st.columns([2, 2, 1.4, 0.8])
-with ctrl_l:
-    horizon_days = st.number_input(
-        "Upcoming horizon (days)", min_value=7, max_value=90, value=30, step=1
-    )
+ctrl_m, ctrl_s, ctrl_r = st.columns([2, 1.4, 0.8])
 with ctrl_m:
     include_history = st.toggle(
         "Include older revisions (All data / Revisions tabs)",
@@ -1936,7 +1974,6 @@ df_op = df[
 
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
-df_upcoming = upcoming(df_op, now, horizon_days)
 
 # Upcoming capacity-change alerts (banner above the hero)
 _tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
@@ -1977,6 +2014,8 @@ with hero_r:
     )
 
 st.divider()
+horizon_days = render_horizon_selector()
+df_upcoming = upcoming(df_op, now, horizon_days)
 section_header("Capacity timeline", f"Next {horizon_days} days")
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
