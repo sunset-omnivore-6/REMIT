@@ -1014,79 +1014,6 @@ def render_recent_banner(
             )
 
 
-def render_status_summary(
-    df_active: pd.DataFrame,
-    df_op: pd.DataFrame,
-    categories: list[str],
-) -> None:
-    """One-line overall-health headline: is anything wrong right now?"""
-    issues: list[tuple[str, str, float, str]] = []
-    worst_bad = False
-    for site in SITES:
-        da = df_active[df_active["__site__"] == site]
-        do = df_op[df_op["__site__"] == site]
-        for cat in categories:
-            tech, avail, unavail, has_unplanned, n = site_category_headline(
-                da, do, site, cat
-            )
-            if pd.notna(tech) and tech > 0:
-                if pd.isna(avail):
-                    avail = tech
-                pct = (avail / tech) * 100
-            else:
-                pct = float("nan")
-            color = headline_color(
-                pct if pd.notna(pct) else 100, has_unplanned, cat
-            )
-            if color in (COLOR["warn"], COLOR["bad"]):
-                issues.append((site, cat, pct, color))
-                if color == COLOR["bad"]:
-                    worst_bad = True
-
-    n_active = len(df_active)
-
-    if not issues:
-        if n_active:
-            tail = (
-                f"{n_active} active outage{'s' if n_active != 1 else ''}, "
-                "none materially reducing capacity."
-            )
-        else:
-            tail = "no active outages right now."
-        st.markdown(
-            "<div class='remit-banner remit-banner--ok'>"
-            "<span class='remit-banner__title' style='color:var(--remit-ok)'>"
-            "&#10003; All monitored capacity available</span> &mdash; "
-            f"{tail}</div>",
-            unsafe_allow_html=True,
-        )
-        return
-
-    banner_class = (
-        "remit-banner remit-banner--alert"
-        if worst_bad
-        else "remit-banner remit-banner--warn"
-    )
-    title_color = COLOR["bad"] if worst_bad else COLOR["warn"]
-    detail = " · ".join(
-        (
-            f"<span style='color:{color};font-weight:600'>{site} {cat} "
-            f"{pct:.0f}%</span>"
-            if pd.notna(pct)
-            else f"<span style='color:{color};font-weight:600'>"
-            f"{site} {cat}</span>"
-        )
-        for site, cat, pct, color in issues
-    )
-    st.markdown(
-        f"<div class='{banner_class}'>"
-        f"<span class='remit-banner__title' style='color:{title_color}'>"
-        f"&#9888; {n_active} active outage{'s' if n_active != 1 else ''}</span>"
-        f" · {detail}</div>",
-        unsafe_allow_html=True,
-    )
-
-
 # ---------------------------------------------------------------------------
 # Rendering — hero cards
 # ---------------------------------------------------------------------------
@@ -1963,9 +1890,6 @@ df_op = df[
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
 df_upcoming = upcoming(df_op, now, horizon_days)
-
-# At-a-glance overall-health headline — first thing in the body
-render_status_summary(df_active, df_op, ACTIVE_CATEGORIES)
 
 # Upcoming capacity-change alerts (banner above the hero)
 _tech_lookup = tech_capacity_lookup(df_op, ACTIVE_CATEGORIES)
