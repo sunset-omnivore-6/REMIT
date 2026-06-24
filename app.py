@@ -1920,7 +1920,6 @@ with st.container(key="masthead"):
     head_l, head_r = st.columns([6, 1], vertical_alignment="center")
     with head_l:
         st.markdown(
-            "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
             "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
             "<div class='remit-header__sub'>Aldbrough &amp; Hornsea &middot; live "
             "REMIT / UoF data from "
