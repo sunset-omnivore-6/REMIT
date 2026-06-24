@@ -259,6 +259,11 @@ def inject_css() -> None:
           color: var(--remit-ink-soft); font-size: 0.8em;
         }
         details.remit-upcoming[open] > summary .remit-chev { transform: rotate(90deg); }
+        /* Click-to-expand / click-to-compress hint (closed shows expand). */
+        .remit-hint { color: #94a3b8; font-weight: 400; font-size: 0.85em; }
+        .remit-hint--compress { display: none; }
+        details.remit-upcoming[open] > summary .remit-hint--expand { display: none; }
+        details.remit-upcoming[open] > summary .remit-hint--compress { display: inline; }
         .remit-header__title {
           font-size: 1.7rem; font-weight: 800; color: var(--remit-ink);
           margin: 0; line-height: 1.2;
@@ -889,6 +894,8 @@ def render_changes_banner(
         f"<span class='remit-chev'>&#9656;</span> "
         f"<span class='remit-banner__title'>Upcoming capacity changes "
         f"(next 7 days)</span> · " + " · ".join(summary)
+        + "<span class='remit-hint remit-hint--expand'> · click to expand</span>"
+        + "<span class='remit-hint remit-hint--compress'> · click to compress</span>"
         + "</div>"
         "</summary>"
         "<div class='remit-upcoming__body'>" + "".join(cards) + "</div>"
