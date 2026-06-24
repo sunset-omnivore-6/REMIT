@@ -51,4 +51,3 @@ Running locally on a residential IP avoids the issue.
 - `server/` — FastAPI app, scraper, cache, normaliser.
 - `web/` — static HTML/CSS/JS frontend.
 - `data/` — runtime cache (gitignored).
-- `app.py` — old Streamlit app (kept for reference; not used by the local app).
