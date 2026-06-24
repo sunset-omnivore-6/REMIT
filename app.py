@@ -99,7 +99,7 @@ COLOR = {
     "muted": "#64748b",
     "Withdrawal": "#dc2626",
     "Injection": "#2563eb",
-    "Storage": "#7c3aed",
+    "Storage": "#64748b",
     "Planned": "#2563eb",
     "Unplanned": "#dc2626",
 }
@@ -108,10 +108,6 @@ COLOR = {
 # prefixes, tech-capacity lookup); the UI shows "Hornsea". Apply at render
 # points only — never to data filtering.
 SITE_DISPLAY = {"Aldbrough": "Aldbrough", "Atwick": "Hornsea"}
-
-# Planned / Unplanned is shown as a neutral grey pill (no red/blue), so colour
-# is reserved for site+category identity and capacity direction.
-NEUTRAL_PILL = "#6b7280"
 
 
 def site_label(site: str) -> str:
@@ -135,6 +131,12 @@ def cat_pill(category: str) -> str:
         f"<span class='remit-typepill' style='background:{color}'>"
         f"{category}</span>"
     )
+
+
+def status_pill(text: str) -> str:
+    """Planned / Unplanned marker — light neutral box with black text (kept out
+    of the red/blue palette so colour stays reserved for site+category)."""
+    return f"<span class='remit-statuspill'>{text}</span>"
 
 
 st.set_page_config(
@@ -176,11 +178,11 @@ def inject_css() -> None:
         /* Capacity dials (per-site headline) */
         .remit-sitecard__title {
           font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
-          letter-spacing: -0.01em; margin: 0.1rem 0 0.35rem;
+          letter-spacing: -0.01em; margin: 0.1rem 0 0.6rem;
         }
         .remit-dial__cat {
           font-size: 0.82rem; font-weight: 600; color: var(--remit-ink-soft);
-          text-align: center; white-space: nowrap;
+          text-align: center; white-space: nowrap; margin-bottom: 0.6rem;
         }
         .remit-dial__sub {
           font-size: 0.82rem; font-weight: 600; color: var(--remit-ink);
@@ -221,6 +223,12 @@ def inject_css() -> None:
           display: inline-block; padding: 0.15rem 0.6rem;
           border-radius: 6px; font-size: 0.85rem; font-weight: 700;
           color: #fff; white-space: nowrap; letter-spacing: 0.01em;
+        }
+        /* Status pill — Planned/Unplanned: light box, black text. */
+        .remit-statuspill {
+          display: inline-block; padding: 0.12rem 0.55rem;
+          border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+          background: #e5e7eb; color: #111827; white-space: nowrap;
         }
         /* Progress */
         .remit-progress {
@@ -270,7 +278,7 @@ def inject_css() -> None:
         }
         .remit-banner__title { font-weight: 700; color: var(--remit-ink); }
         /* App header */
-        .remit-masthead {
+        .remit-masthead, .st-key-masthead {
           background: #eff6ff;
           border: 1px solid var(--remit-border);
           border-left: 5px solid var(--remit-info);
@@ -901,7 +909,7 @@ def render_changes_banner(
         reason = (
             str(driver[reason_col]) if driver is not None and reason_col else ""
         )
-        planned_pill = pill(planned, NEUTRAL_PILL) if planned else ""
+        planned_pill = status_pill(planned) if planned else ""
         reason_html = (
             f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
             if reason and reason not in ("-", "nan", "None")
@@ -1123,7 +1131,7 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     return (
         f"<div class='remit-card' style='border-left-color:{cat_color}'>"
         f"<div class='remit-card__head'>"
-        f"<div>{type_pill(row['__site__'], cat)} {pill(planned, NEUTRAL_PILL)}</div>"
+        f"<div>{type_pill(row['__site__'], cat)} {status_pill(planned)}</div>"
         f"<div class='remit-card__meta'>Thread {thread} · rev {rev}</div>"
         f"</div>"
         f"<div class='remit-card__body'>"
@@ -1361,7 +1369,6 @@ def render_upcoming(
                 f"{fmt_dt(row['__eventStart__'])} → "
                 f"{fmt_dt(row['__eventEnd__'])} · "
                 f"<b>{unavail:g} {unit}</b> unavailable · "
-                f"{pill(row['__planned__'], NEUTRAL_PILL)} "
                 f"<span class='remit-line__meta'>{reason}</span></span>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -1707,6 +1714,14 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
         return
 
     sub["row"] = sub["__site__"].map(site_label) + " — " + sub["__category__"]
+    # Fixed, sensible y-order: Hornsea W→I→S, then Aldbrough W→I→S.
+    _present = set(sub["row"])
+    _row_order = [
+        f"{site_label(s)} — {c}"
+        for s in ("Atwick", "Aldbrough")
+        for c in ("Withdrawal", "Injection", "Storage")
+        if f"{site_label(s)} — {c}" in _present
+    ]
 
     # Clip bar display to the window so multi-year REMITs don't blow out the
     # axis — hover still reports the true start/end/duration.
@@ -1752,7 +1767,12 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
         },
         labels={"__planned__": "Type"},
     )
-    fig.update_yaxes(autorange="reversed", title="")
+    fig.update_yaxes(
+        autorange="reversed",
+        title="",
+        categoryorder="array",
+        categoryarray=_row_order,
+    )
     fig.update_xaxes(
         range=[start, end],
         rangeslider=dict(visible=True, thickness=0.06),
@@ -1904,22 +1924,22 @@ def render_horizon_selector() -> int:
 # Main
 # ---------------------------------------------------------------------------
 
-head_l, head_r = st.columns([6, 1], vertical_alignment="center")
-with head_l:
-    st.markdown(
-        "<div class='remit-masthead'>"
-        "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
-        "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
-        "<div class='remit-header__sub'>Aldbrough &amp; Hornsea &middot; live "
-        "REMIT / UoF data from "
-        "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
-        "</div></div>",
-        unsafe_allow_html=True,
-    )
-with head_r:
-    if st.button("⟳ Refresh", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
+with st.container(key="masthead"):
+    head_l, head_r = st.columns([6, 1], vertical_alignment="center")
+    with head_l:
+        st.markdown(
+            "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
+            "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
+            "<div class='remit-header__sub'>Aldbrough &amp; Hornsea &middot; live "
+            "REMIT / UoF data from "
+            "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with head_r:
+        if st.button("⟳ Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
 
 # Storage REMITs are always included (three wheels: Withdrawal / Injection /
 # Storage). Storage is still excluded from the GWh/d capacity timeline inside
