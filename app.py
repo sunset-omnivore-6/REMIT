@@ -2027,22 +2027,6 @@ with hero_r:
     )
 
 st.divider()
-horizon_days = render_horizon_selector()
-df_upcoming = upcoming(df_op, now, horizon_days)
-section_header("Capacity timeline", f"Next {horizon_days} days")
-tl_l, tl_r = st.columns(2, gap="large")
-with tl_l:
-    _safe_block(
-        "Aldbrough timeline",
-        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
-    )
-with tl_r:
-    _safe_block(
-        "Atwick timeline",
-        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
-    )
-
-st.divider()
 section_header("Active outages")
 act_l, act_r = st.columns(2, gap="large")
 with act_l:
@@ -2058,6 +2042,22 @@ with act_r:
         df_active[df_active["__site__"] == "Atwick"],
         cmap,
         ACTIVE_CATEGORIES,
+    )
+
+st.divider()
+horizon_days = render_horizon_selector()
+df_upcoming = upcoming(df_op, now, horizon_days)
+section_header("Capacity timeline", f"Next {horizon_days} days")
+tl_l, tl_r = st.columns(2, gap="large")
+with tl_l:
+    _safe_block(
+        "Aldbrough timeline",
+        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
+    )
+with tl_r:
+    _safe_block(
+        "Atwick timeline",
+        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
     )
 
 st.divider()
