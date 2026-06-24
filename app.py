@@ -99,13 +99,46 @@ COLOR = {
     "muted": "#64748b",
     "Withdrawal": "#dc2626",
     "Injection": "#2563eb",
-    "Storage": "#64748b",
+    "Storage": "#7c3aed",
     "Planned": "#2563eb",
     "Unplanned": "#dc2626",
 }
 
+# Display-only site rename: data keeps "Atwick" everywhere (matching, thread
+# prefixes, tech-capacity lookup); the UI shows "Hornsea". Apply at render
+# points only — never to data filtering.
+SITE_DISPLAY = {"Aldbrough": "Aldbrough", "Atwick": "Hornsea"}
+
+# Planned / Unplanned is shown as a neutral grey pill (no red/blue), so colour
+# is reserved for site+category identity and capacity direction.
+NEUTRAL_PILL = "#6b7280"
+
+
+def site_label(site: str) -> str:
+    return SITE_DISPLAY.get(site, site)
+
+
+def type_pill(site: str, category: str) -> str:
+    """Coloured box for '<Site> <Category>' — withdrawal red, injection blue,
+    storage purple, white text. The single clear signal of what an outage is."""
+    color = COLOR.get(category, COLOR["muted"])
+    return (
+        f"<span class='remit-typepill' style='background:{color}'>"
+        f"{site_label(site)} {category}</span>"
+    )
+
+
+def cat_pill(category: str) -> str:
+    """Category-only coloured box (same style as type_pill, no site)."""
+    color = COLOR.get(category, COLOR["muted"])
+    return (
+        f"<span class='remit-typepill' style='background:{color}'>"
+        f"{category}</span>"
+    )
+
+
 st.set_page_config(
-    page_title="REMIT — Aldbrough & Atwick",
+    page_title="REMIT — Aldbrough & Hornsea",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -182,6 +215,12 @@ def inject_css() -> None:
           display: inline-block; padding: 0.12rem 0.55rem;
           border-radius: 999px; font-size: 0.72rem; font-weight: 600;
           color: #fff; white-space: nowrap;
+        }
+        /* Type pill — '<Site> <Category>' coloured box (DEV-bar style). */
+        .remit-typepill {
+          display: inline-block; padding: 0.15rem 0.6rem;
+          border-radius: 6px; font-size: 0.85rem; font-weight: 700;
+          color: #fff; white-space: nowrap; letter-spacing: 0.01em;
         }
         /* Progress */
         .remit-progress {
@@ -862,9 +901,7 @@ def render_changes_banner(
         reason = (
             str(driver[reason_col]) if driver is not None and reason_col else ""
         )
-        cat_color = COLOR.get(cat, COLOR["muted"])
-        plan_color = COLOR.get(planned, COLOR["muted"])
-        planned_pill = pill(planned, plan_color) if planned else ""
+        planned_pill = pill(planned, NEUTRAL_PILL) if planned else ""
         reason_html = (
             f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
             if reason and reason not in ("-", "nan", "None")
@@ -874,8 +911,7 @@ def render_changes_banner(
         cards.append(
             f"<div class='remit-card' style='border-left-color:{arrow_color}'>"
             f"<div class='remit-card__head'>"
-            f"<div><b><span style='color:{cat_color}'>●</span> "
-            f"{site} {cat}</b> {planned_pill}</div>"
+            f"<div>{type_pill(site, cat)} {planned_pill}</div>"
             f"<div class='remit-card__meta'>{when_str}</div>"
             f"</div>"
             f"<div class='remit-card__body' style='font-size:1.1rem'>"
@@ -994,7 +1030,6 @@ def render_recent_banner(
     for it in items:
         row = it["row"]
         cat = it["category"]
-        cat_color = COLOR.get(cat, COLOR["muted"])
         unit = (
             str(row[unit_col])
             if unit_col and pd.notna(row[unit_col])
@@ -1031,8 +1066,7 @@ def render_recent_banner(
             f"style='border-left-color:{it['kind_color']}'>"
             f"<div class='remit-card__head'>"
             f"<div>{pill(it['kind'], it['kind_color'])} "
-            f"<b><span style='color:{cat_color}'>●</span> "
-            f"{it['site']} {cat}</b></div>"
+            f"{type_pill(it['site'], cat)}</div>"
             f"<div class='remit-card__meta'>Thread {thread} · "
             f"rev {it['rev_num']} · published {pub_str}</div>"
             f"</div>"
@@ -1068,7 +1102,6 @@ def render_recent_banner(
 def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     cat = row["__category__"] or "—"
     planned = row["__planned__"]
-    planned_color = COLOR.get(planned, COLOR["muted"])
     cat_color = COLOR.get(cat, COLOR["muted"])
 
     tech = row["__techCapacity__"]
@@ -1090,7 +1123,7 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     return (
         f"<div class='remit-card' style='border-left-color:{cat_color}'>"
         f"<div class='remit-card__head'>"
-        f"<div>{pill(cat, cat_color)} {pill(planned, planned_color)}</div>"
+        f"<div>{type_pill(row['__site__'], cat)} {pill(planned, NEUTRAL_PILL)}</div>"
         f"<div class='remit-card__meta'>Thread {thread} · rev {rev}</div>"
         f"</div>"
         f"<div class='remit-card__body'>"
@@ -1168,7 +1201,7 @@ def render_site_headline(
     categories: list[str],
 ) -> None:
     st.markdown(
-        f"<div class='remit-sitecard__title'>{site}</div>",
+        f"<div class='remit-sitecard__title'>{site_label(site)}</div>",
         unsafe_allow_html=True,
     )
 
@@ -1185,7 +1218,6 @@ def render_site_headline(
             pct = float("nan")
 
         color = dial_gradient_color(pct if pd.notna(pct) else 100)
-        cat_color = COLOR.get(cat, COLOR["muted"])
 
         # Unit string for this site×category, taken from the data
         unit_col = cmap.get("unit")
@@ -1205,8 +1237,7 @@ def render_site_headline(
         count_txt = f"{n} active event{'s' if n != 1 else ''}"
         with col:
             st.markdown(
-                f"<div class='remit-dial__cat'>"
-                f"<span style='color:{cat_color}'>●</span> {cat}</div>",
+                f"<div class='remit-dial__cat'>{cat_pill(cat)}</div>",
                 unsafe_allow_html=True,
             )
             if pd.notna(pct):
@@ -1240,7 +1271,7 @@ def render_site_active(
 ) -> None:
     st.markdown(
         f"<div class='remit-kpi__cat' style='font-size:1rem;"
-        f"margin-bottom:0.2rem'>{site}</div>",
+        f"margin-bottom:0.2rem'>{site_label(site)}</div>",
         unsafe_allow_html=True,
     )
 
@@ -1312,12 +1343,9 @@ def render_upcoming(
             continue
         muted = cat == "Storage"
         cat_color = COLOR.get(cat, COLOR["muted"])
-        header_color = "var(--remit-ink-soft)" if muted else "var(--remit-ink)"
-        header_weight = "600" if muted else "700"
         st.markdown(
-            f"<div style='color:{header_color};font-weight:{header_weight};"
-            f"font-size:1.05rem;margin-top:0.6rem'>"
-            f"<span style='color:{cat_color}'>●</span> {cat} — {len(sub)}</div>",
+            f"<div style='margin-top:0.6rem'>{cat_pill(cat)} "
+            f"<span class='remit-card__meta'>— {len(sub)}</span></div>",
             unsafe_allow_html=True,
         )
         for _, row in sub.iterrows():
@@ -1329,11 +1357,11 @@ def render_upcoming(
             st.markdown(
                 f"<div class='remit-card' style='border-left-color:{cat_color};"
                 f"opacity:{opacity};margin:0.3rem 0;padding:0.45rem 0.7rem'>"
-                f"<span class='remit-line'><b>{site}</b> · "
+                f"<span class='remit-line'><b>{site_label(site)}</b> · "
                 f"{fmt_dt(row['__eventStart__'])} → "
                 f"{fmt_dt(row['__eventEnd__'])} · "
                 f"<b>{unavail:g} {unit}</b> unavailable · "
-                f"{pill(row['__planned__'], COLOR.get(row['__planned__'], COLOR['muted']))} "
+                f"{pill(row['__planned__'], NEUTRAL_PILL)} "
                 f"<span class='remit-line__meta'>{reason}</span></span>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -1522,8 +1550,7 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
         st.markdown(
             f"<div class='remit-card' style='border-left-color:{cat_color}'>"
             f"<div class='remit-row'>"
-            f"<b><span style='color:{cat_color}'>●</span> "
-            f"{c['site']} {c['category']}</b>"
+            f"{type_pill(c['site'], c['category'])}"
             f"<span>{' '.join(tags)}</span></div>"
             f"<div class='remit-card__sub'>"
             f"Overlap: {fmt_dt(c['overlap_start'])} → {ov_end}</div>"
@@ -1651,7 +1678,7 @@ def render_site_timeline(
     _add_now_line(fig, now)
     fig.update_xaxes(tickformat="%d %b\n%H:%M")
     fig.update_layout(
-        title=f"{site} — available capacity",
+        title=f"{site_label(site)} — available capacity",
         height=320,
         margin=dict(l=20, r=130, t=40, b=20),
         legend=dict(orientation="h", y=-0.25),
@@ -1679,7 +1706,7 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
         st.info("No events with valid dates in this window.")
         return
 
-    sub["row"] = sub["__site__"] + " — " + sub["__category__"]
+    sub["row"] = sub["__site__"].map(site_label) + " — " + sub["__category__"]
 
     # Clip bar display to the window so multi-year REMITs don't blow out the
     # axis — hover still reports the true start/end/duration.
@@ -1883,7 +1910,7 @@ with head_l:
         "<div class='remit-masthead'>"
         "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
         "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
-        "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
+        "<div class='remit-header__sub'>Aldbrough &amp; Hornsea &middot; live "
         "REMIT / UoF data from "
         "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
         "</div></div>",
@@ -2043,7 +2070,7 @@ with tl_l:
     )
 with tl_r:
     _safe_block(
-        "Atwick timeline",
+        "Hornsea timeline",
         lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
     )
 
