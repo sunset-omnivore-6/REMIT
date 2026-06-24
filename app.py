@@ -1877,33 +1877,27 @@ def render_horizon_selector() -> int:
 # Main
 # ---------------------------------------------------------------------------
 
-st.markdown(
-    "<div class='remit-masthead'>"
-    "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
-    "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
-    "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
-    "REMIT / UoF data from "
-    "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
-    "</div></div>",
-    unsafe_allow_html=True,
-)
-
-ctrl_s, ctrl_r = st.columns([2, 0.8])
-with ctrl_s:
-    include_storage = st.toggle(
-        "Include storage REMITs",
-        value=False,
-        help="Storage events are typically less operationally critical than "
-        "Withdrawal/Injection. Off by default to reduce noise.",
+head_l, head_r = st.columns([6, 1], vertical_alignment="center")
+with head_l:
+    st.markdown(
+        "<div class='remit-masthead'>"
+        "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
+        "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
+        "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
+        "REMIT / UoF data from "
+        "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
+        "</div></div>",
+        unsafe_allow_html=True,
     )
-with ctrl_r:
-    if st.button("⟳ Refresh"):
+with head_r:
+    if st.button("⟳ Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-ACTIVE_CATEGORIES = [
-    c for c in CATEGORIES if include_storage or c != "Storage"
-]
+# Storage REMITs are always included (three wheels: Withdrawal / Injection /
+# Storage). Storage is still excluded from the GWh/d capacity timeline inside
+# render_site_timeline because it is measured in TWh, not flow.
+ACTIVE_CATEGORIES = list(CATEGORIES)
 
 # Load with graceful degradation. The fetch retries through SSE's transient
 # WAF 403s, but if a load still fails — or this is a cold start (wake-from-
