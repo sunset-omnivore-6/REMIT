@@ -246,6 +246,19 @@ def inject_css() -> None:
           letter-spacing: 0.18em; text-align: center; border-radius: 6px;
           padding: 0.35rem 0.5rem; margin-bottom: 0.7rem; font-size: 0.95rem;
         }
+        /* Collapsible "Upcoming capacity changes" banner — the banner IS the
+           clickable <summary>; details reveal the change cards. */
+        details.remit-upcoming > summary {
+          display: block; list-style: none; cursor: pointer; outline: none;
+        }
+        details.remit-upcoming > summary::-webkit-details-marker { display: none; }
+        details.remit-upcoming > summary .remit-banner { margin-bottom: 0; }
+        details.remit-upcoming[open] > summary .remit-banner { margin-bottom: 0.5rem; }
+        .remit-chev {
+          display: inline-block; transition: transform 0.2s ease;
+          color: var(--remit-ink-soft); font-size: 0.8em;
+        }
+        details.remit-upcoming[open] > summary .remit-chev { transform: rotate(90deg); }
         .remit-header__title {
           font-size: 1.7rem; font-weight: 800; color: var(--remit-ink);
           margin: 0; line-height: 1.2;
@@ -794,10 +807,17 @@ def compute_capacity_changes(
 def render_changes_banner(
     changes: list[dict], cmap: dict[str, str | None]
 ) -> None:
+    now = pd.Timestamp.now(tz="UTC")
+
     if not changes:
+        st.markdown(
+            "<div class='remit-banner'>"
+            "<span class='remit-banner__title'>Zero upcoming capacity changes "
+            "(next 7 days)</span></div>",
+            unsafe_allow_html=True,
+        )
         return
 
-    now = pd.Timestamp.now(tz="UTC")
     drops = sum(1 for c in changes if c["to"] < c["from"])
     rises = sum(1 for c in changes if c["to"] > c["from"])
 
@@ -814,61 +834,67 @@ def render_changes_banner(
             f"{rises} restoration{'s' if rises != 1 else ''}</span>"
         )
 
+    cards: list[str] = []
+    for c in changes:
+        site = c["site"]
+        cat = c["category"]
+        unit = DEFAULT_UNIT.get(cat, "")
+        arrow_color = COLOR["bad"] if c["to"] < c["from"] else COLOR["ok"]
+        arrow = "↓" if c["to"] < c["from"] else "↑"
+        when_dt = c["when"]
+        hours_away = (when_dt - now).total_seconds() / 3600
+        if hours_away < 24:
+            when_str = f"in {hours_away:.0f} h ({when_dt.strftime('%a %H:%M')})"
+        elif hours_away < 24 * 7:
+            when_str = when_dt.strftime("%a %d %b %H:%M")
+        else:
+            when_str = when_dt.strftime("%d %b %Y %H:%M")
+
+        driver = c["driver"]
+        planned = driver["__planned__"] if driver is not None else ""
+        reason_col = cmap.get("reason")
+        reason = (
+            str(driver[reason_col]) if driver is not None and reason_col else ""
+        )
+        cat_color = COLOR.get(cat, COLOR["muted"])
+        plan_color = COLOR.get(planned, COLOR["muted"])
+        planned_pill = pill(planned, plan_color) if planned else ""
+        reason_html = (
+            f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
+            if reason and reason not in ("-", "nan", "None")
+            else ""
+        )
+
+        cards.append(
+            f"<div class='remit-card' style='border-left-color:{arrow_color}'>"
+            f"<div class='remit-card__head'>"
+            f"<div><b><span style='color:{cat_color}'>●</span> "
+            f"{site} {cat}</b> {planned_pill}</div>"
+            f"<div class='remit-card__meta'>{when_str}</div>"
+            f"</div>"
+            f"<div class='remit-card__body' style='font-size:1.1rem'>"
+            f"<b>{c['from']:g} {unit}</b> "
+            f"<span style='color:{arrow_color};font-weight:700'>{arrow}</span> "
+            f"<b style='color:{arrow_color}'>{c['to']:g} {unit}</b> "
+            f"<span class='remit-card__meta'>(tech max {c['tech']:g})</span>"
+            f"</div>"
+            f"{reason_html}"
+            f"</div>"
+        )
+
     st.markdown(
+        f"<details class='remit-upcoming' open>"
+        f"<summary>"
         f"<div class='{banner_class}'>"
+        f"<span class='remit-chev'>&#9656;</span> "
         f"<span class='remit-banner__title'>Upcoming capacity changes "
-        f"(next 7 days)</span> · " + " · ".join(summary) + "</div>",
+        f"(next 7 days)</span> · " + " · ".join(summary)
+        + "</div>"
+        "</summary>"
+        "<div class='remit-upcoming__body'>" + "".join(cards) + "</div>"
+        "</details>",
         unsafe_allow_html=True,
     )
-
-    with st.expander(f"Show {len(changes)} change{'s' if len(changes) != 1 else ''}", expanded=True):
-        for c in changes:
-            site = c["site"]
-            cat = c["category"]
-            unit = DEFAULT_UNIT.get(cat, "")
-            arrow_color = COLOR["bad"] if c["to"] < c["from"] else COLOR["ok"]
-            arrow = "↓" if c["to"] < c["from"] else "↑"
-            when_dt = c["when"]
-            hours_away = (when_dt - now).total_seconds() / 3600
-            if hours_away < 24:
-                when_str = f"in {hours_away:.0f} h ({when_dt.strftime('%a %H:%M')})"
-            elif hours_away < 24 * 7:
-                when_str = when_dt.strftime("%a %d %b %H:%M")
-            else:
-                when_str = when_dt.strftime("%d %b %Y %H:%M")
-
-            driver = c["driver"]
-            planned = driver["__planned__"] if driver is not None else ""
-            reason_col = cmap.get("reason")
-            reason = (
-                str(driver[reason_col]) if driver is not None and reason_col else ""
-            )
-            cat_color = COLOR.get(cat, COLOR["muted"])
-            plan_color = COLOR.get(planned, COLOR["muted"])
-            planned_pill = pill(planned, plan_color) if planned else ""
-            reason_html = (
-                f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
-                if reason and reason not in ("-", "nan", "None")
-                else ""
-            )
-
-            st.markdown(
-                f"<div class='remit-card' style='border-left-color:{arrow_color}'>"
-                f"<div class='remit-card__head'>"
-                f"<div><b><span style='color:{cat_color}'>●</span> "
-                f"{site} {cat}</b> {planned_pill}</div>"
-                f"<div class='remit-card__meta'>{when_str}</div>"
-                f"</div>"
-                f"<div class='remit-card__body' style='font-size:1.1rem'>"
-                f"<b>{c['from']:g} {unit}</b> "
-                f"<span style='color:{arrow_color};font-weight:700'>{arrow}</span> "
-                f"<b style='color:{arrow_color}'>{c['to']:g} {unit}</b> "
-                f"<span class='remit-card__meta'>(tech max {c['tech']:g})</span>"
-                f"</div>"
-                f"{reason_html}"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
 
 
 def compute_recent_changes(
