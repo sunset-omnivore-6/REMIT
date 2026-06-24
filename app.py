@@ -191,6 +191,15 @@ def inject_css() -> None:
         .remit-dial__count {
           font-size: 0.72rem; color: var(--remit-muted); text-align: center;
         }
+        /* Capacity wheels: let the dials WRAP to new rows instead of
+           compressing/overlapping when the window is narrow (e.g. a half-screen
+           office display). Each dial keeps a sensible minimum width; columns
+           that can't fit drop to the next line. Scoped to the wheels block so
+           other column layouts are unaffected. */
+        .st-key-wheels [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+        .st-key-wheels [data-testid="stColumn"] {
+          min-width: 150px; flex-grow: 1;
+        }
         /* Card */
         .remit-card {
           background: #ffffff;
@@ -2042,23 +2051,24 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 #   3. active-now cards
 st.divider()
 section_header("Capacity availability", "Live — latest revision per thread")
-hero_l, hero_r = st.columns(2, gap="large")
-with hero_l:
-    render_site_headline(
-        "Aldbrough",
-        df_active[df_active["__site__"] == "Aldbrough"],
-        df_op[df_op["__site__"] == "Aldbrough"],
-        cmap,
-        ACTIVE_CATEGORIES,
-    )
-with hero_r:
-    render_site_headline(
-        "Atwick",
-        df_active[df_active["__site__"] == "Atwick"],
-        df_op[df_op["__site__"] == "Atwick"],
-        cmap,
-        ACTIVE_CATEGORIES,
-    )
+with st.container(key="wheels"):
+    hero_l, hero_r = st.columns(2, gap="large")
+    with hero_l:
+        render_site_headline(
+            "Aldbrough",
+            df_active[df_active["__site__"] == "Aldbrough"],
+            df_op[df_op["__site__"] == "Aldbrough"],
+            cmap,
+            ACTIVE_CATEGORIES,
+        )
+    with hero_r:
+        render_site_headline(
+            "Atwick",
+            df_active[df_active["__site__"] == "Atwick"],
+            df_op[df_op["__site__"] == "Atwick"],
+            cmap,
+            ACTIVE_CATEGORIES,
+        )
 
 st.divider()
 section_header("Active outages")
