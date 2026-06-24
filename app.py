@@ -1393,11 +1393,19 @@ def compute_capacity_series(
 ) -> pd.DataFrame:
     """Exact step-function of available capacity per (site, category).
 
-    Capacity only changes at an event start or end, so we evaluate it on
-    those breakpoints rather than on a fixed daily/hourly grid. This makes a
-    2-hour outage show as a precise 2-hour dip, at any zoom level.
+    Capacity only changes at an event start or end, so the step edges sit
+    exactly on those breakpoints (a 2-hour outage shows as a precise 2-hour
+    dip at any zoom). Each flat segment is then filled with intermediate hover
+    points (see fill_step) so the tooltip can read the value at any instant,
+    not only at step changes.
     """
     records = []
+    # Dense hover grid: each flat segment is filled with intermediate points
+    # carrying the segment's held value, so the tooltip can snap to (almost)
+    # any instant — not just step boundaries — while the step shape is
+    # unchanged (the repeated value renders flat). Hourly for normal horizons;
+    # coarsened for very long windows to bound the point count.
+    fill_step = max(pd.Timedelta(hours=1), (end - start) / 3000)
     for site in SITES:
         for cat in categories:
             tech = tech_lookup.get((site, cat))
@@ -1425,6 +1433,7 @@ def compute_capacity_series(
                 seg_end = ordered[i + 1]
                 mid = seg_start + (seg_end - seg_start) / 2
                 avail = _capacity_at(df, site, cat, mid, tech)
+                # Exact step start.
                 records.append(
                     {
                         "date": seg_start,
@@ -1434,6 +1443,19 @@ def compute_capacity_series(
                         "technical": tech,
                     }
                 )
+                # Intermediate hover points carrying the held value.
+                t = seg_start + fill_step
+                while t < seg_end:
+                    records.append(
+                        {
+                            "date": t,
+                            "site": site,
+                            "category": cat,
+                            "available": avail,
+                            "technical": tech,
+                        }
+                    )
+                    t += fill_step
             if len(ordered) >= 2:
                 last_mid = ordered[-2] + (ordered[-1] - ordered[-2]) / 2
                 records.append(
@@ -1647,56 +1669,17 @@ def render_site_timeline(
                 )
             )
 
-    # Technical-max labels, vertically de-conflicted so close values
-    # (e.g. Aldbrough W 287.78 / I 293.33) stay individually readable.
-    tech_items = [
-        (cat, tech_lookup[(site, cat)], DEFAULT_UNIT.get(cat, ""))
-        for cat in categories
-        if (site, cat) in tech_lookup
-    ]
-    tech_items.sort(key=lambda x: x[1])  # ascending by value
-    min_sep = (y_max * 0.075) if y_max else 0.0
-    label_ys: list[float] = []
-    for _, tech, _ in tech_items:
-        ly = tech
-        if label_ys and ly < label_ys[-1] + min_sep:
-            ly = label_ys[-1] + min_sep
-        label_ys.append(ly)
-    for (cat, tech, unit), ly in zip(tech_items, label_ys):
-        if abs(ly - tech) > 1e-6:
-            # dotted leader connecting the offset box to the actual line
-            fig.add_shape(
-                type="line",
-                xref="paper",
-                yref="y",
-                x0=1.0,
-                x1=1.0,
-                y0=tech,
-                y1=ly,
-                line=dict(color=COLOR[cat], width=1, dash="dot"),
-            )
-        fig.add_annotation(
-            x=1.0,
-            xref="paper",
-            y=ly,
-            yref="y",
-            text=f"{cat} max {tech:g} {unit}",
-            showarrow=False,
-            xanchor="left",
-            xshift=8,
-            font=dict(size=10, color=COLOR[cat]),
-            bgcolor="rgba(255,255,255,0.95)",
-            bordercolor=COLOR[cat],
-            borderwidth=1,
-            borderpad=2,
-        )
+    # Technical-max lines are kept (the dashed ceilings drawn above) but their
+    # text labels were removed — for Aldbrough the two maxes (W 287.78 /
+    # I 293.33) sit almost on top of each other and the labelled boxes cluttered
+    # the chart. The y-axis already shows the scale; hover gives exact values.
 
     _add_now_line(fig, now)
     fig.update_xaxes(tickformat="%d %b\n%H:%M")
     fig.update_layout(
         title=f"{site_label(site)} — available capacity",
         height=320,
-        margin=dict(l=20, r=130, t=40, b=20),
+        margin=dict(l=20, r=30, t=40, b=20),
         legend=dict(orientation="h", y=-0.25),
         yaxis=dict(
             title="Available",
