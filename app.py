@@ -246,24 +246,25 @@ def inject_css() -> None:
           letter-spacing: 0.18em; text-align: center; border-radius: 6px;
           padding: 0.35rem 0.5rem; margin-bottom: 0.7rem; font-size: 0.95rem;
         }
-        /* Collapsible "Upcoming capacity changes" banner — the banner IS the
-           clickable <summary>; details reveal the change cards. */
-        details.remit-upcoming > summary {
+        /* Collapsible banner — the styled banner IS the clickable <summary>;
+           expanding reveals the change cards. Shared by Upcoming + Recent. */
+        details.remit-collapse { margin-bottom: 0.6rem; }
+        details.remit-collapse > summary {
           display: block; list-style: none; cursor: pointer; outline: none;
         }
-        details.remit-upcoming > summary::-webkit-details-marker { display: none; }
-        details.remit-upcoming > summary .remit-banner { margin-bottom: 0; }
-        details.remit-upcoming[open] > summary .remit-banner { margin-bottom: 0.5rem; }
+        details.remit-collapse > summary::-webkit-details-marker { display: none; }
+        details.remit-collapse > summary .remit-banner { margin-bottom: 0; }
+        details.remit-collapse[open] > summary .remit-banner { margin-bottom: 0.5rem; }
         .remit-chev {
           display: inline-block; transition: transform 0.2s ease;
           color: var(--remit-ink-soft); font-size: 0.8em;
         }
-        details.remit-upcoming[open] > summary .remit-chev { transform: rotate(90deg); }
+        details.remit-collapse[open] > summary .remit-chev { transform: rotate(90deg); }
         /* Click-to-expand / click-to-compress hint (closed shows expand). */
         .remit-hint { color: #94a3b8; font-weight: 400; font-size: 0.85em; }
         .remit-hint--compress { display: none; }
-        details.remit-upcoming[open] > summary .remit-hint--expand { display: none; }
-        details.remit-upcoming[open] > summary .remit-hint--compress { display: inline; }
+        details.remit-collapse[open] > summary .remit-hint--expand { display: none; }
+        details.remit-collapse[open] > summary .remit-hint--compress { display: inline; }
         .remit-header__title {
           font-size: 1.7rem; font-weight: 800; color: var(--remit-ink);
           margin: 0; line-height: 1.2;
@@ -888,7 +889,7 @@ def render_changes_banner(
         )
 
     st.markdown(
-        f"<details class='remit-upcoming' open>"
+        f"<details class='remit-collapse' open>"
         f"<summary>"
         f"<div class='{banner_class}'>"
         f"<span class='remit-chev'>&#9656;</span> "
@@ -898,7 +899,7 @@ def render_changes_banner(
         + "<span class='remit-hint remit-hint--compress'> · click to compress</span>"
         + "</div>"
         "</summary>"
-        "<div class='remit-upcoming__body'>" + "".join(cards) + "</div>"
+        "<div class='remit-collapse__body'>" + "".join(cards) + "</div>"
         "</details>",
         unsafe_allow_html=True,
     )
@@ -960,10 +961,17 @@ def compute_recent_changes(
 def render_recent_banner(
     items: list[dict], cmap: dict[str, str | None], lookback_hours: int = 24
 ) -> None:
+    now = pd.Timestamp.now(tz="UTC")
+
     if not items:
+        st.markdown(
+            "<div class='remit-banner'>"
+            f"<span class='remit-banner__title'>Zero recent REMIT changes "
+            f"(last {lookback_hours} h)</span></div>",
+            unsafe_allow_html=True,
+        )
         return
 
-    now = pd.Timestamp.now(tz="UTC")
     order = ["Dismissed", "Ended", "Revised", "New"]
     counts: dict[str, int] = {}
     for it in items:
@@ -978,73 +986,79 @@ def render_recent_banner(
     alert = any(it["kind"] in ("Dismissed", "Ended") for it in items)
     banner_class = "remit-banner remit-banner--warn" if alert else "remit-banner"
 
-    st.markdown(
-        f"<div class='{banner_class}'>"
-        f"<span class='remit-banner__title'>Recent REMIT changes "
-        f"(last {lookback_hours} h)</span> · " + summary + "</div>",
-        unsafe_allow_html=True,
-    )
-
     reason_col = cmap.get("reason")
     unit_col = cmap.get("unit")
     thread_col = cmap.get("threadId")
 
-    with st.expander(
-        f"Show {len(items)} change{'s' if len(items) != 1 else ''}", expanded=True
-    ):
-        for it in items:
-            row = it["row"]
-            cat = it["category"]
-            cat_color = COLOR.get(cat, COLOR["muted"])
-            unit = (
-                str(row[unit_col])
-                if unit_col and pd.notna(row[unit_col])
-                else DEFAULT_UNIT.get(cat, "")
+    cards: list[str] = []
+    for it in items:
+        row = it["row"]
+        cat = it["category"]
+        cat_color = COLOR.get(cat, COLOR["muted"])
+        unit = (
+            str(row[unit_col])
+            if unit_col and pd.notna(row[unit_col])
+            else DEFAULT_UNIT.get(cat, "")
+        )
+        unavail = row["__unavailCapacity__"]
+        avail = row["__availCapacity__"]
+        thread = row[thread_col] if thread_col else ""
+        pub = it["publication"]
+        hrs = (now - pub).total_seconds() / 3600
+        pub_str = (
+            f"{hrs:.0f} h ago"
+            if hrs >= 1
+            else f"{(now - pub).total_seconds() / 60:.0f} min ago"
+        )
+        reason = str(row[reason_col]) if reason_col else ""
+        reason_html = (
+            f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
+            if reason and reason not in ("-", "nan", "None")
+            else ""
+        )
+        cap_html = ""
+        if pd.notna(unavail):
+            avail_txt = (
+                f" · available {avail:g} {unit}" if pd.notna(avail) else ""
             )
-            unavail = row["__unavailCapacity__"]
-            avail = row["__availCapacity__"]
-            thread = row[thread_col] if thread_col else ""
-            pub = it["publication"]
-            hrs = (now - pub).total_seconds() / 3600
-            pub_str = (
-                f"{hrs:.0f} h ago"
-                if hrs >= 1
-                else f"{(now - pub).total_seconds() / 60:.0f} min ago"
+            cap_html = (
+                f"<div class='remit-card__body'>"
+                f"<b>{unavail:g} {unit}</b> unavailable{avail_txt}</div>"
             )
-            reason = str(row[reason_col]) if reason_col else ""
-            reason_html = (
-                f"<div class='remit-card__sub remit-card__sub--em'>{reason}</div>"
-                if reason and reason not in ("-", "nan", "None")
-                else ""
-            )
-            cap_html = ""
-            if pd.notna(unavail):
-                avail_txt = (
-                    f" · available {avail:g} {unit}" if pd.notna(avail) else ""
-                )
-                cap_html = (
-                    f"<div class='remit-card__body'>"
-                    f"<b>{unavail:g} {unit}</b> unavailable{avail_txt}</div>"
-                )
 
-            st.markdown(
-                f"<div class='remit-card' "
-                f"style='border-left-color:{it['kind_color']}'>"
-                f"<div class='remit-card__head'>"
-                f"<div>{pill(it['kind'], it['kind_color'])} "
-                f"<b><span style='color:{cat_color}'>●</span> "
-                f"{it['site']} {cat}</b></div>"
-                f"<div class='remit-card__meta'>Thread {thread} · "
-                f"rev {it['rev_num']} · published {pub_str}</div>"
-                f"</div>"
-                f"{cap_html}"
-                f"<div class='remit-card__sub'>"
-                f"{fmt_dt(row['__eventStart__'])} → "
-                f"{fmt_dt(row['__eventEnd__'])}</div>"
-                f"{reason_html}"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+        cards.append(
+            f"<div class='remit-card' "
+            f"style='border-left-color:{it['kind_color']}'>"
+            f"<div class='remit-card__head'>"
+            f"<div>{pill(it['kind'], it['kind_color'])} "
+            f"<b><span style='color:{cat_color}'>●</span> "
+            f"{it['site']} {cat}</b></div>"
+            f"<div class='remit-card__meta'>Thread {thread} · "
+            f"rev {it['rev_num']} · published {pub_str}</div>"
+            f"</div>"
+            f"{cap_html}"
+            f"<div class='remit-card__sub'>"
+            f"{fmt_dt(row['__eventStart__'])} → "
+            f"{fmt_dt(row['__eventEnd__'])}</div>"
+            f"{reason_html}"
+            f"</div>"
+        )
+
+    st.markdown(
+        f"<details class='remit-collapse' open>"
+        f"<summary>"
+        f"<div class='{banner_class}'>"
+        f"<span class='remit-chev'>&#9656;</span> "
+        f"<span class='remit-banner__title'>Recent REMIT changes "
+        f"(last {lookback_hours} h)</span> · " + summary
+        + "<span class='remit-hint remit-hint--expand'> · click to expand</span>"
+        + "<span class='remit-hint remit-hint--compress'> · click to compress</span>"
+        + "</div>"
+        "</summary>"
+        "<div class='remit-collapse__body'>" + "".join(cards) + "</div>"
+        "</details>",
+        unsafe_allow_html=True,
+    )
 
 
 # ---------------------------------------------------------------------------
