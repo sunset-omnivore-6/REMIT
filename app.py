@@ -1821,43 +1821,56 @@ def render_revisions(
 HORIZON_PRESETS = {"7d": 7, "14d": 14, "30d": 30, "60d": 60, "90d": 90}
 
 
+def _use_preset_horizon() -> None:
+    st.session_state["horizon_mode"] = "preset"
+
+
+def _use_custom_horizon() -> None:
+    # Entering a custom value switches to custom mode and clears the preset
+    # selection so the pills don't look active alongside it.
+    st.session_state["horizon_mode"] = "custom"
+    st.session_state["horizon_preset"] = None
+
+
 def render_horizon_selector() -> int:
-    """Preset horizon pills + a 'Custom…' popover (validated 1–730 days).
-
-    Returns the chosen horizon in days. The selection persists across reruns
-    via widget keys, so the 5-minute auto-refresh doesn't reset it. The
-    number_input natively prevents non-integer / out-of-range entries.
+    """Preset horizon pills + a one-click 'Custom' popover (validated 1–730
+    days). Selection persists across reruns via widget keys + a mode flag, so
+    the 5-minute auto-refresh doesn't reset it. The number_input natively
+    prevents non-integer / out-of-range entries.
     """
-    options = list(HORIZON_PRESETS.keys()) + ["Custom…"]
-    if "horizon_choice" not in st.session_state:
-        st.session_state["horizon_choice"] = "30d"
+    if "horizon_preset" not in st.session_state:
+        st.session_state["horizon_preset"] = "30d"
+    if "horizon_custom" not in st.session_state:
+        st.session_state["horizon_custom"] = 30
+    if "horizon_mode" not in st.session_state:
+        st.session_state["horizon_mode"] = "preset"
 
-    choice = st.segmented_control(
-        "Horizon",
-        options,
-        key="horizon_choice",
-    )
-
-    if choice == "Custom…":
-        if "horizon_custom" not in st.session_state:
-            st.session_state["horizon_custom"] = 30
-        with st.popover("Custom horizon…"):
+    col_pills, col_custom = st.columns([5, 1.1])
+    with col_pills:
+        st.segmented_control(
+            "Horizon",
+            list(HORIZON_PRESETS.keys()),
+            key="horizon_preset",
+            on_change=_use_preset_horizon,
+            label_visibility="collapsed",
+        )
+    with col_custom:
+        with st.popover("Custom", use_container_width=True):
             st.number_input(
                 "Number of days",
                 min_value=1,
                 max_value=730,
                 step=1,
                 key="horizon_custom",
+                on_change=_use_custom_horizon,
                 help="Whole number of days, 1 to 730 (max 2 years).",
             )
             st.caption("Integer between 1 and 730 days (≤ 2 years).")
+
+    if st.session_state["horizon_mode"] == "custom":
         return int(st.session_state["horizon_custom"])
-
-    if choice is None:
-        # Deselected — fall back to the default preset.
-        return HORIZON_PRESETS["30d"]
-
-    return HORIZON_PRESETS[choice]
+    preset = st.session_state.get("horizon_preset") or "30d"
+    return HORIZON_PRESETS[preset]
 
 
 # ---------------------------------------------------------------------------
