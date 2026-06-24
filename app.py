@@ -1888,14 +1888,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-ctrl_m, ctrl_s, ctrl_r = st.columns([2, 1.4, 0.8])
-with ctrl_m:
-    include_history = st.toggle(
-        "Include older revisions (All data / Revisions tabs)",
-        value=False,
-        help="Adds historical revisions to the All data and Revisions tabs only. "
-        "Operational views always use the latest revision per thread.",
-    )
+ctrl_s, ctrl_r = st.columns([2, 0.8])
 with ctrl_s:
     include_storage = st.toggle(
         "Include storage REMITs",
@@ -2062,6 +2055,13 @@ with tl_r:
 
 st.divider()
 section_header("Detail views")
+
+include_history = st.toggle(
+    "Include older revisions (All data / Revisions tabs)",
+    value=False,
+    help="Adds historical revisions to the All data and Revisions tabs only. "
+    "Operational views always use the latest revision per thread.",
+)
 
 # Tabs
 conflict_label = (
