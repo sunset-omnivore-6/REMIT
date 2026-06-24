@@ -239,6 +239,13 @@ def inject_css() -> None:
           padding: 0.9rem 1.1rem;
           margin-bottom: 0.9rem;
         }
+        /* DEV-environment marker — present only on the dev branch; removed when
+           promoting dev -> prod so production never shows it. */
+        .remit-devbar {
+          background: #d97706; color: #ffffff; font-weight: 800;
+          letter-spacing: 0.18em; text-align: center; border-radius: 6px;
+          padding: 0.35rem 0.5rem; margin-bottom: 0.7rem; font-size: 0.95rem;
+        }
         .remit-header__title {
           font-size: 1.7rem; font-weight: 800; color: var(--remit-ink);
           margin: 0; line-height: 1.2;
@@ -1843,6 +1850,7 @@ def render_revisions(
 
 st.markdown(
     "<div class='remit-masthead'>"
+    "<div class='remit-devbar'>&#9679; DEV ENVIRONMENT &#9679;</div>"
     "<div class='remit-header__title'>REMIT &mdash; SSE Hornsea gas storage</div>"
     "<div class='remit-header__sub'>Aldbrough &amp; Atwick &middot; live "
     "REMIT / UoF data from "
