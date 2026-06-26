@@ -7,14 +7,50 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch National Gas stock CSV
+      - name: Fetch stock + nominations, verify opening-stock calc
         run: |
-          URL='https://data.nationalgas.com/api/find-gas-data-download?applicableFor=Y&dateFrom=2026-06-24&dateTo=2026-06-26&dateType=GASDAY&latestFlag=Y&ids=PUBOBJ2362,PUBOBJ2367&type=CSV'
-          echo '=== HTTP status + response headers ==='
-          curl -sS -D /tmp/hdr -o /tmp/ng.csv -w 'HTTP %{http_code}  size=%{size_download} bytes\n' --max-time 60 "$URL" || true
-          head -20 /tmp/hdr || true
-          echo '=== CSV body (full) ==='
-          cat /tmp/ng.csv || true
-          echo
-          echo '=== line/col summary ==='
-          wc -l /tmp/ng.csv || true
+          BASE='https://data.nationalgas.com/api/find-gas-data-download?applicableFor=Y&dateType=GASDAY&latestFlag=Y&type=CSV'
+          FROM=2026-06-16; TO=2026-06-26
+          curl -sS -o stock.csv "${BASE}&dateFrom=${FROM}&dateTo=${TO}&ids=PUBOBJ2362,PUBOBJ2367"
+          curl -sS -o noms.csv  "${BASE}&dateFrom=${FROM}&dateTo=${TO}&ids=PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098"
+          echo '===== STOCK CSV ====='; cat stock.csv
+          echo; echo '===== NOMINATIONS CSV ====='; cat noms.csv
+          echo; echo '===== VERIFICATION (values shown in GWh = kWh/1e6) ====='
+          python3 - <<'PY'
+          import csv, datetime
+          def load(fn):
+              with open(fn) as f:
+                  return list(csv.DictReader(f))
+          def gd(s): return datetime.datetime.strptime(s.strip(), "%d/%m/%Y").date()
+          def site_of(it):
+              it=it.lower()
+              if 'aldbrough' in it: return 'Aldbrough'
+              if 'hornsea' in it: return 'Hornsea'
+              return None
+          stock={}
+          for r in load('stock.csv'):
+              s=site_of(r['Data Item'])
+              if s and 'opening stock' in r['Data Item'].lower():
+                  stock[(s,gd(r['Applicable For']))]=float(r['Value'])
+          inj={}; wd={}
+          seen=set()
+          for r in load('noms.csv'):
+              item=r['Data Item']; seen.add(item); s=site_of(item); il=item.lower()
+              if not s: continue
+              d=gd(r['Applicable For']); v=float(r['Value'])
+              if 'injection' in il: inj[(s,d)]=v
+              elif 'withdrawal' in il: wd[(s,d)]=v
+          print("nomination Data Items seen:")
+          for x in sorted(seen): print("   ", x)
+          def g(x): return f"{x/1e6:,.1f}" if x is not None else "-"
+          for site in ('Aldbrough','Hornsea'):
+              print(f"\n=== {site} ===")
+              print(f"{'gasday':11}{'open':>9}{'inj':>9}{'wd':>9}{'net':>9}{'pred next':>11}{'actual nxt':>11}{'diff':>8}")
+              for d in sorted(x[1] for x in stock if x[0]==site):
+                  op=stock.get((site,d)); i=inj.get((site,d)); w=wd.get((site,d))
+                  net=(i or 0)-(w or 0)
+                  pred=(op+net) if op is not None else None
+                  act=stock.get((site,d+datetime.timedelta(days=1)))
+                  diff=(act-pred) if (act is not None and pred is not None) else None
+                  print(f"{str(d):11}{g(op):>9}{g(i):>9}{g(w):>9}{g(net):>9}{g(pred):>11}{g(act):>11}{g(diff):>8}")
+          PY
