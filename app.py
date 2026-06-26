@@ -198,6 +198,10 @@ def inject_css() -> None:
           box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 14px -4px rgba(15,23,42,.08);
           padding: 0.9rem 1.05rem 1.7rem;
         }
+        /* Option C: per-site colour accent (left bar) for stronger Aldbrough /
+           Hornsea separation. Calm, non-status hues distinct from the dial palette. */
+        .st-key-sitetile-aldbrough { border-left: 4px solid #6366f1; }   /* indigo */
+        .st-key-sitetile-atwick    { border-left: 4px solid #0d9488; }   /* teal  */
         .remit-sitecard__title {
           font-size: 1.1rem; font-weight: 700; color: var(--remit-ink);
           letter-spacing: -0.01em;
