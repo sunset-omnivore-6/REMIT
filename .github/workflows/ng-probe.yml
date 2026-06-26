@@ -7,55 +7,32 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: End-to-end stock_status with live data
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Which transport passes Cloudflare for National Gas?
         run: |
-          python3 - <<'PY'
-          import urllib.request, csv, io
-          from datetime import datetime, timedelta, timezone
-          from zoneinfo import ZoneInfo
-          BASE="https://data.nationalgas.com/api/find-gas-data-download"
-          SMAP={"aldbrough":"Aldbrough","hornsea":"Atwick"}
-          TECH={("Aldbrough","Storage"):3.3,("Atwick","Storage"):3.47}; THR=10.0
-          def get(url):
-              return urllib.request.urlopen(url, timeout=30).read().decode()
-          def gday(s): return datetime.strptime(s.strip(),"%d/%m/%Y").date()
-          def sof(it):
-              il=it.lower()
-              for k,v in SMAP.items():
-                  if k in il: return v
-          today=datetime.now(ZoneInfo("Europe/London")).date()
-          frm=(today-timedelta(days=6)).strftime("%Y-%m-%d"); to=today.strftime("%Y-%m-%d")
-          common=f"applicableFor=Y&dateType=GASDAY&latestFlag=Y&type=CSV&dateFrom={frm}&dateTo={to}"
-          stock_csv=get(f"{BASE}?{common}&ids=PUBOBJ2362,PUBOBJ2367")
-          nom_csv=get(f"{BASE}?{common}&ids=PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098")
-          stock={}
-          for r in csv.DictReader(io.StringIO(stock_csv)):
-              s=sof(r.get("Data Item",""))
-              if s and "opening stock" in r["Data Item"].lower():
-                  try: stock[(s,gday(r["Applicable For"]))]=float(r["Value"])
-                  except: pass
-          en={}; ex={}
-          for r in csv.DictReader(io.StringIO(nom_csv)):
-              s=sof(r.get("Data Item","")); il=r.get("Data Item","").lower()
-              if not s: continue
-              try: d=gday(r["Applicable For"]); v=float(r["Value"])
-              except: continue
-              if "storage entry" in il: en[(s,d)]=v
-              elif "storage exit" in il: ex[(s,d)]=v
-          now=datetime.now(ZoneInfo("Europe/London"))
-          today_gd=now.date()-(timedelta(days=1) if now.hour<5 else timedelta())
-          print("London now:",now.strftime("%Y-%m-%d %H:%M %Z"),"| today gas day:",today_gd)
-          def net(s,d): return (ex.get((s,d),0)-en.get((s,d),0)) if ((s,d) in en or (s,d) in ex) else None
-          for s in ("Aldbrough","Atwick"):
-              days=sorted(d for (a,d) in stock if a==s); latest=days[-1]; tech=TECH[(s,"Storage")]
-              dev=None; fl=False
-              if latest>=today_gd:
-                  v=stock[(s,latest)]; mode="confirmed"; gd=latest; prev=latest-timedelta(days=1); n=net(s,prev)
-                  if (s,prev) in stock and n is not None: dev=(v-(stock[(s,prev)]+n))/1e6; fl=abs(dev)>THR
-              else:
-                  n=net(s,latest)
-                  if n is None: v=stock[(s,latest)]; mode="confirmed"; gd=latest
-                  else: v=stock[(s,latest)]+n; mode="estimated"; gd=latest+timedelta(days=1)
-              twh=v/1e9; pct=twh/tech*100
-              print(f"  {s:9} -> {twh:.4f} TWh ({pct:.1f}%)  mode={mode}  gas_day={gd}  deviation={dev}  flagged={fl}")
+          pip install --quiet "curl_cffi>=0.7" "requests>=2.31"
+          URL='https://data.nationalgas.com/api/find-gas-data-download?applicableFor=Y&dateType=GASDAY&latestFlag=Y&type=CSV&dateFrom=2026-06-24&dateTo=2026-06-26&ids=PUBOBJ2362,PUBOBJ2367'
+          python3 - "$URL" <<'PY'
+          import sys
+          url=sys.argv[1]
+          # 1) curl_cffi impersonate chrome131
+          try:
+              from curl_cffi import requests as cr
+              r=cr.get(url, impersonate="chrome131", timeout=30)
+              print("curl_cffi chrome131:", r.status_code, "bytes", len(r.text))
+          except Exception as e: print("curl_cffi EXC", e)
+          # 2) plain requests, browser UA
+          try:
+              import requests
+              ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+              r=requests.get(url, headers={"User-Agent":ua,"Accept":"text/csv,*/*"}, timeout=30)
+              print("requests+UA:", r.status_code, "bytes", len(r.text))
+          except Exception as e: print("requests EXC", e)
+          # 3) plain requests, no UA (current fallback)
+          try:
+              import requests
+              r=requests.get(url, headers={"Accept":"text/csv,*/*"}, timeout=30)
+              print("requests no-UA:", r.status_code, "bytes", len(r.text))
+          except Exception as e: print("requests-noUA EXC", e)
           PY
