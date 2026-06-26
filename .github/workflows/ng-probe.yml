@@ -7,37 +7,40 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Aldbrough nominations + stock, 14-17 Jun (raw)
+      - name: 3-month deviation incident count
         run: |
           BASE='https://data.nationalgas.com/api/find-gas-data-download?applicableFor=Y&dateType=GASDAY&latestFlag=Y&type=CSV'
-          curl -sS -o noms.csv  "${BASE}&dateFrom=2026-06-14&dateTo=2026-06-17&ids=PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098"
-          curl -sS -o stock.csv "${BASE}&dateFrom=2026-06-14&dateTo=2026-06-17&ids=PUBOBJ2362,PUBOBJ2367"
-          echo '===== ALDBROUGH NOMINATIONS (raw rows) ====='
-          head -1 noms.csv
-          grep -i aldbrough noms.csv | sort
-          echo
-          echo '===== ALDBROUGH STOCK (raw rows) ====='
-          head -1 stock.csv
-          grep -i aldbrough stock.csv | sort
-          echo
-          echo '===== Aldbrough summary (GWh) ====='
+          FROM=2026-03-26; TO=2026-06-26
+          curl -sS -o stock.csv "${BASE}&dateFrom=${FROM}&dateTo=${TO}&ids=PUBOBJ2362,PUBOBJ2367"
+          curl -sS -o noms.csv  "${BASE}&dateFrom=${FROM}&dateTo=${TO}&ids=PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098"
           python3 - <<'PY'
           import csv, datetime
-          def gd(s): return datetime.datetime.strptime(s.strip(), "%d/%m/%Y").date()
-          noms={}
-          for r in csv.DictReader(open('noms.csv')):
-              di=r['Data Item']
-              if 'aldbrough' not in di.lower(): continue
-              d=gd(r['Applicable For']); side='Entry(wd)' if 'entry' in di.lower() else 'Exit(inj)'
-              noms[(d,side)]=float(r['Value'])
+          def load(fn): return list(csv.DictReader(open(fn)))
+          def gd(s): return datetime.datetime.strptime(s.strip(),"%d/%m/%Y").date()
+          def site_of(it):
+              it=it.lower(); return 'Aldbrough' if 'aldbrough' in it else ('Hornsea' if 'hornsea' in it else None)
           stock={}
-          for r in csv.DictReader(open('stock.csv')):
-              if 'aldbrough' in r['Data Item'].lower():
-                  stock[gd(r['Applicable For'])]=float(r['Value'])
-          for d in sorted(set(k[0] for k in noms)):
-              e=noms.get((d,'Entry(wd)'),0); x=noms.get((d,'Exit(inj)'),0)
-              op=stock.get(d); nxt=stock.get(d+datetime.timedelta(days=1))
-              act=(nxt-op)/1e6 if (op is not None and nxt is not None) else None
-              print(f"{d}: Entry(wd)={e/1e6:8.3f} GWh  Exit(inj)={x/1e6:8.3f} GWh  net(Exit-Entry)={(x-e)/1e6:+8.3f}  "
-                    f"open={op/1e6 if op is not None else '-':>7}  actual_change={f'{act:+.3f}' if act is not None else '-'}")
+          for r in load('stock.csv'):
+              s=site_of(r['Data Item'])
+              if s and 'opening stock' in r['Data Item'].lower(): stock[(s,gd(r['Applicable For']))]=float(r['Value'])
+          en={}; ex={}
+          for r in load('noms.csv'):
+              s=site_of(r['Data Item']); il=r['Data Item'].lower()
+              if not s: continue
+              d=gd(r['Applicable For']); v=float(r['Value'])
+              if 'storage entry' in il: en[(s,d)]=v
+              elif 'storage exit' in il: ex[(s,d)]=v
+          for site in ('Aldbrough','Hornsea'):
+              days=sorted(d for (s,d) in stock if s==site)
+              n=0; inc=[]
+              for d in days:
+                  nxt=d+datetime.timedelta(days=1)
+                  if (site,nxt) not in stock: continue
+                  n+=1
+                  net=ex.get((site,d),0)-en.get((site,d),0)
+                  pred=stock[(site,d)]+net; act=stock[(site,nxt)]
+                  diff=(act-pred)/1e6
+                  if abs(diff)>5: inc.append((nxt,diff))   # nxt = the confirmed opening that deviates
+              print(f"\n{site}: {n} transitions, {len(inc)} deviations >5 GWh")
+              for d,df in inc: print(f"    confirmed opening {d}  deviates {df:+.1f} GWh from nomination calc")
           PY
