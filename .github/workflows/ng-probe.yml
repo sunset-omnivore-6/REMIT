@@ -7,51 +7,37 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch 30d stock + nominations, analyse prediction error
+      - name: Aldbrough nominations + stock, 14-17 Jun (raw)
         run: |
           BASE='https://data.nationalgas.com/api/find-gas-data-download?applicableFor=Y&dateType=GASDAY&latestFlag=Y&type=CSV'
-          FROM=2026-05-27; TO=2026-06-26
-          curl -sS -o stock.csv "${BASE}&dateFrom=${FROM}&dateTo=${TO}&ids=PUBOBJ2362,PUBOBJ2367"
-          curl -sS -o noms.csv  "${BASE}&dateFrom=${FROM}&dateTo=${TO}&ids=PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098"
+          curl -sS -o noms.csv  "${BASE}&dateFrom=2026-06-14&dateTo=2026-06-17&ids=PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098"
+          curl -sS -o stock.csv "${BASE}&dateFrom=2026-06-14&dateTo=2026-06-17&ids=PUBOBJ2362,PUBOBJ2367"
+          echo '===== ALDBROUGH NOMINATIONS (raw rows) ====='
+          head -1 noms.csv
+          grep -i aldbrough noms.csv | sort
+          echo
+          echo '===== ALDBROUGH STOCK (raw rows) ====='
+          head -1 stock.csv
+          grep -i aldbrough stock.csv | sort
+          echo
+          echo '===== Aldbrough summary (GWh) ====='
           python3 - <<'PY'
           import csv, datetime
-          def load(fn):
-              with open(fn) as f: return list(csv.DictReader(f))
           def gd(s): return datetime.datetime.strptime(s.strip(), "%d/%m/%Y").date()
-          def site_of(it):
-              it=it.lower()
-              return 'Aldbrough' if 'aldbrough' in it else ('Hornsea' if 'hornsea' in it else None)
+          noms={}
+          for r in csv.DictReader(open('noms.csv')):
+              di=r['Data Item']
+              if 'aldbrough' not in di.lower(): continue
+              d=gd(r['Applicable For']); side='Entry(wd)' if 'entry' in di.lower() else 'Exit(inj)'
+              noms[(d,side)]=float(r['Value'])
           stock={}
-          for r in load('stock.csv'):
-              s=site_of(r['Data Item'])
-              if s and 'opening stock' in r['Data Item'].lower():
-                  stock[(s,gd(r['Applicable For']))]=float(r['Value'])
-          entry={}; exit_={}   # Entry = withdrawal (stock down); Exit = injection (stock up)
-          for r in load('noms.csv'):
-              s=site_of(r['Data Item']); il=r['Data Item'].lower()
-              if not s: continue
-              d=gd(r['Applicable For']); v=float(r['Value'])
-              if 'storage entry' in il: entry[(s,d)]=v
-              elif 'storage exit' in il: exit_[(s,d)]=v
-          for site in ('Aldbrough','Hornsea'):
-              print(f"\n================ {site} ================")
-              print(f"{'gasday':11}{'open':>8}{'wd(En)':>8}{'inj(Ex)':>8}{'net':>8}{'pred':>8}{'actual':>8}{'diff':>8}  flags")
-              days=sorted(d for (s,d) in stock if s==site)
-              bad=[]; bidir=[]
-              for d in days:
-                  nxt=d+datetime.timedelta(days=1)
-                  if (site,nxt) not in stock: continue
-                  e=entry.get((site,d),0.0); x=exit_.get((site,d),0.0)
-                  net=(x-e)/1e6
-                  op=stock[(site,d)]/1e6; act=stock[(site,nxt)]/1e6
-                  pred=op+net; diff=act-pred
-                  both = e>1e6 and x>1e6     # both directions materially nominated
-                  flag = ('BIDIR ' if both else '') + ('**BIG' if abs(diff)>5 else '')
-                  if both: bidir.append((d,diff))
-                  if abs(diff)>5: bad.append((d,diff,both))
-                  print(f"{str(d):11}{op:>8.1f}{e/1e6:>8.1f}{x/1e6:>8.1f}{net:>8.1f}{pred:>8.1f}{act:>8.1f}{diff:>+8.1f}  {flag}")
-              print(f"\n  {site}: days with |diff|>5 GWh -> {len(bad)}")
-              for d,df,both in bad: print(f"     {d}  diff={df:+.1f}  bidirectional={both}")
-              print(f"  {site}: bidirectional days (both En & Ex >1GWh) -> {len(bidir)}")
-              for d,df in bidir: print(f"     {d}  diff={df:+.1f}  {'<-- BIG' if abs(df)>5 else 'ok'}")
+          for r in csv.DictReader(open('stock.csv')):
+              if 'aldbrough' in r['Data Item'].lower():
+                  stock[gd(r['Applicable For'])]=float(r['Value'])
+          for d in sorted(set(k[0] for k in noms)):
+              e=noms.get((d,'Entry(wd)'),0); x=noms.get((d,'Exit(inj)'),0)
+              op=stock.get(d); nxt=stock.get(d+datetime.timedelta(days=1))
+              act=(nxt-op)/1e6 if (op is not None and nxt is not None) else None
+              print(f"{d}: Entry(wd)={e/1e6:8.3f} GWh  Exit(inj)={x/1e6:8.3f} GWh  net(Exit-Entry)={(x-e)/1e6:+8.3f}  "
+                    f"open={op/1e6 if op is not None else '-':>7}  actual_change={f'{act:+.3f}' if act is not None else '-'}")
           PY
