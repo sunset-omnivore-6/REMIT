@@ -89,6 +89,17 @@ DEFAULT_UNIT: dict[str, str] = {
     "Storage": "TWh",
 }
 
+# National Gas data portal — current stock (Opening Stock) + storage nominations
+# used to estimate the day's stock before the official figure publishes (~4pm).
+NG_BASE = "https://data.nationalgas.com/api/find-gas-data-download"
+NG_STOCK_IDS = "PUBOBJ2362,PUBOBJ2367"  # Opening Stock: Aldbrough, Hornsea
+NG_NOM_IDS = "PUBOBJ1127,PUBOBJ1095,PUBOBJ1133,PUBOBJ1098"  # Storage Entry/Exit
+# National Gas labels the Atwick site "Hornsea"; map to our internal site key.
+NG_SITE_MAP = {"aldbrough": "Aldbrough", "hornsea": "Atwick"}
+# Flag the stock dial when the confirmed opening stock differs from the
+# nomination-based calculation by more than this (GWh).
+STOCK_DEVIATION_THRESHOLD_GWH = 10.0
+
 # Palette. Greys are deliberately darkened from the typical Tailwind values
 # so body text clears WCAG AA contrast on the light surface.
 COLOR = {
@@ -100,6 +111,7 @@ COLOR = {
     "Withdrawal": "#dc2626",
     "Injection": "#2563eb",
     "Storage": "#64748b",
+    "Stock": "#0891b2",
     "Planned": "#2563eb",
     "Unplanned": "#dc2626",
 }
@@ -139,6 +151,18 @@ def status_pill(text: str) -> str:
     return f"<span class='remit-statuspill'>{text}</span>"
 
 
+def short_thread(thread) -> str:
+    """Strip a REMIT thread id's zero-padding for display:
+    'ALD_000000000000000001261' -> 'ALD_1261', '00000079' -> '79'."""
+    t = str(thread or "").strip()
+    if not t:
+        return t
+    if "_" in t:
+        prefix, num = t.rsplit("_", 1)
+        return f"{prefix}_{num.lstrip('0') or '0'}"
+    return t.lstrip("0") or "0"
+
+
 st.set_page_config(
     page_title="REMIT — Aldbrough & Hornsea",
     layout="wide",
@@ -176,9 +200,37 @@ def inject_css() -> None:
         .stApp { background: var(--remit-page); }
         .block-container { padding-top: 2.2rem; max-width: 1280px; }
         /* Capacity dials (per-site headline) */
+        /* Per-site tile (Option A): a slightly raised white card grouping each
+           site's 2x2 dials, lifting them off the flat page. (A site-colour
+           accent — Option C — can later be added as a single top-border rule.) */
+        [class*="st-key-sitetile"] {
+          background: #ffffff;
+          border: 1px solid var(--remit-border);
+          border-radius: var(--remit-radius);
+          box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 14px -4px rgba(15,23,42,.08);
+          padding: 0.9rem 1.05rem 1.7rem;
+        }
+        /* Option C: per-site colour accent as a FULL rim (not another side
+           accent — the page already has many) for stronger Aldbrough / Hornsea
+           separation. Calm, non-status hues distinct from the dial palette. */
+        .st-key-sitetile-aldbrough { border: 2px solid #6366f1; }   /* indigo */
+        .st-key-sitetile-atwick    { border: 2px solid #0d9488; }   /* teal  */
         .remit-sitecard__title {
-          font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
-          letter-spacing: -0.01em; margin: 0.1rem 0 0.6rem;
+          font-size: 1.1rem; font-weight: 700; color: var(--remit-ink);
+          letter-spacing: -0.01em;
+          margin: 0 0 0.55rem; padding-bottom: 0.45rem;
+          border-bottom: 1px solid var(--remit-border);
+        }
+        /* Row group labels — top row is daily flow (GWh/d), bottom is volume
+           (TWh); the divider separates the two unit dimensions. */
+        .remit-dial__rowlabel {
+          font-size: 0.66rem; font-weight: 600; letter-spacing: 0.06em;
+          text-transform: uppercase; color: #94a3b8;
+          margin: 0.35rem 0 0.15rem;
+        }
+        .remit-dial__rowlabel--div {
+          border-top: 1px solid var(--remit-border);
+          padding-top: 0.6rem; margin-top: 0.7rem;
         }
         .remit-dial__cat {
           font-size: 0.82rem; font-weight: 600; color: var(--remit-ink-soft);
@@ -209,11 +261,17 @@ def inject_css() -> None:
           padding: 0.6rem 0.85rem;
           margin: 0.5rem 0;
         }
+        /* Flat card — no coloured left accent (avoids a box-in-a-box look
+           inside the site tiles / expanders). */
+        .remit-card--flat { border-left: 1px solid var(--remit-border); }
         .remit-card__head {
           display: flex; justify-content: space-between;
           align-items: center; gap: 0.4rem;
         }
-        .remit-card__meta { font-size: 0.78rem; color: var(--remit-ink-soft); }
+        .remit-card__meta {
+          font-size: 0.78rem; color: var(--remit-ink-soft);
+          overflow-wrap: anywhere;  /* never let a long id spill the card */
+        }
         .remit-card__body {
           margin-top: 0.4rem; font-size: 0.92rem; color: var(--remit-ink);
         }
@@ -505,6 +563,172 @@ def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# National Gas — current stock + nominations
+# ---------------------------------------------------------------------------
+
+def _ng_get(url: str) -> str:
+    """GET a National Gas CSV with retry through transient statuses."""
+    last_err = None
+    for i in range(MAX_FETCH_RETRIES):
+        try:
+            if _HAS_IMPERSONATE:
+                resp = _impersonate_requests.get(
+                    url, impersonate=_IMPERSONATE_TARGET, timeout=30
+                )
+            else:
+                resp = requests.get(url, headers={"Accept": "text/csv,*/*"}, timeout=30)
+        except Exception as exc:  # transport error — retry
+            last_err = exc
+            if i == MAX_FETCH_RETRIES - 1:
+                raise
+            time.sleep(RETRY_BACKOFF_SECONDS[min(i, len(RETRY_BACKOFF_SECONDS) - 1)])
+            continue
+        if resp.status_code == 200:
+            return resp.text
+        if resp.status_code in RETRYABLE_STATUSES and i < MAX_FETCH_RETRIES - 1:
+            time.sleep(RETRY_BACKOFF_SECONDS[min(i, len(RETRY_BACKOFF_SECONDS) - 1)])
+            continue
+        raise RuntimeError(f"National Gas HTTP {resp.status_code}")
+    raise RuntimeError(f"National Gas fetch failed: {last_err}")
+
+
+def _ng_gasday(s: str):
+    return datetime.strptime(s.strip(), "%d/%m/%Y").date()
+
+
+def _ng_site(item: str) -> str | None:
+    il = item.lower()
+    for key, internal in NG_SITE_MAP.items():
+        if key in il:
+            return internal
+    return None
+
+
+def parse_national_gas(stock_csv: str, nom_csv: str) -> dict:
+    """Parse the two CSVs into stock + Storage Entry/Exit dicts keyed by
+    (internal_site, gas_day). Storage Exit = injection (stock up); Storage
+    Entry = withdrawal (stock down) — grid (NTS) perspective."""
+    import csv
+    import io
+
+    stock: dict = {}
+    for r in csv.DictReader(io.StringIO(stock_csv)):
+        item = r.get("Data Item", "")
+        s = _ng_site(item)
+        if s and "opening stock" in item.lower():
+            try:
+                stock[(s, _ng_gasday(r["Applicable For"]))] = float(r["Value"])
+            except (ValueError, KeyError):
+                pass
+    entry: dict = {}
+    exit_: dict = {}
+    for r in csv.DictReader(io.StringIO(nom_csv)):
+        item = r.get("Data Item", "")
+        s = _ng_site(item)
+        if not s:
+            continue
+        il = item.lower()
+        try:
+            d = _ng_gasday(r["Applicable For"])
+            v = float(r["Value"])
+        except (ValueError, KeyError):
+            continue
+        if "storage entry" in il:
+            entry[(s, d)] = v
+        elif "storage exit" in il:
+            exit_[(s, d)] = v
+    return {"stock": stock, "entry": entry, "exit": exit_}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_national_gas() -> dict | None:
+    """Fetch Opening Stock + storage nominations (last few gas days). Cached 1h
+    (the data only changes ~daily). Returns parsed dict, or None on failure so
+    the Stock dial degrades to 'n/a' without affecting the rest of the app."""
+    try:
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("Europe/London")).date()
+    except Exception:
+        today = datetime.now(timezone.utc).date()
+    frm = (today - timedelta(days=6)).strftime("%Y-%m-%d")
+    to = today.strftime("%Y-%m-%d")
+    common = (
+        f"applicableFor=Y&dateType=GASDAY&latestFlag=Y&type=CSV"
+        f"&dateFrom={frm}&dateTo={to}"
+    )
+    try:
+        stock_csv = _ng_get(f"{NG_BASE}?{common}&ids={NG_STOCK_IDS}")
+        nom_csv = _ng_get(f"{NG_BASE}?{common}&ids={NG_NOM_IDS}")
+        return parse_national_gas(stock_csv, nom_csv)
+    except Exception:
+        return None
+
+
+def _london_today_gasday():
+    """Current gas day in Europe/London (the gas day rolls at 05:00 local)."""
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/London"))
+    except Exception:
+        now = datetime.now(timezone.utc)
+    return now.date() - (timedelta(days=1) if now.hour < 5 else timedelta())
+
+
+def stock_status(ng: dict | None, site: str) -> dict:
+    """Current stock for one site. Returns dict with availability, value (TWh),
+    pct of tech-max storage, mode (confirmed/estimated), the gas day shown, and
+    a deviation flag (confirmed value vs nomination-based calc > threshold).
+
+    Mapping: net stock change for gas day D = Exit(injection) - Entry(withdrawal).
+    Before the official figure publishes, today's opening is estimated as
+    yesterday's confirmed opening + that day's net nomination.
+    """
+    out = {"available": False}
+    if not ng or not ng.get("stock"):
+        return out
+    stock, entry, exit_ = ng["stock"], ng["entry"], ng["exit"]
+    days = sorted(d for (s, d) in stock if s == site)
+    if not days:
+        return out
+    latest = days[-1]
+    today_gd = _london_today_gasday()
+    tech = TECH_CAPACITY_FALLBACK.get((site, "Storage"))  # TWh
+
+    def net_kwh(d):
+        if (site, d) in entry or (site, d) in exit_:
+            return exit_.get((site, d), 0.0) - entry.get((site, d), 0.0)
+        return None
+
+    deviation = None
+    flagged = False
+    if latest >= today_gd:
+        # Today's opening is published — confirmed.
+        value_kwh = stock[(site, latest)]
+        mode, gas_day = "confirmed", latest
+        prev = latest - timedelta(days=1)
+        n = net_kwh(prev)
+        if (site, prev) in stock and n is not None:
+            deviation = (value_kwh - (stock[(site, prev)] + n)) / 1e6  # GWh
+            flagged = abs(deviation) > STOCK_DEVIATION_THRESHOLD_GWH
+    else:
+        # Not yet published — estimate from latest confirmed + its net nomination.
+        n = net_kwh(latest)
+        if n is None:
+            value_kwh, mode, gas_day = stock[(site, latest)], "confirmed", latest
+        else:
+            value_kwh = stock[(site, latest)] + n
+            mode, gas_day = "estimated", latest + timedelta(days=1)
+
+    value_twh = value_kwh / 1e9
+    pct = (value_twh / tech * 100) if (tech and tech > 0) else float("nan")
+    out.update(
+        available=True, value_twh=value_twh, pct=pct, tech=tech,
+        mode=mode, gas_day=gas_day, deviation=deviation, flagged=flagged,
+    )
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Column detection
 # ---------------------------------------------------------------------------
 
@@ -748,6 +972,12 @@ def site_category_headline(
 
     available = sub["__availCapacity__"].dropna().min()
     unavailable = sub["__unavailCapacity__"].dropna().sum()
+    # Fallback (mirrors _capacity_at): if active events report no
+    # availableCapacity, derive it from tech - SUM(unavailable) so the wheel can
+    # never read full while an outage is active. No-op when availableCapacity is
+    # present (the normal case), so it changes nothing under normal data.
+    if pd.isna(available) and pd.notna(tech):
+        available = max(0.0, float(tech) - float(unavailable))
     has_unplanned = (sub["__planned__"] == "Unplanned").any()
     return (
         float(tech) if pd.notna(tech) else float("nan"),
@@ -1084,7 +1314,7 @@ def render_recent_banner(
             f"<div class='remit-card__head'>"
             f"<div>{pill(it['kind'], it['kind_color'])} "
             f"{type_pill(it['site'], cat)}</div>"
-            f"<div class='remit-card__meta'>Thread {thread} · "
+            f"<div class='remit-card__meta'>Thread {short_thread(thread)} · "
             f"rev {it['rev_num']} · published {pub_str}</div>"
             f"</div>"
             f"{cap_html}"
@@ -1119,37 +1349,29 @@ def render_recent_banner(
 def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     cat = row["__category__"] or "—"
     planned = row["__planned__"]
-    cat_color = COLOR.get(cat, COLOR["muted"])
-
-    tech = row["__techCapacity__"]
     unavail = row["__unavailCapacity__"]
-    avail = row["__availCapacity__"]
     unit = row[cmap["unit"]] if cmap["unit"] else ""
     reason = row[cmap["reason"]] if cmap["reason"] else ""
     remarks = row[cmap["remarks"]] if cmap["remarks"] else ""
     thread = row[cmap["threadId"]] if cmap["threadId"] else ""
     rev = row[cmap["revisionNumber"]] if cmap["revisionNumber"] else ""
 
-    pct_unavail = (unavail / tech * 100) if pd.notna(tech) and tech else 0
-    remarks_str = (
-        f" — {remarks}"
-        if remarks and str(remarks) not in ("-", "nan", "None", "")
-        else ""
-    )
+    parts = []
+    for v in (reason, remarks):
+        if v and str(v) not in ("-", "nan", "None", ""):
+            parts.append(str(v))
+    comment = " — ".join(parts) if parts else "—"
 
     return (
-        f"<div class='remit-card' style='border-left-color:{cat_color}'>"
+        f"<div class='remit-card remit-card--flat'>"
         f"<div class='remit-card__head'>"
         f"<div>{type_pill(row['__site__'], cat)} {status_pill(planned)}</div>"
-        f"<div class='remit-card__meta'>Thread {thread} · rev {rev}</div>"
+        f"<div class='remit-card__meta'>Thread {short_thread(thread)} · rev {rev}</div>"
         f"</div>"
-        f"<div class='remit-card__body'>"
-        f"<b>{unavail:g} {unit}</b> unavailable "
-        f"({pct_unavail:.0f}% of {tech:g}) · available {avail:g} {unit}</div>"
-        f"<div class='remit-card__sub'>"
-        f"{fmt_dt(row['__eventStart__'])} → {fmt_dt(row['__eventEnd__'])}</div>"
-        f"<div class='remit-card__sub remit-card__sub--em'>"
-        f"{reason}{remarks_str}</div>"
+        f"<div class='remit-card__body'><b>{unavail:g} {unit}</b> unavailable</div>"
+        f"<div class='remit-card__sub'>From: {fmt_dt(row['__eventStart__'])}</div>"
+        f"<div class='remit-card__sub'>To: {fmt_dt(row['__eventEnd__'])}</div>"
+        f"<div class='remit-card__sub remit-card__sub--em'>Comments: {comment}</div>"
         f"</div>"
     )
 
@@ -1178,10 +1400,21 @@ def dial_gradient_color(pct: float) -> str:
     return "#16a34a"
 
 
-def dial_figure(pct: float, color: str) -> go.Figure:
-    """A doughnut 'dial' showing percent-available, mirroring the desktop
-    dashboard's capacity dials (Chart.js doughnuts there, Plotly here)."""
+def dial_figure(
+    pct: float,
+    color: str,
+    center_text: str | None = None,
+    striped: bool = False,
+) -> go.Figure:
+    """A doughnut 'dial', mirroring the desktop dashboard's capacity dials.
+
+    center_text overrides the default "<b>NN%</b>" label (e.g. "<b>&lt;0</b>").
+    striped hatches the filled wedge — used to flag a stock deviation.
+    """
     pct = max(0.0, min(100.0, float(pct)))
+    marker = dict(colors=[color, "#eef2f7"], line=dict(width=0))
+    if striped:
+        marker["pattern"] = dict(shape=["/", ""], size=9, solidity=0.45)
     fig = go.Figure(
         go.Pie(
             values=[pct, 100 - pct],
@@ -1189,7 +1422,7 @@ def dial_figure(pct: float, color: str) -> go.Figure:
             sort=False,
             direction="clockwise",
             rotation=0,
-            marker=dict(colors=[color, "#eef2f7"], line=dict(width=0)),
+            marker=marker,
             textinfo="none",
             hoverinfo="skip",
             showlegend=False,
@@ -1201,7 +1434,7 @@ def dial_figure(pct: float, color: str) -> go.Figure:
         paper_bgcolor="rgba(0,0,0,0)",
         annotations=[
             dict(
-                text=f"<b>{pct:.0f}%</b>",
+                text=center_text if center_text is not None else f"<b>{pct:.0f}%</b>",
                 x=0.5, y=0.5, showarrow=False,
                 font=dict(size=24, color=color),
             )
@@ -1210,74 +1443,144 @@ def dial_figure(pct: float, color: str) -> go.Figure:
     return fig
 
 
+def _render_capacity_dial(
+    site: str,
+    cat: str,
+    df_active_site: pd.DataFrame,
+    df_all_site_future: pd.DataFrame,
+    cmap: dict[str, str | None],
+) -> None:
+    tech, avail, unavail, has_unplanned, n = site_category_headline(
+        df_active_site, df_all_site_future, site, cat
+    )
+    if pd.notna(tech) and tech > 0:
+        if pd.isna(avail):
+            avail = tech  # nothing active → fully available
+        pct = (avail / tech) * 100
+    else:
+        pct = float("nan")
+    color = dial_gradient_color(pct if pd.notna(pct) else 100)
+
+    unit_col = cmap.get("unit")
+    if unit_col:
+        unit_vals = df_active_site[
+            (df_active_site["__site__"] == site)
+            & (df_active_site["__category__"] == cat)
+        ][unit_col].dropna()
+        unit_str = (
+            str(unit_vals.mode().iloc[0]) if not unit_vals.empty
+            else DEFAULT_UNIT.get(cat, "")
+        )
+    else:
+        unit_str = DEFAULT_UNIT.get(cat, "")
+
+    count_txt = f"{n} active event{'s' if n != 1 else ''}"
+    st.markdown(f"<div class='remit-dial__cat'>{cat_pill(cat)}</div>", unsafe_allow_html=True)
+    if pd.notna(pct):
+        st.plotly_chart(
+            dial_figure(pct, color),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key=f"dial-{site}-{cat}",
+        )
+        avail_str = f"{avail:g}" if pd.notna(avail) else "—"
+        tech_str = f"{tech:g}" if pd.notna(tech) else "—"
+        st.markdown(
+            f"<div class='remit-dial__sub'>{avail_str} / {tech_str} {unit_str}</div>"
+            f"<div class='remit-dial__count'>{count_txt}</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<div class='remit-dial__sub'><i>no capacity reference</i></div>",
+            unsafe_allow_html=True,
+        )
+
+
+def _render_stock_dial(site: str, status: dict | None) -> None:
+    """The 4th dial: current National Gas stock vs tech-max storage."""
+    st.markdown(
+        f"<div class='remit-dial__cat'>{cat_pill('Stock')}</div>",
+        unsafe_allow_html=True,
+    )
+    s = status or {"available": False}
+    if not s.get("available"):
+        st.plotly_chart(
+            dial_figure(0, "#cbd5e1", center_text="<b>n/a</b>"),
+            use_container_width=True, config={"displayModeBar": False},
+            key=f"dial-{site}-Stock",
+        )
+        st.markdown(
+            "<div class='remit-dial__sub'><i>stock unavailable</i></div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    pct, val, tech = s["pct"], s["value_twh"], s["tech"]
+    if pd.isna(pct):
+        fill, center, color = 0.0, "<b>n/a</b>", "#cbd5e1"
+    elif val < 0:
+        # Stock can go negative (grid pressure / operating structure).
+        fill, center, color = 0.0, "<b>&lt;0</b>", dial_gradient_color(0)
+    else:
+        fill = max(0.0, min(100.0, pct))  # cap fill if stock > tech-max
+        center, color = f"<b>{pct:.0f}%</b>", dial_gradient_color(fill)
+
+    st.plotly_chart(
+        dial_figure(fill, color, center_text=center, striped=bool(s.get("flagged"))),
+        use_container_width=True, config={"displayModeBar": False},
+        key=f"dial-{site}-Stock",
+    )
+    val_str = f"{val:.2f}" if pd.notna(val) else "—"
+    tech_str = f"{tech:g}" if tech else "—"
+    st.markdown(
+        f"<div class='remit-dial__sub'>{val_str} / {tech_str} TWh</div>",
+        unsafe_allow_html=True,
+    )
+    gday = s["gas_day"].strftime("%d %b")
+    mode_txt = "confirmed" if s["mode"] == "confirmed" else "estimated · ~4pm"
+    st.markdown(
+        f"<div class='remit-dial__count'>opening · {gday} · {mode_txt}</div>",
+        unsafe_allow_html=True,
+    )
+    if s.get("flagged"):
+        with st.popover("⚠ deviation", use_container_width=True):
+            st.markdown(
+                f"Deviation is **{s['deviation']:+.1f} GWh** between the National Gas "
+                f"opening stock for {gday} and the nomination-based calculation."
+            )
+
+
 def render_site_headline(
     site: str,
     df_active_site: pd.DataFrame,
     df_all_site_future: pd.DataFrame,
     cmap: dict[str, str | None],
     categories: list[str],
+    ng_stock: dict | None = None,
 ) -> None:
     st.markdown(
         f"<div class='remit-sitecard__title'>{site_label(site)}</div>",
         unsafe_allow_html=True,
     )
-
-    cols = st.columns(len(categories), gap="small")
-    for col, cat in zip(cols, categories):
-        tech, avail, unavail, has_unplanned, n = site_category_headline(
-            df_active_site, df_all_site_future, site, cat
+    # 2x2: daily-flow row (GWh/d) on top, volume row (TWh) on the bottom.
+    grid = [["Withdrawal", "Injection"], ["Storage", "Stock"]]
+    row_labels = ["Flow · GWh/d", "Volume · TWh"]
+    for ri, row in enumerate(grid):
+        div = " remit-dial__rowlabel--div" if ri > 0 else ""
+        st.markdown(
+            f"<div class='remit-dial__rowlabel{div}'>{row_labels[ri]}</div>",
+            unsafe_allow_html=True,
         )
-        if pd.notna(tech) and tech > 0:
-            if pd.isna(avail):
-                avail = tech  # nothing active → fully available
-            pct = (avail / tech) * 100
-        else:
-            pct = float("nan")
-
-        color = dial_gradient_color(pct if pd.notna(pct) else 100)
-
-        # Unit string for this site×category, taken from the data
-        unit_col = cmap.get("unit")
-        unit_str = ""
-        if unit_col:
-            unit_vals = df_active_site[
-                (df_active_site["__site__"] == site)
-                & (df_active_site["__category__"] == cat)
-            ][unit_col].dropna()
-            if not unit_vals.empty:
-                unit_str = str(unit_vals.mode().iloc[0])
-            else:
-                unit_str = DEFAULT_UNIT.get(cat, "")
-        else:
-            unit_str = DEFAULT_UNIT.get(cat, "")
-
-        count_txt = f"{n} active event{'s' if n != 1 else ''}"
-        with col:
-            st.markdown(
-                f"<div class='remit-dial__cat'>{cat_pill(cat)}</div>",
-                unsafe_allow_html=True,
-            )
-            if pd.notna(pct):
-                st.plotly_chart(
-                    dial_figure(pct, color),
-                    use_container_width=True,
-                    config={"displayModeBar": False},
-                    key=f"dial-{site}-{cat}",
-                )
-                avail_str = f"{avail:g}" if pd.notna(avail) else "—"
-                tech_str = f"{tech:g}" if pd.notna(tech) else "—"
-                st.markdown(
-                    f"<div class='remit-dial__sub'>{avail_str} / {tech_str} "
-                    f"{unit_str}</div>"
-                    f"<div class='remit-dial__count'>{count_txt}</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    "<div class='remit-dial__sub'><i>no capacity "
-                    "reference</i></div>",
-                    unsafe_allow_html=True,
-                )
+        cols = st.columns(2, gap="small")
+        for col, cell in zip(cols, row):
+            with col:
+                if cell == "Stock":
+                    _render_stock_dial(site, ng_stock)
+                else:
+                    _render_capacity_dial(
+                        site, cell, df_active_site, df_all_site_future, cmap
+                    )
 
 
 def render_site_active(
@@ -1552,7 +1855,7 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
     reason_col = cmap.get("reason")
 
     def _ident(row: pd.Series) -> str:
-        t = str(row[thread_col]) if thread_col else "?"
+        t = short_thread(row[thread_col]) if thread_col else "?"
         r = f" rev {row[rev_col]}" if rev_col else ""
         return f"{t}{r}"
 
@@ -2010,6 +2313,24 @@ df_op = df[
     & df["__category__"].isin(ACTIVE_CATEGORIES)
 ].copy()
 
+# Safety net: keep only the latest revision per thread. The API already does
+# this via revisionsReturned=Latest, so this is a no-op on normal data — it only
+# bites if a thread ever appears with multiple revisions. Rows without a thread
+# id are left untouched (never collapsed together).
+_thr = cmap.get("threadId")
+_rev = cmap.get("revisionNumber")
+if _thr and _rev and _thr in df_op.columns and not df_op.empty:
+    _valid = df_op[_thr].notna() & (df_op[_thr].astype(str).str.strip() != "")
+    if _valid.any():
+        _deduped = (
+            df_op[_valid]
+            .assign(__rev__=pd.to_numeric(df_op.loc[_valid, _rev], errors="coerce").fillna(-1))
+            .sort_values("__rev__")
+            .drop_duplicates(subset=[_thr], keep="last")
+            .drop(columns="__rev__")
+        )
+        df_op = pd.concat([_deduped, df_op[~_valid]]).sort_index()
+
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
 
@@ -2033,24 +2354,29 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 #   3. active-now cards
 st.divider()
 section_header("Capacity availability", "Live — latest revision per thread")
+_ng = fetch_national_gas()  # current stock + nominations (None on failure)
 with st.container(key="wheels"):
     hero_l, hero_r = st.columns(2, gap="large")
     with hero_l:
-        render_site_headline(
-            "Aldbrough",
-            df_active[df_active["__site__"] == "Aldbrough"],
-            df_op[df_op["__site__"] == "Aldbrough"],
-            cmap,
-            ACTIVE_CATEGORIES,
-        )
+        with st.container(key="sitetile-aldbrough"):
+            render_site_headline(
+                "Aldbrough",
+                df_active[df_active["__site__"] == "Aldbrough"],
+                df_op[df_op["__site__"] == "Aldbrough"],
+                cmap,
+                ACTIVE_CATEGORIES,
+                ng_stock=stock_status(_ng, "Aldbrough"),
+            )
     with hero_r:
-        render_site_headline(
-            "Atwick",
-            df_active[df_active["__site__"] == "Atwick"],
-            df_op[df_op["__site__"] == "Atwick"],
-            cmap,
-            ACTIVE_CATEGORIES,
-        )
+        with st.container(key="sitetile-atwick"):
+            render_site_headline(
+                "Atwick",
+                df_active[df_active["__site__"] == "Atwick"],
+                df_op[df_op["__site__"] == "Atwick"],
+                cmap,
+                ACTIVE_CATEGORIES,
+                ng_stock=stock_status(_ng, "Atwick"),
+            )
 
 st.divider()
 section_header("Active outages")
