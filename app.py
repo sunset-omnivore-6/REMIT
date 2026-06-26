@@ -151,6 +151,18 @@ def status_pill(text: str) -> str:
     return f"<span class='remit-statuspill'>{text}</span>"
 
 
+def short_thread(thread) -> str:
+    """Strip a REMIT thread id's zero-padding for display:
+    'ALD_000000000000000001261' -> 'ALD_1261', '00000079' -> '79'."""
+    t = str(thread or "").strip()
+    if not t:
+        return t
+    if "_" in t:
+        prefix, num = t.rsplit("_", 1)
+        return f"{prefix}_{num.lstrip('0') or '0'}"
+    return t.lstrip("0") or "0"
+
+
 st.set_page_config(
     page_title="REMIT — Aldbrough & Hornsea",
     layout="wide",
@@ -198,10 +210,11 @@ def inject_css() -> None:
           box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 14px -4px rgba(15,23,42,.08);
           padding: 0.9rem 1.05rem 1.7rem;
         }
-        /* Option C: per-site colour accent (left bar) for stronger Aldbrough /
-           Hornsea separation. Calm, non-status hues distinct from the dial palette. */
-        .st-key-sitetile-aldbrough { border-left: 4px solid #6366f1; }   /* indigo */
-        .st-key-sitetile-atwick    { border-left: 4px solid #0d9488; }   /* teal  */
+        /* Option C: per-site colour accent as a FULL rim (not another side
+           accent — the page already has many) for stronger Aldbrough / Hornsea
+           separation. Calm, non-status hues distinct from the dial palette. */
+        .st-key-sitetile-aldbrough { border: 2px solid #6366f1; }   /* indigo */
+        .st-key-sitetile-atwick    { border: 2px solid #0d9488; }   /* teal  */
         .remit-sitecard__title {
           font-size: 1.1rem; font-weight: 700; color: var(--remit-ink);
           letter-spacing: -0.01em;
@@ -252,7 +265,10 @@ def inject_css() -> None:
           display: flex; justify-content: space-between;
           align-items: center; gap: 0.4rem;
         }
-        .remit-card__meta { font-size: 0.78rem; color: var(--remit-ink-soft); }
+        .remit-card__meta {
+          font-size: 0.78rem; color: var(--remit-ink-soft);
+          overflow-wrap: anywhere;  /* never let a long id spill the card */
+        }
         .remit-card__body {
           margin-top: 0.4rem; font-size: 0.92rem; color: var(--remit-ink);
         }
@@ -1289,7 +1305,7 @@ def render_recent_banner(
             f"<div class='remit-card__head'>"
             f"<div>{pill(it['kind'], it['kind_color'])} "
             f"{type_pill(it['site'], cat)}</div>"
-            f"<div class='remit-card__meta'>Thread {thread} · "
+            f"<div class='remit-card__meta'>Thread {short_thread(thread)} · "
             f"rev {it['rev_num']} · published {pub_str}</div>"
             f"</div>"
             f"{cap_html}"
@@ -1346,7 +1362,7 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
         f"<div class='remit-card' style='border-left-color:{cat_color}'>"
         f"<div class='remit-card__head'>"
         f"<div>{type_pill(row['__site__'], cat)} {status_pill(planned)}</div>"
-        f"<div class='remit-card__meta'>Thread {thread} · rev {rev}</div>"
+        f"<div class='remit-card__meta'>Thread {short_thread(thread)} · rev {rev}</div>"
         f"</div>"
         f"<div class='remit-card__body'>"
         f"<b>{unavail:g} {unit}</b> unavailable "
@@ -1838,7 +1854,7 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
     reason_col = cmap.get("reason")
 
     def _ident(row: pd.Series) -> str:
-        t = str(row[thread_col]) if thread_col else "?"
+        t = short_thread(row[thread_col]) if thread_col else "?"
         r = f" rev {row[rev_col]}" if rev_col else ""
         return f"{t}{r}"
 
