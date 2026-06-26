@@ -972,6 +972,12 @@ def site_category_headline(
 
     available = sub["__availCapacity__"].dropna().min()
     unavailable = sub["__unavailCapacity__"].dropna().sum()
+    # Fallback (mirrors _capacity_at): if active events report no
+    # availableCapacity, derive it from tech - SUM(unavailable) so the wheel can
+    # never read full while an outage is active. No-op when availableCapacity is
+    # present (the normal case), so it changes nothing under normal data.
+    if pd.isna(available) and pd.notna(tech):
+        available = max(0.0, float(tech) - float(unavailable))
     has_unplanned = (sub["__planned__"] == "Unplanned").any()
     return (
         float(tech) if pd.notna(tech) else float("nan"),
@@ -2307,6 +2313,24 @@ df_op = df[
     & ~df["__status__"].str.contains("dismiss", case=False, na=False)
     & df["__category__"].isin(ACTIVE_CATEGORIES)
 ].copy()
+
+# Safety net: keep only the latest revision per thread. The API already does
+# this via revisionsReturned=Latest, so this is a no-op on normal data — it only
+# bites if a thread ever appears with multiple revisions. Rows without a thread
+# id are left untouched (never collapsed together).
+_thr = cmap.get("threadId")
+_rev = cmap.get("revisionNumber")
+if _thr and _rev and _thr in df_op.columns and not df_op.empty:
+    _valid = df_op[_thr].notna() & (df_op[_thr].astype(str).str.strip() != "")
+    if _valid.any():
+        _deduped = (
+            df_op[_valid]
+            .assign(__rev__=pd.to_numeric(df_op.loc[_valid, _rev], errors="coerce").fillna(-1))
+            .sort_values("__rev__")
+            .drop_duplicates(subset=[_thr], keep="last")
+            .drop(columns="__rev__")
+        )
+        df_op = pd.concat([_deduped, df_op[~_valid]]).sort_index()
 
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
