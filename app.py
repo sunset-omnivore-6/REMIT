@@ -261,6 +261,9 @@ def inject_css() -> None:
           padding: 0.6rem 0.85rem;
           margin: 0.5rem 0;
         }
+        /* Flat card — no coloured left accent (avoids a box-in-a-box look
+           inside the site tiles / expanders). */
+        .remit-card--flat { border-left: 1px solid var(--remit-border); }
         .remit-card__head {
           display: flex; justify-content: space-between;
           align-items: center; gap: 0.4rem;
@@ -1340,37 +1343,29 @@ def render_recent_banner(
 def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     cat = row["__category__"] or "—"
     planned = row["__planned__"]
-    cat_color = COLOR.get(cat, COLOR["muted"])
-
-    tech = row["__techCapacity__"]
     unavail = row["__unavailCapacity__"]
-    avail = row["__availCapacity__"]
     unit = row[cmap["unit"]] if cmap["unit"] else ""
     reason = row[cmap["reason"]] if cmap["reason"] else ""
     remarks = row[cmap["remarks"]] if cmap["remarks"] else ""
     thread = row[cmap["threadId"]] if cmap["threadId"] else ""
     rev = row[cmap["revisionNumber"]] if cmap["revisionNumber"] else ""
 
-    pct_unavail = (unavail / tech * 100) if pd.notna(tech) and tech else 0
-    remarks_str = (
-        f" — {remarks}"
-        if remarks and str(remarks) not in ("-", "nan", "None", "")
-        else ""
-    )
+    parts = []
+    for v in (reason, remarks):
+        if v and str(v) not in ("-", "nan", "None", ""):
+            parts.append(str(v))
+    comment = " — ".join(parts) if parts else "—"
 
     return (
-        f"<div class='remit-card' style='border-left-color:{cat_color}'>"
+        f"<div class='remit-card remit-card--flat'>"
         f"<div class='remit-card__head'>"
         f"<div>{type_pill(row['__site__'], cat)} {status_pill(planned)}</div>"
         f"<div class='remit-card__meta'>Thread {short_thread(thread)} · rev {rev}</div>"
         f"</div>"
-        f"<div class='remit-card__body'>"
-        f"<b>{unavail:g} {unit}</b> unavailable "
-        f"({pct_unavail:.0f}% of {tech:g}) · available {avail:g} {unit}</div>"
-        f"<div class='remit-card__sub'>"
-        f"{fmt_dt(row['__eventStart__'])} → {fmt_dt(row['__eventEnd__'])}</div>"
-        f"<div class='remit-card__sub remit-card__sub--em'>"
-        f"{reason}{remarks_str}</div>"
+        f"<div class='remit-card__body'><b>{unavail:g} {unit}</b> unavailable</div>"
+        f"<div class='remit-card__sub'>From: {fmt_dt(row['__eventStart__'])}</div>"
+        f"<div class='remit-card__sub'>To: {fmt_dt(row['__eventEnd__'])}</div>"
+        f"<div class='remit-card__sub remit-card__sub--em'>Comments: {comment}</div>"
         f"</div>"
     )
 
