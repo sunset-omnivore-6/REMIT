@@ -188,9 +188,32 @@ def inject_css() -> None:
         .stApp { background: var(--remit-page); }
         .block-container { padding-top: 2.2rem; max-width: 1280px; }
         /* Capacity dials (per-site headline) */
+        /* Per-site tile (Option A): a slightly raised white card grouping each
+           site's 2x2 dials, lifting them off the flat page. (A site-colour
+           accent — Option C — can later be added as a single top-border rule.) */
+        [class*="st-key-sitetile"] {
+          background: #ffffff;
+          border: 1px solid var(--remit-border);
+          border-radius: var(--remit-radius);
+          box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 14px -4px rgba(15,23,42,.08);
+          padding: 0.9rem 1.05rem 1.05rem;
+        }
         .remit-sitecard__title {
-          font-size: 1.05rem; font-weight: 700; color: var(--remit-ink);
-          letter-spacing: -0.01em; margin: 0.1rem 0 0.6rem;
+          font-size: 1.1rem; font-weight: 700; color: var(--remit-ink);
+          letter-spacing: -0.01em;
+          margin: 0 0 0.55rem; padding-bottom: 0.45rem;
+          border-bottom: 1px solid var(--remit-border);
+        }
+        /* Row group labels — top row is daily flow (GWh/d), bottom is volume
+           (TWh); the divider separates the two unit dimensions. */
+        .remit-dial__rowlabel {
+          font-size: 0.66rem; font-weight: 600; letter-spacing: 0.06em;
+          text-transform: uppercase; color: #94a3b8;
+          margin: 0.35rem 0 0.15rem;
+        }
+        .remit-dial__rowlabel--div {
+          border-top: 1px solid var(--remit-border);
+          padding-top: 0.6rem; margin-top: 0.7rem;
         }
         .remit-dial__cat {
           font-size: 0.82rem; font-weight: 600; color: var(--remit-ink-soft);
@@ -1519,9 +1542,15 @@ def render_site_headline(
         f"<div class='remit-sitecard__title'>{site_label(site)}</div>",
         unsafe_allow_html=True,
     )
-    # 2x2: Withdrawal / Injection on top, Storage / Stock on the bottom.
+    # 2x2: daily-flow row (GWh/d) on top, volume row (TWh) on the bottom.
     grid = [["Withdrawal", "Injection"], ["Storage", "Stock"]]
-    for row in grid:
+    row_labels = ["Flow · GWh/d", "Volume · TWh"]
+    for ri, row in enumerate(grid):
+        div = " remit-dial__rowlabel--div" if ri > 0 else ""
+        st.markdown(
+            f"<div class='remit-dial__rowlabel{div}'>{row_labels[ri]}</div>",
+            unsafe_allow_html=True,
+        )
         cols = st.columns(2, gap="small")
         for col, cell in zip(cols, row):
             with col:
@@ -2291,23 +2320,25 @@ _ng = fetch_national_gas()  # current stock + nominations (None on failure)
 with st.container(key="wheels"):
     hero_l, hero_r = st.columns(2, gap="large")
     with hero_l:
-        render_site_headline(
-            "Aldbrough",
-            df_active[df_active["__site__"] == "Aldbrough"],
-            df_op[df_op["__site__"] == "Aldbrough"],
-            cmap,
-            ACTIVE_CATEGORIES,
-            ng_stock=stock_status(_ng, "Aldbrough"),
-        )
+        with st.container(key="sitetile-aldbrough"):
+            render_site_headline(
+                "Aldbrough",
+                df_active[df_active["__site__"] == "Aldbrough"],
+                df_op[df_op["__site__"] == "Aldbrough"],
+                cmap,
+                ACTIVE_CATEGORIES,
+                ng_stock=stock_status(_ng, "Aldbrough"),
+            )
     with hero_r:
-        render_site_headline(
-            "Atwick",
-            df_active[df_active["__site__"] == "Atwick"],
-            df_op[df_op["__site__"] == "Atwick"],
-            cmap,
-            ACTIVE_CATEGORIES,
-            ng_stock=stock_status(_ng, "Atwick"),
-        )
+        with st.container(key="sitetile-atwick"):
+            render_site_headline(
+                "Atwick",
+                df_active[df_active["__site__"] == "Atwick"],
+                df_op[df_op["__site__"] == "Atwick"],
+                cmap,
+                ACTIVE_CATEGORIES,
+                ng_stock=stock_status(_ng, "Atwick"),
+            )
 
 st.divider()
 section_header("Active outages")
