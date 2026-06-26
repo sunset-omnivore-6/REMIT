@@ -1,0 +1,20 @@
+name: NG stock probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [ng-stock-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch National Gas stock CSV
+        run: |
+          URL='https://data.nationalgas.com/api/find-gas-data-download?applicableFor=Y&dateFrom=2026-06-24&dateTo=2026-06-26&dateType=GASDAY&latestFlag=Y&ids=PUBOBJ2362,PUBOBJ2367&type=CSV'
+          echo '=== HTTP status + response headers ==='
+          curl -sS -D /tmp/hdr -o /tmp/ng.csv -w 'HTTP %{http_code}  size=%{size_download} bytes\n' --max-time 60 "$URL" || true
+          head -20 /tmp/hdr || true
+          echo '=== CSV body (full) ==='
+          cat /tmp/ng.csv || true
+          echo
+          echo '=== line/col summary ==='
+          wc -l /tmp/ng.csv || true
