@@ -1671,8 +1671,18 @@ def _frame_timeline_axes(fig: go.Figure, y_title: str) -> None:
     )
 
 
-def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
-    """Vertical 'now' marker that survives plotly's tz-aware datetime quirks."""
+def _add_now_line(
+    fig: go.Figure,
+    now: pd.Timestamp,
+    line_top: float = 1.03,
+    label_y: float = 1.05,
+) -> None:
+    """Vertical 'now' marker that survives plotly's tz-aware datetime quirks.
+
+    The dotted line runs a little above the plot frame (line_top > 1) and the
+    'now' label sits above that again, bottom-anchored — so the text always
+    clears both the line and the data, even when a series is pinned at the
+    technical-max ceiling."""
     x = now.isoformat()
     fig.add_shape(
         type="line",
@@ -1681,14 +1691,15 @@ def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
         x0=x,
         x1=x,
         y0=0,
-        y1=1,
+        y1=line_top,
         line=dict(color="#111827", width=1, dash="dot"),
     )
     fig.add_annotation(
         x=x,
         xref="x",
-        y=1.02,
+        y=label_y,
         yref="paper",
+        yanchor="bottom",
         text="now",
         showarrow=False,
         font=dict(size=11, color="#111827"),
@@ -2008,20 +2019,30 @@ def render_site_timeline(
                 mode="lines",
                 name=cat,
                 line=dict(color=COLOR[cat], width=2.5, shape="hv"),
+                # Draw the stroke even where it sits on y=0 — without this the
+                # bottom half is clipped by the frame and a zeroed-out series
+                # looks like missing data rather than a real 0.
+                cliponaxis=False,
                 hovertemplate=f"{cat}: %{{y:.1f}} {unit}<extra></extra>",
             )
         )
 
     _frame_timeline_axes(fig, "Available · GWh/d")
+    # 0 sits flush on the bottom frame (no padding below — capacity is never
+    # negative); cliponaxis above keeps a 0-valued line visible there.
     if y_max:
         fig.update_yaxes(range=[0, y_max])
     fig.update_xaxes(hoverformat="%a %d %b · %H:%M")
     _add_now_line(fig, now)
+    st.markdown(
+        f"<div style='font-weight:600;color:#0f172a;margin-bottom:-0.3rem'>"
+        f"{site_label(site)} &mdash; available capacity</div>",
+        unsafe_allow_html=True,
+    )
     fig.update_layout(
-        title=f"{site_label(site)} — available capacity",
         font=dict(family=PLOTLY_FONT),
         height=320,
-        margin=dict(l=58, r=24, t=44, b=24),
+        margin=dict(l=58, r=24, t=34, b=24),
         legend=dict(orientation="h", y=-0.28),
         hovermode="x unified",
         plot_bgcolor="#ffffff",
@@ -2114,7 +2135,7 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     fig.update_layout(
         height=460,
         font=dict(family=PLOTLY_FONT),
-        margin=dict(l=20, r=20, t=20, b=40),
+        margin=dict(l=20, r=20, t=36, b=40),
         legend=dict(orientation="h", y=-0.35, title=""),
     )
     st.plotly_chart(fig, use_container_width=True)
