@@ -1635,6 +1635,42 @@ def _safe_block(label: str, fn) -> None:
         st.exception(exc)
 
 
+def _rgba(hex_color: str, alpha: float) -> str:
+    """'#rrggbb' → 'rgba(r,g,b,a)' for translucent Plotly fills."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def _frame_timeline_axes(fig: go.Figure, y_title: str) -> None:
+    """Shared readability frame for the capacity charts: a thin border on all
+    four sides, faint gridlines, and breathing room so the data isn't jammed
+    against the edges. Keeps both timeline styles visually consistent with the
+    tile / Solid-dial aesthetic."""
+    fig.update_xaxes(
+        showline=True,
+        linecolor="#cbd5e1",
+        linewidth=1,
+        mirror=True,
+        showgrid=True,
+        gridcolor="rgba(148,163,184,0.18)",
+        ticks="outside",
+        tickcolor="#cbd5e1",
+        ticklen=4,
+        tickformat="%d %b\n%H:%M",
+    )
+    fig.update_yaxes(
+        title=y_title,
+        showline=True,
+        linecolor="#cbd5e1",
+        linewidth=1,
+        mirror=True,
+        showgrid=True,
+        gridcolor="rgba(148,163,184,0.18)",
+        zeroline=False,
+    )
+
+
 def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
     """Vertical 'now' marker that survives plotly's tz-aware datetime quirks."""
     x = now.isoformat()
@@ -1914,6 +1950,7 @@ def render_site_timeline(
     df_op: pd.DataFrame,
     horizon_days: int,
     categories: list[str],
+    style: str = "Shaded headroom",
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
     start = now - pd.Timedelta(days=7)
@@ -1934,71 +1971,151 @@ def render_site_timeline(
         st.info(f"No capacity data for {site}.")
         return
 
-    # Lock y-axis: 0 → highest technical capacity for this site + 10%
     site_techs = [
         tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
     ]
-    y_max = max(site_techs) * 1.1 if site_techs else None
+
+    if style == "Outage blocks":
+        _timeline_outage_blocks(site, site_series, categories, now)
+    else:
+        _timeline_shaded_headroom(site, site_series, categories, tech_lookup, now)
+
+
+def _timeline_shaded_headroom(
+    site: str,
+    site_series: pd.DataFrame,
+    categories: list[str],
+    tech_lookup: dict[tuple[str, str], float],
+    now: pd.Timestamp,
+) -> None:
+    """Available capacity as a solid step line, with the gap up to the
+    technical maximum shaded as a translucent 'unavailable' wedge. When fully
+    available the wedge has zero area and vanishes, so any outage reads as a
+    coloured bite out of the ceiling — no dashed reference lines needed."""
+    site_techs = [
+        tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
+    ]
+    y_max = max(site_techs) * 1.08 if site_techs else None
 
     fig = go.Figure()
-
     for cat in categories:
         cs = site_series[site_series["category"] == cat].sort_values("date")
         if cs.empty:
             continue
+        tech = tech_lookup.get((site, cat))
         unit = DEFAULT_UNIT.get(cat, "")
+        # Available line first so the wedge above can fill down onto it.
         fig.add_trace(
             go.Scatter(
                 x=cs["date"],
                 y=cs["available"],
                 mode="lines",
                 name=f"{cat} available",
-                line=dict(
-                    color=COLOR[cat],
-                    width=2.5,
-                    shape="hv",  # exact step function
-                    dash="dot" if cat == "Storage" else "solid",
-                ),
+                line=dict(color=COLOR[cat], width=2.5, shape="hv"),
                 hovertemplate=(
-                    f"%{{x|%d %b %Y %H:%M}}<br>{cat}: "
-                    f"%{{y:.2f}} {unit}<extra></extra>"
+                    f"%{{x|%d %b %Y %H:%M}}<br>{cat} available: "
+                    f"%{{y:.1f}} {unit}<extra></extra>"
                 ),
             )
         )
-        tech = tech_lookup.get((site, cat))
         if tech is not None:
+            # Translucent wedge between available and the technical ceiling.
             fig.add_trace(
                 go.Scatter(
                     x=cs["date"],
                     y=[tech] * len(cs),
                     mode="lines",
-                    name=f"{cat} technical max",
-                    line=dict(color=COLOR[cat], width=1.5, dash="longdash"),
-                    opacity=0.75,
+                    name=f"{cat} unavailable",
+                    line=dict(color=_rgba(COLOR[cat], 0.45), width=1, shape="hv"),
+                    fill="tonexty",
+                    fillcolor=_rgba(COLOR[cat], 0.14),
                     showlegend=False,
                     hoverinfo="skip",
                 )
             )
 
-    # Technical-max lines are kept (the dashed ceilings drawn above) but their
-    # text labels were removed — for Aldbrough the two maxes (W 287.78 /
-    # I 293.33) sit almost on top of each other and the labelled boxes cluttered
-    # the chart. The y-axis already shows the scale; hover gives exact values.
-
+    _frame_timeline_axes(fig, "Available · GWh/d")
+    if y_max is not None:
+        fig.update_yaxes(range=[0, y_max])
     _add_now_line(fig, now)
-    fig.update_xaxes(tickformat="%d %b\n%H:%M")
     fig.update_layout(
         title=f"{site_label(site)} — available capacity",
         font=dict(family=PLOTLY_FONT),
         height=320,
-        margin=dict(l=20, r=30, t=40, b=20),
-        legend=dict(orientation="h", y=-0.25),
-        yaxis=dict(
-            title="Available",
-            range=[0, y_max] if y_max is not None else None,
-        ),
+        margin=dict(l=58, r=24, t=44, b=24),
+        legend=dict(orientation="h", y=-0.28),
         hovermode="x unified",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _timeline_outage_blocks(
+    site: str,
+    site_series: pd.DataFrame,
+    categories: list[str],
+    now: pd.Timestamp,
+) -> None:
+    """Inverted framing: plot capacity *removed* (technical − available) as a
+    filled step area off a zero baseline. Normal operation sits flat on the
+    floor; every outage rises as an obvious block whose height = MW out and
+    width = duration. The eye is drawn to deviation, not to a near-full line."""
+    fig = go.Figure()
+    peak = 0.0
+    any_outage = False
+    for cat in categories:
+        cs = site_series[site_series["category"] == cat].sort_values("date").copy()
+        if cs.empty:
+            continue
+        cs["out"] = (cs["technical"] - cs["available"]).clip(lower=0)
+        peak = max(peak, float(cs["out"].max()))
+        if cs["out"].max() > 0.01:
+            any_outage = True
+        unit = DEFAULT_UNIT.get(cat, "")
+        fig.add_trace(
+            go.Scatter(
+                x=cs["date"],
+                y=cs["out"],
+                mode="lines",
+                name=f"{cat} out",
+                line=dict(color=COLOR[cat], width=2, shape="hv"),
+                fill="tozeroy",
+                fillcolor=_rgba(COLOR[cat], 0.22),
+                hovertemplate=(
+                    f"%{{x|%d %b %Y %H:%M}}<br>{cat} out: "
+                    f"%{{y:.1f}} {unit}<extra></extra>"
+                ),
+            )
+        )
+
+    # Give a flat (no-outage) window a small headroom so the floor reads as
+    # 'nothing out' rather than a degenerate zero-height axis.
+    y_max = peak * 1.25 if peak > 0.01 else 10.0
+
+    _frame_timeline_axes(fig, "Capacity out · GWh/d")
+    fig.update_yaxes(range=[0, y_max])
+    _add_now_line(fig, now)
+    fig.update_layout(
+        title=f"{site_label(site)} — capacity out of service",
+        font=dict(family=PLOTLY_FONT),
+        height=320,
+        margin=dict(l=58, r=24, t=44, b=24),
+        legend=dict(orientation="h", y=-0.28),
+        hovermode="x unified",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    if not any_outage:
+        fig.add_annotation(
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            text="No capacity outages in this window",
+            showarrow=False,
+            font=dict(size=12, color="#94a3b8"),
+        )
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -2225,6 +2342,24 @@ def render_horizon_selector() -> int:
     return HORIZON_PRESETS[preset]
 
 
+TIMELINE_STYLES = ["Shaded headroom", "Outage blocks"]
+
+
+def render_timeline_style_selector() -> str:
+    """Toggle between the two capacity-timeline framings so they can be
+    compared live: 'Shaded headroom' (available line + translucent wedge up to
+    technical max) vs 'Outage blocks' (inverted — capacity removed off a zero
+    floor). Selection persists across the 5-minute auto-refresh via its key."""
+    if "timeline_style" not in st.session_state:
+        st.session_state["timeline_style"] = TIMELINE_STYLES[0]
+    return st.segmented_control(
+        "Timeline style",
+        TIMELINE_STYLES,
+        key="timeline_style",
+        label_visibility="collapsed",
+    ) or st.session_state["timeline_style"]
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -2411,16 +2546,21 @@ st.divider()
 horizon_days = render_horizon_selector()
 df_upcoming = upcoming(df_op, now, horizon_days)
 section_header("Capacity timeline", f"Next {horizon_days} days")
+tl_style = render_timeline_style_selector()
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
         "Aldbrough timeline",
-        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
+        lambda: render_site_timeline(
+            "Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES, tl_style
+        ),
     )
 with tl_r:
     _safe_block(
         "Hornsea timeline",
-        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
+        lambda: render_site_timeline(
+            "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES, tl_style
+        ),
     )
 
 st.divider()
