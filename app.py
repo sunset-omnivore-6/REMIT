@@ -2239,6 +2239,29 @@ with st.container(key="masthead"):
             st.cache_data.clear()
             st.rerun()
 
+# Experimental: font comparison toggle (remove once a font is chosen). Web
+# fonts load on demand; Segoe UI / Calibri are system fonts (render natively on
+# Windows, fall back elsewhere).
+_FONTS = {
+    "Inter": ("'Inter', system-ui, sans-serif", None),
+    "Segoe UI": ("'Segoe UI', system-ui, sans-serif", None),
+    "Calibri": ("Calibri, 'Segoe UI', system-ui, sans-serif", None),
+    "Arial": ("Arial, Helvetica, sans-serif", None),
+    "Roboto": ("'Roboto', system-ui, sans-serif",
+               "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"),
+    "IBM Plex Sans": ("'IBM Plex Sans', system-ui, sans-serif",
+                      "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"),
+    "Times New Roman": ("'Times New Roman', Times, serif", None),
+}
+_font = st.radio("Font", list(_FONTS.keys()), index=0, horizontal=True, key="font_choice")
+_stack, _imp = _FONTS[_font]
+_fcss = (f"@import url('{_imp}');" if _imp else "") + (
+    "html, body, [class*='css'], .stApp, button, input, textarea, select,"
+    "h1,h2,h3,h4,h5,h6 {"
+    f"font-family: {_stack} !important; }}"
+)
+st.markdown(f"<style>{_fcss}</style>", unsafe_allow_html=True)
+
 # Storage REMITs are always included (three wheels: Withdrawal / Injection /
 # Storage). Storage is still excluded from the GWh/d capacity timeline inside
 # render_site_timeline because it is measured in TWh, not flow.
