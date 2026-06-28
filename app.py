@@ -1172,7 +1172,7 @@ def render_changes_banner(
         )
 
     st.markdown(
-        f"<details class='remit-collapse' open>"
+        f"<details class='remit-collapse'>"
         f"<summary>"
         f"<div class='{banner_class}'>"
         f"<span class='remit-chev'>&#9656;</span> "
@@ -1326,7 +1326,7 @@ def render_recent_banner(
         )
 
     st.markdown(
-        f"<details class='remit-collapse' open>"
+        f"<details class='remit-collapse'>"
         f"<summary>"
         f"<div class='{banner_class}'>"
         f"<span class='remit-chev'>&#9656;</span> "
