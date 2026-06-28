@@ -176,7 +176,7 @@ def inject_css() -> None:
         """
         <style>
         /* Match the desktop dashboard's typography (Inter) and page surface. */
-        @import url('https://rsms.me/inter/inter.css');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
         :root {
           --remit-ok: #16a34a;
           --remit-warn: #d97706;
@@ -191,10 +191,12 @@ def inject_css() -> None:
           --remit-radius: 10px;
           --remit-shadow: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
         }
-        html, body, [class*="css"], .stApp, button, input, textarea, select {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        html, body, [class*="css"], .stApp, button, input, textarea, select,
+        [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+        [data-testid="stMarkdown"] *, .stRadio label, .stButton button,
+        h1, h2, h3, h4, h5, h6 {
+          font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI',
             Roboto, Helvetica, Arial, sans-serif !important;
-          font-feature-settings: 'cv11', 'ss01';
         }
         /* Desktop page surface tint. */
         .stApp { background: var(--remit-page); }
@@ -1172,7 +1174,7 @@ def render_changes_banner(
         )
 
     st.markdown(
-        f"<details class='remit-collapse' open>"
+        f"<details class='remit-collapse'>"
         f"<summary>"
         f"<div class='{banner_class}'>"
         f"<span class='remit-chev'>&#9656;</span> "
@@ -1326,7 +1328,7 @@ def render_recent_banner(
         )
 
     st.markdown(
-        f"<details class='remit-collapse' open>"
+        f"<details class='remit-collapse'>"
         f"<summary>"
         f"<div class='{banner_class}'>"
         f"<span class='remit-chev'>&#9656;</span> "
@@ -1400,6 +1402,9 @@ def dial_gradient_color(pct: float) -> str:
     return "#16a34a"
 
 
+PLOTLY_FONT = "IBM Plex Sans, system-ui, sans-serif"
+
+
 def dial_figure(
     pct: float,
     color: str,
@@ -1412,13 +1417,16 @@ def dial_figure(
     striped hatches the filled wedge — used to flag a stock deviation.
     """
     pct = max(0.0, min(100.0, float(pct)))
-    marker = dict(colors=[color, "#eef2f7"], line=dict(width=0))
+    # Defined track + slightly thicker ring + crisp white separator so each dial
+    # reads as a solid gauge rather than a flat ring.
+    track, hole, seg_line = "#cbd5e1", 0.70, dict(color="#ffffff", width=2)
+    marker = dict(colors=[color, track], line=seg_line)
     if striped:
         marker["pattern"] = dict(shape=["/", ""], size=9, solidity=0.45)
     fig = go.Figure(
         go.Pie(
             values=[pct, 100 - pct],
-            hole=0.72,
+            hole=hole,
             sort=False,
             direction="clockwise",
             rotation=0,
@@ -1436,7 +1444,7 @@ def dial_figure(
             dict(
                 text=center_text if center_text is not None else f"<b>{pct:.0f}%</b>",
                 x=0.5, y=0.5, showarrow=False,
-                font=dict(size=24, color=color),
+                font=dict(family=PLOTLY_FONT, size=24, color=color),
             )
         ],
     )
@@ -1627,8 +1635,57 @@ def _safe_block(label: str, fn) -> None:
         st.exception(exc)
 
 
-def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
-    """Vertical 'now' marker that survives plotly's tz-aware datetime quirks."""
+def _rgba(hex_color: str, alpha: float) -> str:
+    """'#rrggbb' → 'rgba(r,g,b,a)' for translucent Plotly fills."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def _frame_timeline_axes(fig: go.Figure, y_title: str) -> None:
+    """Shared readability frame for the capacity charts: a thin border on all
+    four sides, faint gridlines, and breathing room so the data isn't jammed
+    against the edges. Keeps both timeline styles visually consistent with the
+    tile / Solid-dial aesthetic."""
+    fig.update_xaxes(
+        showline=True,
+        linecolor="#cbd5e1",
+        linewidth=1,
+        mirror=True,
+        showgrid=True,
+        gridcolor="rgba(148,163,184,0.18)",
+        ticks="outside",
+        tickcolor="#cbd5e1",
+        ticklen=4,
+        tickformat="%d %b\n%H:%M",
+    )
+    fig.update_yaxes(
+        title=y_title,
+        showline=True,
+        linecolor="#cbd5e1",
+        linewidth=1,
+        mirror=True,
+        showgrid=True,
+        gridcolor="rgba(148,163,184,0.18)",
+        zeroline=False,
+    )
+
+
+def _add_now_line(
+    fig: go.Figure,
+    now: pd.Timestamp,
+    line_top: float = 1.0,
+    label_y: float = 1.04,
+    label_yanchor: str = "bottom",
+    label_xanchor: str = "center",
+    label_xshift: int = 0,
+) -> None:
+    """Vertical 'now' marker that survives plotly's tz-aware datetime quirks.
+
+    Defaults place the label just above the frame (used by the Gantt). The
+    capacity charts override it to sit *inside* the frame near the top — with
+    the label nudged to the right of the dotted line so it never bleeds into
+    the line, and y-axis headroom keeping it clear of the data."""
     x = now.isoformat()
     fig.add_shape(
         type="line",
@@ -1637,14 +1694,17 @@ def _add_now_line(fig: go.Figure, now: pd.Timestamp) -> None:
         x0=x,
         x1=x,
         y0=0,
-        y1=1,
+        y1=line_top,
         line=dict(color="#111827", width=1, dash="dot"),
     )
     fig.add_annotation(
         x=x,
         xref="x",
-        y=1.02,
+        y=label_y,
         yref="paper",
+        yanchor=label_yanchor,
+        xanchor=label_xanchor,
+        xshift=label_xshift,
         text="now",
         showarrow=False,
         font=dict(size=11, color="#111827"),
@@ -1907,8 +1967,22 @@ def render_site_timeline(
     horizon_days: int,
     categories: list[str],
 ) -> None:
+    """Available Withdrawal/Injection capacity over time as plain step lines.
+
+    Window = [now − ceil(horizon/2), now + horizon]: the forward horizon plus
+    half that again of recent context, so the run-up to the current state is
+    visible. The past portion is reconstructed from REMITs that were active
+    then; overlapping/conflicting REMITs resolve to the most conservative
+    (lowest available) value via _capacity_at's MIN.
+
+    The y-axis is locked to [0, max technical capacity] for the site so a full
+    outage (both lines on the floor) reads correctly instead of collapsing the
+    auto-scale. The technical max is the ceiling only — it is never drawn or
+    labelled. A unified hover gives a date+values inset box at any point.
+    """
     now = pd.Timestamp.now(tz="UTC")
-    start = now - pd.Timedelta(days=7)
+    back_days = (horizon_days + 1) // 2  # ceil(horizon / 2)
+    start = now - pd.Timedelta(days=back_days)
     end = now + pd.Timedelta(days=horizon_days)
 
     # Storage is excluded from the timeline: it is in TWh while
@@ -1926,14 +2000,19 @@ def render_site_timeline(
         st.info(f"No capacity data for {site}.")
         return
 
-    # Lock y-axis: 0 → highest technical capacity for this site + 10%
+    # Ceiling = highest technical capacity for the site, plus ~9% headroom so
+    # the in-frame 'now' label has a clear band above the data even when a
+    # series is pinned at max-tech. Floor = a small negative sliver so a line
+    # sitting on y=0 renders at full thickness (and reads flush at the bottom)
+    # rather than being half-clipped by the frame into a faint thread.
     site_techs = [
         tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
     ]
-    y_max = max(site_techs) * 1.1 if site_techs else None
+    ceiling = max(site_techs) if site_techs else float(site_series["available"].max())
+    y_top = ceiling * 1.09 if ceiling else None
+    y_floor = -ceiling * 0.018 if ceiling else None
 
     fig = go.Figure()
-
     for cat in categories:
         cs = site_series[site_series["category"] == cat].sort_values("date")
         if cs.empty:
@@ -1944,51 +2023,39 @@ def render_site_timeline(
                 x=cs["date"],
                 y=cs["available"],
                 mode="lines",
-                name=f"{cat} available",
-                line=dict(
-                    color=COLOR[cat],
-                    width=2.5,
-                    shape="hv",  # exact step function
-                    dash="dot" if cat == "Storage" else "solid",
-                ),
-                hovertemplate=(
-                    f"%{{x|%d %b %Y %H:%M}}<br>{cat}: "
-                    f"%{{y:.2f}} {unit}<extra></extra>"
-                ),
+                name=cat,
+                line=dict(color=COLOR[cat], width=2.5, shape="hv"),
+                hovertemplate=f"{cat}: %{{y:.1f}} {unit}<extra></extra>",
             )
         )
-        tech = tech_lookup.get((site, cat))
-        if tech is not None:
-            fig.add_trace(
-                go.Scatter(
-                    x=cs["date"],
-                    y=[tech] * len(cs),
-                    mode="lines",
-                    name=f"{cat} technical max",
-                    line=dict(color=COLOR[cat], width=1.5, dash="longdash"),
-                    opacity=0.75,
-                    showlegend=False,
-                    hoverinfo="skip",
-                )
-            )
 
-    # Technical-max lines are kept (the dashed ceilings drawn above) but their
-    # text labels were removed — for Aldbrough the two maxes (W 287.78 /
-    # I 293.33) sit almost on top of each other and the labelled boxes cluttered
-    # the chart. The y-axis already shows the scale; hover gives exact values.
-
-    _add_now_line(fig, now)
-    fig.update_xaxes(tickformat="%d %b\n%H:%M")
+    _frame_timeline_axes(fig, "Available · GWh/d")
+    if y_top is not None:
+        fig.update_yaxes(range=[y_floor, y_top])
+    fig.update_xaxes(hoverformat="%a %d %b · %H:%M")
+    # 'now' label inside the frame, near the top, nudged right of the line.
+    _add_now_line(
+        fig,
+        now,
+        line_top=1.0,
+        label_y=0.98,
+        label_yanchor="top",
+        label_xanchor="left",
+        label_xshift=5,
+    )
+    st.markdown(
+        f"<div style='font-weight:600;color:#0f172a;margin-bottom:-0.3rem'>"
+        f"{site_label(site)} &mdash; available capacity</div>",
+        unsafe_allow_html=True,
+    )
     fig.update_layout(
-        title=f"{site_label(site)} — available capacity",
+        font=dict(family=PLOTLY_FONT),
         height=320,
-        margin=dict(l=20, r=30, t=40, b=20),
-        legend=dict(orientation="h", y=-0.25),
-        yaxis=dict(
-            title="Available",
-            range=[0, y_max] if y_max is not None else None,
-        ),
+        margin=dict(l=58, r=24, t=28, b=24),
+        legend=dict(orientation="h", y=-0.28),
         hovermode="x unified",
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -2076,7 +2143,8 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     _add_now_line(fig, now)
     fig.update_layout(
         height=460,
-        margin=dict(l=20, r=20, t=20, b=40),
+        font=dict(family=PLOTLY_FONT),
+        margin=dict(l=20, r=20, t=36, b=40),
         legend=dict(orientation="h", y=-0.35, title=""),
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -2399,17 +2467,24 @@ with act_r:
 st.divider()
 horizon_days = render_horizon_selector()
 df_upcoming = upcoming(df_op, now, horizon_days)
-section_header("Capacity timeline", f"Next {horizon_days} days")
+back_days = (horizon_days + 1) // 2
+section_header(
+    "Capacity timeline", f"Prev {back_days}d · next {horizon_days}d"
+)
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
         "Aldbrough timeline",
-        lambda: render_site_timeline("Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES),
+        lambda: render_site_timeline(
+            "Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES
+        ),
     )
 with tl_r:
     _safe_block(
         "Hornsea timeline",
-        lambda: render_site_timeline("Atwick", df_op, horizon_days, ACTIVE_CATEGORIES),
+        lambda: render_site_timeline(
+            "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES
+        ),
     )
 
 st.divider()
