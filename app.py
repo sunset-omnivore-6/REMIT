@@ -1674,15 +1674,18 @@ def _frame_timeline_axes(fig: go.Figure, y_title: str) -> None:
 def _add_now_line(
     fig: go.Figure,
     now: pd.Timestamp,
-    line_top: float = 1.03,
-    label_y: float = 1.05,
+    line_top: float = 1.0,
+    label_y: float = 1.04,
+    label_yanchor: str = "bottom",
+    label_xanchor: str = "center",
+    label_xshift: int = 0,
 ) -> None:
     """Vertical 'now' marker that survives plotly's tz-aware datetime quirks.
 
-    The dotted line runs a little above the plot frame (line_top > 1) and the
-    'now' label sits above that again, bottom-anchored — so the text always
-    clears both the line and the data, even when a series is pinned at the
-    technical-max ceiling."""
+    Defaults place the label just above the frame (used by the Gantt). The
+    capacity charts override it to sit *inside* the frame near the top — with
+    the label nudged to the right of the dotted line so it never bleeds into
+    the line, and y-axis headroom keeping it clear of the data."""
     x = now.isoformat()
     fig.add_shape(
         type="line",
@@ -1699,7 +1702,9 @@ def _add_now_line(
         xref="x",
         y=label_y,
         yref="paper",
-        yanchor="bottom",
+        yanchor=label_yanchor,
+        xanchor=label_xanchor,
+        xshift=label_xshift,
         text="now",
         showarrow=False,
         font=dict(size=11, color="#111827"),
@@ -1995,16 +2000,17 @@ def render_site_timeline(
         st.info(f"No capacity data for {site}.")
         return
 
-    # Fixed ceiling = highest technical capacity for this site (+2% so a fully
-    # available line doesn't render flush against the top border). Falls back to
-    # the data max only if no technical capacity is known.
+    # Ceiling = highest technical capacity for the site, plus ~9% headroom so
+    # the in-frame 'now' label has a clear band above the data even when a
+    # series is pinned at max-tech. Floor = a small negative sliver so a line
+    # sitting on y=0 renders at full thickness (and reads flush at the bottom)
+    # rather than being half-clipped by the frame into a faint thread.
     site_techs = [
         tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
     ]
-    if site_techs:
-        y_max = max(site_techs) * 1.02
-    else:
-        y_max = float(site_series["available"].max()) * 1.08 or None
+    ceiling = max(site_techs) if site_techs else float(site_series["available"].max())
+    y_top = ceiling * 1.09 if ceiling else None
+    y_floor = -ceiling * 0.018 if ceiling else None
 
     fig = go.Figure()
     for cat in categories:
@@ -2019,21 +2025,24 @@ def render_site_timeline(
                 mode="lines",
                 name=cat,
                 line=dict(color=COLOR[cat], width=2.5, shape="hv"),
-                # Draw the stroke even where it sits on y=0 — without this the
-                # bottom half is clipped by the frame and a zeroed-out series
-                # looks like missing data rather than a real 0.
-                cliponaxis=False,
                 hovertemplate=f"{cat}: %{{y:.1f}} {unit}<extra></extra>",
             )
         )
 
     _frame_timeline_axes(fig, "Available · GWh/d")
-    # 0 sits flush on the bottom frame (no padding below — capacity is never
-    # negative); cliponaxis above keeps a 0-valued line visible there.
-    if y_max:
-        fig.update_yaxes(range=[0, y_max])
+    if y_top is not None:
+        fig.update_yaxes(range=[y_floor, y_top])
     fig.update_xaxes(hoverformat="%a %d %b · %H:%M")
-    _add_now_line(fig, now)
+    # 'now' label inside the frame, near the top, nudged right of the line.
+    _add_now_line(
+        fig,
+        now,
+        line_top=1.0,
+        label_y=0.98,
+        label_yanchor="top",
+        label_xanchor="left",
+        label_xshift=5,
+    )
     st.markdown(
         f"<div style='font-weight:600;color:#0f172a;margin-bottom:-0.3rem'>"
         f"{site_label(site)} &mdash; available capacity</div>",
@@ -2042,7 +2051,7 @@ def render_site_timeline(
     fig.update_layout(
         font=dict(family=PLOTLY_FONT),
         height=320,
-        margin=dict(l=58, r=24, t=34, b=24),
+        margin=dict(l=58, r=24, t=28, b=24),
         legend=dict(orientation="h", y=-0.28),
         hovermode="x unified",
         plot_bgcolor="#ffffff",
