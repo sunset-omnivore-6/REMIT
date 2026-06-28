@@ -176,7 +176,7 @@ def inject_css() -> None:
         """
         <style>
         /* Match the desktop dashboard's typography (Inter) and page surface. */
-        @import url('https://rsms.me/inter/inter.css');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
         :root {
           --remit-ok: #16a34a;
           --remit-warn: #d97706;
@@ -191,10 +191,12 @@ def inject_css() -> None:
           --remit-radius: 10px;
           --remit-shadow: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
         }
-        html, body, [class*="css"], .stApp, button, input, textarea, select {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        html, body, [class*="css"], .stApp, button, input, textarea, select,
+        [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+        [data-testid="stMarkdown"] *, .stRadio label, .stButton button,
+        h1, h2, h3, h4, h5, h6 {
+          font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI',
             Roboto, Helvetica, Arial, sans-serif !important;
-          font-feature-settings: 'cv11', 'ss01';
         }
         /* Desktop page surface tint. */
         .stApp { background: var(--remit-page); }
@@ -1400,6 +1402,9 @@ def dial_gradient_color(pct: float) -> str:
     return "#16a34a"
 
 
+PLOTLY_FONT = "IBM Plex Sans, system-ui, sans-serif"
+
+
 def dial_figure(
     pct: float,
     color: str,
@@ -1439,7 +1444,7 @@ def dial_figure(
             dict(
                 text=center_text if center_text is not None else f"<b>{pct:.0f}%</b>",
                 x=0.5, y=0.5, showarrow=False,
-                font=dict(size=24, color=color),
+                font=dict(family=PLOTLY_FONT, size=24, color=color),
             )
         ],
     )
@@ -1984,6 +1989,7 @@ def render_site_timeline(
     fig.update_xaxes(tickformat="%d %b\n%H:%M")
     fig.update_layout(
         title=f"{site_label(site)} — available capacity",
+        font=dict(family=PLOTLY_FONT),
         height=320,
         margin=dict(l=20, r=30, t=40, b=20),
         legend=dict(orientation="h", y=-0.25),
@@ -2079,6 +2085,7 @@ def render_gantt(df_op: pd.DataFrame, horizon_days: int) -> None:
     _add_now_line(fig, now)
     fig.update_layout(
         height=460,
+        font=dict(family=PLOTLY_FONT),
         margin=dict(l=20, r=20, t=20, b=40),
         legend=dict(orientation="h", y=-0.35, title=""),
     )
@@ -2238,33 +2245,6 @@ with st.container(key="masthead"):
         if st.button("⟳ Refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-
-# Experimental: font comparison toggle (remove once a font is chosen). Web
-# fonts load on demand; Segoe UI / Calibri are system fonts (render natively on
-# Windows, fall back elsewhere).
-_FONTS = {
-    "Inter": ("'Inter', system-ui, sans-serif", None),
-    "Segoe UI": ("'Segoe UI', system-ui, sans-serif", None),
-    "Calibri": ("Calibri, 'Segoe UI', system-ui, sans-serif", None),
-    "Arial": ("Arial, Helvetica, sans-serif", None),
-    "Roboto": ("'Roboto', system-ui, sans-serif",
-               "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"),
-    "IBM Plex Sans": ("'IBM Plex Sans', system-ui, sans-serif",
-                      "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"),
-    "Times New Roman": ("'Times New Roman', Times, serif", None),
-}
-_font = st.radio("Font", list(_FONTS.keys()), index=0, horizontal=True, key="font_choice")
-_stack, _imp = _FONTS[_font]
-# Target the elements Streamlit actually renders text into (our custom HTML
-# lives inside stMarkdownContainer). Setting it on body alone doesn't win
-# because Streamlit applies the theme font at the element level.
-_fcss = (f"@import url('{_imp}');" if _imp else "") + (
-    "[data-testid='stMarkdownContainer'], [data-testid='stMarkdownContainer'] *,"
-    "[data-testid='stMarkdown'] *, .stRadio label, .stRadio label *,"
-    ".stButton button, h1,h2,h3,h4,h5,h6 {"
-    f"font-family: {_stack} !important; }}"
-)
-st.markdown(f"<style>{_fcss}</style>", unsafe_allow_html=True)
 
 # Storage REMITs are always included (three wheels: Withdrawal / Injection /
 # Storage). Storage is still excluded from the GWh/d capacity timeline inside
