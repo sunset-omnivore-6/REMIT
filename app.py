@@ -2255,9 +2255,13 @@ _FONTS = {
 }
 _font = st.radio("Font", list(_FONTS.keys()), index=0, horizontal=True, key="font_choice")
 _stack, _imp = _FONTS[_font]
+# Target the elements Streamlit actually renders text into (our custom HTML
+# lives inside stMarkdownContainer). Setting it on body alone doesn't win
+# because Streamlit applies the theme font at the element level.
 _fcss = (f"@import url('{_imp}');" if _imp else "") + (
-    "html, body, [class*='css'], .stApp, button, input, textarea, select,"
-    "h1,h2,h3,h4,h5,h6 {"
+    "[data-testid='stMarkdownContainer'], [data-testid='stMarkdownContainer'] *,"
+    "[data-testid='stMarkdown'] *, .stRadio label, .stRadio label *,"
+    ".stButton button, h1,h2,h3,h4,h5,h6 {"
     f"font-family: {_stack} !important; }}"
 )
 st.markdown(f"<style>{_fcss}</style>", unsafe_allow_html=True)
