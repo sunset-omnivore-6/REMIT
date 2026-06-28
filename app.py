@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -1951,14 +1950,23 @@ def render_site_timeline(
     df_op: pd.DataFrame,
     horizon_days: int,
     categories: list[str],
-    style: str = "Filled area",
 ) -> None:
+    """Available Withdrawal/Injection capacity over time as plain step lines.
+
+    Window = [now − ceil(horizon/2), now + horizon]: the forward horizon plus
+    half that again of recent context, so the run-up to the current state is
+    visible. The past portion is reconstructed from REMITs that were active
+    then; overlapping/conflicting REMITs resolve to the most conservative
+    (lowest available) value via _capacity_at's MIN.
+
+    The y-axis is locked to [0, max technical capacity] for the site so a full
+    outage (both lines on the floor) reads correctly instead of collapsing the
+    auto-scale. The technical max is the ceiling only — it is never drawn or
+    labelled. A unified hover gives a date+values inset box at any point.
+    """
     now = pd.Timestamp.now(tz="UTC")
-    # Current-and-future focus: only a short anchor of recent past so the 'now'
-    # marker isn't pinned to the very edge. The line then runs out to the
-    # selected horizon. Long-running REMITs simply hold their value flat to the
-    # window edge — we don't need to chase their true (multi-month) end date.
-    start = now - pd.Timedelta(days=1)
+    back_days = (horizon_days + 1) // 2  # ceil(horizon / 2)
+    start = now - pd.Timedelta(days=back_days)
     end = now + pd.Timedelta(days=horizon_days)
 
     # Storage is excluded from the timeline: it is in TWh while
@@ -1976,70 +1984,38 @@ def render_site_timeline(
         st.info(f"No capacity data for {site}.")
         return
 
-    cats_present = [
-        c
-        for c in categories
-        if not site_series[site_series["category"] == c].empty
+    # Fixed ceiling = highest technical capacity for this site (+2% so a fully
+    # available line doesn't render flush against the top border). Falls back to
+    # the data max only if no technical capacity is known.
+    site_techs = [
+        tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
     ]
+    if site_techs:
+        y_max = max(site_techs) * 1.02
+    else:
+        y_max = float(site_series["available"].max()) * 1.08 or None
 
-    if style == "Split panels":
-        _timeline_split_panels(site, site_series, cats_present, now)
-    elif style == "Zoomed lines":
-        _timeline_single(site, site_series, cats_present, now, fill=False, zoom=True)
-    else:  # "Filled area"
-        _timeline_single(site, site_series, cats_present, now, fill=True, zoom=False)
-
-
-def _timeline_hover(cat: str, unit: str) -> str:
-    return (
-        f"{cat}: %{{y:.1f}} {unit}<extra></extra>"
-    )
-
-
-def _timeline_single(
-    site: str,
-    site_series: pd.DataFrame,
-    categories: list[str],
-    now: pd.Timestamp,
-    *,
-    fill: bool,
-    zoom: bool,
-) -> None:
-    """Available Withdrawal/Injection capacity over time on one shared axis.
-
-    fill=True  → soft area to zero (visual weight, honest 0-based scale).
-    zoom=True  → bold step lines with the y-axis cropped to the data range so
-                 small movements aren't flattened against a 0→~290 axis.
-    A unified 'x' hover gives the little inset box at any point on the span."""
     fig = go.Figure()
-    lo, hi = None, None
     for cat in categories:
         cs = site_series[site_series["category"] == cat].sort_values("date")
         if cs.empty:
             continue
         unit = DEFAULT_UNIT.get(cat, "")
-        vmin, vmax = float(cs["available"].min()), float(cs["available"].max())
-        lo = vmin if lo is None else min(lo, vmin)
-        hi = vmax if hi is None else max(hi, vmax)
         fig.add_trace(
             go.Scatter(
                 x=cs["date"],
                 y=cs["available"],
                 mode="lines",
                 name=cat,
-                line=dict(color=COLOR[cat], width=3 if zoom else 2.5, shape="hv"),
-                fill="tozeroy" if fill else None,
-                fillcolor=_rgba(COLOR[cat], 0.12) if fill else None,
-                hovertemplate=_timeline_hover(cat, unit),
+                line=dict(color=COLOR[cat], width=2.5, shape="hv"),
+                hovertemplate=f"{cat}: %{{y:.1f}} {unit}<extra></extra>",
             )
         )
 
     _frame_timeline_axes(fig, "Available · GWh/d")
-    if zoom and lo is not None and hi is not None:
-        pad = max((hi - lo) * 0.12, hi * 0.02, 1.0)
-        fig.update_yaxes(range=[max(0, lo - pad), hi + pad])
-    elif hi is not None:
-        fig.update_yaxes(range=[0, hi * 1.08])
+    if y_max:
+        fig.update_yaxes(range=[0, y_max])
+    fig.update_xaxes(hoverformat="%a %d %b · %H:%M")
     _add_now_line(fig, now)
     fig.update_layout(
         title=f"{site_label(site)} — available capacity",
@@ -2051,82 +2027,6 @@ def _timeline_single(
         plot_bgcolor="#ffffff",
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    fig.update_xaxes(hoverformat="%a %d %b · %H:%M")
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def _timeline_split_panels(
-    site: str,
-    site_series: pd.DataFrame,
-    categories: list[str],
-    now: pd.Timestamp,
-) -> None:
-    """One stacked panel per direction, each auto-scaled to its own data so a
-    dip is obvious even when the absolute numbers differ. Shared x-axis and a
-    unified hover keep the date inset box aligned across both panels."""
-    rows = len(categories)
-    if rows == 0:
-        st.info(f"No capacity data for {site}.")
-        return
-    fig = make_subplots(
-        rows=rows,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.12,
-        subplot_titles=[f"{c} · GWh/d" for c in categories],
-    )
-    for i, cat in enumerate(categories, start=1):
-        cs = site_series[site_series["category"] == cat].sort_values("date")
-        unit = DEFAULT_UNIT.get(cat, "")
-        fig.add_trace(
-            go.Scatter(
-                x=cs["date"],
-                y=cs["available"],
-                mode="lines",
-                name=cat,
-                line=dict(color=COLOR[cat], width=2.5, shape="hv"),
-                fill="tozeroy",
-                fillcolor=_rgba(COLOR[cat], 0.12),
-                hovertemplate=_timeline_hover(cat, unit),
-                showlegend=False,
-            ),
-            row=i,
-            col=1,
-        )
-        vmin, vmax = float(cs["available"].min()), float(cs["available"].max())
-        pad = max((vmax - vmin) * 0.15, vmax * 0.02, 1.0)
-        fig.update_yaxes(
-            range=[max(0, vmin - pad), vmax + pad],
-            showline=True,
-            linecolor="#cbd5e1",
-            mirror=True,
-            gridcolor="rgba(148,163,184,0.18)",
-            row=i,
-            col=1,
-        )
-        fig.update_xaxes(
-            showline=True,
-            linecolor="#cbd5e1",
-            mirror=True,
-            gridcolor="rgba(148,163,184,0.18)",
-            tickformat="%d %b\n%H:%M",
-            hoverformat="%a %d %b · %H:%M",
-            row=i,
-            col=1,
-        )
-    _add_now_line(fig, now)
-    fig.update_layout(
-        title=f"{site_label(site)} — available capacity",
-        font=dict(family=PLOTLY_FONT),
-        height=340,
-        margin=dict(l=58, r=24, t=56, b=24),
-        hovermode="x unified",
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="rgba(0,0,0,0)",
-    )
-    for ann in fig.layout.annotations:
-        ann.font.size = 12
-        ann.font.color = "#475569"
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -2353,26 +2253,6 @@ def render_horizon_selector() -> int:
     return HORIZON_PRESETS[preset]
 
 
-TIMELINE_STYLES = ["Filled area", "Zoomed lines", "Split panels"]
-
-
-def render_timeline_style_selector() -> str:
-    """Toggle between capacity-timeline design treatments so they can be
-    compared live. All three plot only available Withdrawal/Injection over
-    current+future time (no technical-max clutter) with a unified hover inset:
-    'Filled area' (soft area, honest 0-based axis), 'Zoomed lines' (y cropped
-    to the data so small moves show), 'Split panels' (one auto-scaled panel per
-    direction). Selection persists across the 5-minute auto-refresh."""
-    if "timeline_style" not in st.session_state:
-        st.session_state["timeline_style"] = TIMELINE_STYLES[0]
-    return st.segmented_control(
-        "Timeline style",
-        TIMELINE_STYLES,
-        key="timeline_style",
-        label_visibility="collapsed",
-    ) or st.session_state["timeline_style"]
-
-
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -2558,21 +2438,23 @@ with act_r:
 st.divider()
 horizon_days = render_horizon_selector()
 df_upcoming = upcoming(df_op, now, horizon_days)
-section_header("Capacity timeline", f"Next {horizon_days} days")
-tl_style = render_timeline_style_selector()
+back_days = (horizon_days + 1) // 2
+section_header(
+    "Capacity timeline", f"Prev {back_days}d · next {horizon_days}d"
+)
 tl_l, tl_r = st.columns(2, gap="large")
 with tl_l:
     _safe_block(
         "Aldbrough timeline",
         lambda: render_site_timeline(
-            "Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES, tl_style
+            "Aldbrough", df_op, horizon_days, ACTIVE_CATEGORIES
         ),
     )
 with tl_r:
     _safe_block(
         "Hornsea timeline",
         lambda: render_site_timeline(
-            "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES, tl_style
+            "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES
         ),
     )
 
