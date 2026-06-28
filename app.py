@@ -1400,12 +1400,6 @@ def dial_gradient_color(pct: float) -> str:
     return "#16a34a"
 
 
-# Dial ring style — set each run by the "Dial style" selector. 'plain' = the
-# original faint track; 'solid' = defined darker track, thicker ring, crisp
-# white separator (used by the Solid/Well/Framed/Raised variants).
-DIAL_STYLE = "solid"
-
-
 def dial_figure(
     pct: float,
     color: str,
@@ -1418,10 +1412,9 @@ def dial_figure(
     striped hatches the filled wedge — used to flag a stock deviation.
     """
     pct = max(0.0, min(100.0, float(pct)))
-    if DIAL_STYLE == "plain":
-        track, hole, seg_line = "#eef2f7", 0.72, dict(width=0)
-    else:  # 'solid'
-        track, hole, seg_line = "#cbd5e1", 0.70, dict(color="#ffffff", width=2)
+    # Defined track + slightly thicker ring + crisp white separator so each dial
+    # reads as a solid gauge rather than a flat ring.
+    track, hole, seg_line = "#cbd5e1", 0.70, dict(color="#ffffff", width=2)
     marker = dict(colors=[color, track], line=seg_line)
     if striped:
         marker["pattern"] = dict(shape=["/", ""], size=9, solidity=0.45)
@@ -1585,7 +1578,6 @@ def render_site_headline(
         cols = st.columns(2, gap="small")
         for col, cell in zip(cols, row):
             with col:
-              with st.container(key=f"dialcell-{site}-{cell}"):
                 if cell == "Stock":
                     _render_stock_dial(site, ng_stock)
                 else:
@@ -2366,27 +2358,6 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 #   3. active-now cards
 st.divider()
 section_header("Capacity availability", "Live — latest revision per thread")
-
-# Experimental: pick how the dials are framed so we can compare looks live.
-_dial_choice = st.radio(
-    "Dial style",
-    ["Plain", "Solid", "Well", "Framed", "Raised"],
-    index=2, horizontal=True, key="dial_style_choice",
-)
-DIAL_STYLE = "plain" if _dial_choice == "Plain" else "solid"
-_cell_css = {
-    "Well":   "background:#f1f5f9;border-radius:14px;padding:.4rem .25rem .55rem;",
-    "Framed": "border:1px solid var(--remit-border);border-radius:12px;"
-              "padding:.4rem .25rem .55rem;",
-    "Raised": "background:#ffffff;border-radius:12px;padding:.4rem .25rem .55rem;"
-              "box-shadow:0 1px 2px rgba(15,23,42,.06),0 5px 12px -4px rgba(15,23,42,.12);",
-}.get(_dial_choice, "")
-if _cell_css:
-    st.markdown(
-        f"<style>[class*='st-key-dialcell']{{{_cell_css}}}</style>",
-        unsafe_allow_html=True,
-    )
-
 _ng = fetch_national_gas()  # current stock + nominations (None on failure)
 with st.container(key="wheels"):
     hero_l, hero_r = st.columns(2, gap="large")
