@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -1950,10 +1951,14 @@ def render_site_timeline(
     df_op: pd.DataFrame,
     horizon_days: int,
     categories: list[str],
-    style: str = "Shaded headroom",
+    style: str = "Filled area",
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
-    start = now - pd.Timedelta(days=7)
+    # Current-and-future focus: only a short anchor of recent past so the 'now'
+    # marker isn't pinned to the very edge. The line then runs out to the
+    # selected horizon. Long-running REMITs simply hold their value flat to the
+    # window edge — we don't need to chase their true (multi-month) end date.
+    start = now - pd.Timedelta(days=1)
     end = now + pd.Timedelta(days=horizon_days)
 
     # Storage is excluded from the timeline: it is in TWh while
@@ -1971,72 +1976,70 @@ def render_site_timeline(
         st.info(f"No capacity data for {site}.")
         return
 
-    site_techs = [
-        tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
+    cats_present = [
+        c
+        for c in categories
+        if not site_series[site_series["category"] == c].empty
     ]
 
-    if style == "Outage blocks":
-        _timeline_outage_blocks(site, site_series, categories, now)
-    else:
-        _timeline_shaded_headroom(site, site_series, categories, tech_lookup, now)
+    if style == "Split panels":
+        _timeline_split_panels(site, site_series, cats_present, now)
+    elif style == "Zoomed lines":
+        _timeline_single(site, site_series, cats_present, now, fill=False, zoom=True)
+    else:  # "Filled area"
+        _timeline_single(site, site_series, cats_present, now, fill=True, zoom=False)
 
 
-def _timeline_shaded_headroom(
+def _timeline_hover(cat: str, unit: str) -> str:
+    return (
+        f"{cat}: %{{y:.1f}} {unit}<extra></extra>"
+    )
+
+
+def _timeline_single(
     site: str,
     site_series: pd.DataFrame,
     categories: list[str],
-    tech_lookup: dict[tuple[str, str], float],
     now: pd.Timestamp,
+    *,
+    fill: bool,
+    zoom: bool,
 ) -> None:
-    """Available capacity as a solid step line, with the gap up to the
-    technical maximum shaded as a translucent 'unavailable' wedge. When fully
-    available the wedge has zero area and vanishes, so any outage reads as a
-    coloured bite out of the ceiling — no dashed reference lines needed."""
-    site_techs = [
-        tech_lookup[(site, c)] for c in categories if (site, c) in tech_lookup
-    ]
-    y_max = max(site_techs) * 1.08 if site_techs else None
+    """Available Withdrawal/Injection capacity over time on one shared axis.
 
+    fill=True  → soft area to zero (visual weight, honest 0-based scale).
+    zoom=True  → bold step lines with the y-axis cropped to the data range so
+                 small movements aren't flattened against a 0→~290 axis.
+    A unified 'x' hover gives the little inset box at any point on the span."""
     fig = go.Figure()
+    lo, hi = None, None
     for cat in categories:
         cs = site_series[site_series["category"] == cat].sort_values("date")
         if cs.empty:
             continue
-        tech = tech_lookup.get((site, cat))
         unit = DEFAULT_UNIT.get(cat, "")
-        # Available line first so the wedge above can fill down onto it.
+        vmin, vmax = float(cs["available"].min()), float(cs["available"].max())
+        lo = vmin if lo is None else min(lo, vmin)
+        hi = vmax if hi is None else max(hi, vmax)
         fig.add_trace(
             go.Scatter(
                 x=cs["date"],
                 y=cs["available"],
                 mode="lines",
-                name=f"{cat} available",
-                line=dict(color=COLOR[cat], width=2.5, shape="hv"),
-                hovertemplate=(
-                    f"%{{x|%d %b %Y %H:%M}}<br>{cat} available: "
-                    f"%{{y:.1f}} {unit}<extra></extra>"
-                ),
+                name=cat,
+                line=dict(color=COLOR[cat], width=3 if zoom else 2.5, shape="hv"),
+                fill="tozeroy" if fill else None,
+                fillcolor=_rgba(COLOR[cat], 0.12) if fill else None,
+                hovertemplate=_timeline_hover(cat, unit),
             )
         )
-        if tech is not None:
-            # Translucent wedge between available and the technical ceiling.
-            fig.add_trace(
-                go.Scatter(
-                    x=cs["date"],
-                    y=[tech] * len(cs),
-                    mode="lines",
-                    name=f"{cat} unavailable",
-                    line=dict(color=_rgba(COLOR[cat], 0.45), width=1, shape="hv"),
-                    fill="tonexty",
-                    fillcolor=_rgba(COLOR[cat], 0.14),
-                    showlegend=False,
-                    hoverinfo="skip",
-                )
-            )
 
     _frame_timeline_axes(fig, "Available · GWh/d")
-    if y_max is not None:
-        fig.update_yaxes(range=[0, y_max])
+    if zoom and lo is not None and hi is not None:
+        pad = max((hi - lo) * 0.12, hi * 0.02, 1.0)
+        fig.update_yaxes(range=[max(0, lo - pad), hi + pad])
+    elif hi is not None:
+        fig.update_yaxes(range=[0, hi * 1.08])
     _add_now_line(fig, now)
     fig.update_layout(
         title=f"{site_label(site)} — available capacity",
@@ -2048,74 +2051,82 @@ def _timeline_shaded_headroom(
         plot_bgcolor="#ffffff",
         paper_bgcolor="rgba(0,0,0,0)",
     )
+    fig.update_xaxes(hoverformat="%a %d %b · %H:%M")
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _timeline_outage_blocks(
+def _timeline_split_panels(
     site: str,
     site_series: pd.DataFrame,
     categories: list[str],
     now: pd.Timestamp,
 ) -> None:
-    """Inverted framing: plot capacity *removed* (technical − available) as a
-    filled step area off a zero baseline. Normal operation sits flat on the
-    floor; every outage rises as an obvious block whose height = MW out and
-    width = duration. The eye is drawn to deviation, not to a near-full line."""
-    fig = go.Figure()
-    peak = 0.0
-    any_outage = False
-    for cat in categories:
-        cs = site_series[site_series["category"] == cat].sort_values("date").copy()
-        if cs.empty:
-            continue
-        cs["out"] = (cs["technical"] - cs["available"]).clip(lower=0)
-        peak = max(peak, float(cs["out"].max()))
-        if cs["out"].max() > 0.01:
-            any_outage = True
+    """One stacked panel per direction, each auto-scaled to its own data so a
+    dip is obvious even when the absolute numbers differ. Shared x-axis and a
+    unified hover keep the date inset box aligned across both panels."""
+    rows = len(categories)
+    if rows == 0:
+        st.info(f"No capacity data for {site}.")
+        return
+    fig = make_subplots(
+        rows=rows,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.12,
+        subplot_titles=[f"{c} · GWh/d" for c in categories],
+    )
+    for i, cat in enumerate(categories, start=1):
+        cs = site_series[site_series["category"] == cat].sort_values("date")
         unit = DEFAULT_UNIT.get(cat, "")
         fig.add_trace(
             go.Scatter(
                 x=cs["date"],
-                y=cs["out"],
+                y=cs["available"],
                 mode="lines",
-                name=f"{cat} out",
-                line=dict(color=COLOR[cat], width=2, shape="hv"),
+                name=cat,
+                line=dict(color=COLOR[cat], width=2.5, shape="hv"),
                 fill="tozeroy",
-                fillcolor=_rgba(COLOR[cat], 0.22),
-                hovertemplate=(
-                    f"%{{x|%d %b %Y %H:%M}}<br>{cat} out: "
-                    f"%{{y:.1f}} {unit}<extra></extra>"
-                ),
-            )
+                fillcolor=_rgba(COLOR[cat], 0.12),
+                hovertemplate=_timeline_hover(cat, unit),
+                showlegend=False,
+            ),
+            row=i,
+            col=1,
         )
-
-    # Give a flat (no-outage) window a small headroom so the floor reads as
-    # 'nothing out' rather than a degenerate zero-height axis.
-    y_max = peak * 1.25 if peak > 0.01 else 10.0
-
-    _frame_timeline_axes(fig, "Capacity out · GWh/d")
-    fig.update_yaxes(range=[0, y_max])
+        vmin, vmax = float(cs["available"].min()), float(cs["available"].max())
+        pad = max((vmax - vmin) * 0.15, vmax * 0.02, 1.0)
+        fig.update_yaxes(
+            range=[max(0, vmin - pad), vmax + pad],
+            showline=True,
+            linecolor="#cbd5e1",
+            mirror=True,
+            gridcolor="rgba(148,163,184,0.18)",
+            row=i,
+            col=1,
+        )
+        fig.update_xaxes(
+            showline=True,
+            linecolor="#cbd5e1",
+            mirror=True,
+            gridcolor="rgba(148,163,184,0.18)",
+            tickformat="%d %b\n%H:%M",
+            hoverformat="%a %d %b · %H:%M",
+            row=i,
+            col=1,
+        )
     _add_now_line(fig, now)
     fig.update_layout(
-        title=f"{site_label(site)} — capacity out of service",
+        title=f"{site_label(site)} — available capacity",
         font=dict(family=PLOTLY_FONT),
-        height=320,
-        margin=dict(l=58, r=24, t=44, b=24),
-        legend=dict(orientation="h", y=-0.28),
+        height=340,
+        margin=dict(l=58, r=24, t=56, b=24),
         hovermode="x unified",
         plot_bgcolor="#ffffff",
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    if not any_outage:
-        fig.add_annotation(
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            text="No capacity outages in this window",
-            showarrow=False,
-            font=dict(size=12, color="#94a3b8"),
-        )
+    for ann in fig.layout.annotations:
+        ann.font.size = 12
+        ann.font.color = "#475569"
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -2342,14 +2353,16 @@ def render_horizon_selector() -> int:
     return HORIZON_PRESETS[preset]
 
 
-TIMELINE_STYLES = ["Shaded headroom", "Outage blocks"]
+TIMELINE_STYLES = ["Filled area", "Zoomed lines", "Split panels"]
 
 
 def render_timeline_style_selector() -> str:
-    """Toggle between the two capacity-timeline framings so they can be
-    compared live: 'Shaded headroom' (available line + translucent wedge up to
-    technical max) vs 'Outage blocks' (inverted — capacity removed off a zero
-    floor). Selection persists across the 5-minute auto-refresh via its key."""
+    """Toggle between capacity-timeline design treatments so they can be
+    compared live. All three plot only available Withdrawal/Injection over
+    current+future time (no technical-max clutter) with a unified hover inset:
+    'Filled area' (soft area, honest 0-based axis), 'Zoomed lines' (y cropped
+    to the data so small moves show), 'Split panels' (one auto-scaled panel per
+    direction). Selection persists across the 5-minute auto-refresh."""
     if "timeline_style" not in st.session_state:
         st.session_state["timeline_style"] = TIMELINE_STYLES[0]
     return st.segmented_control(
