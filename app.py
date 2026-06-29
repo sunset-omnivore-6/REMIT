@@ -409,7 +409,7 @@ def inject_css() -> None:
           animation: remit-pulse30 30s ease-out infinite;
         }
         .remit-fresh-glow.remit-card--fresh {
-          animation: remit-glow30 30s ease-out infinite;
+          animation: remit-glow 15s ease-in-out infinite;
         }
         .remit-fresh-steady.remit-card--fresh {
           border-color: var(--remit-info); border-width: 2px;
@@ -421,9 +421,12 @@ def inject_css() -> None:
           7%   { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
           100% { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
         }
-        @keyframes remit-glow30 {
-          0%   { box-shadow: 0 0 0 5px rgba(37,99,235,.35); }
-          8%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+        /* Glow: a smooth swell up and back down over ~5 s (ease-in-out on
+           each leg), idle for the rest of a 15 s cycle. */
+        @keyframes remit-glow {
+          0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+          17%  { box-shadow: 0 0 0 6px rgba(37,99,235,.38); }
+          33%  { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
           100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
         }
         .remit-fresh-badge {
