@@ -346,8 +346,15 @@ def inject_css() -> None:
         .remit-banner--alert { border-color: var(--remit-bad);  background: #fef2f2; }
         .remit-banner--warn  { border-color: var(--remit-warn); background: #fffbeb; }
         .remit-banner--ok    { border-color: var(--remit-ok);   background: #f0fdf4; }
+        /* Top summary banners: soft red when there is something to expand
+           (same soft palette as the blue tint), blue/grey when there is
+           nothing — so 'something vs nothing' reads instantly. */
+        .remit-banner--active { border-color: #f87171; background: #fef2f2; }
+        .remit-banner--active .remit-banner__title {
+          font-weight: 800; font-size: 1.05rem; color: var(--remit-ink);
+        }
         .remit-banner--empty {
-          border: 1px dashed #cbd5e1; background: #f8fafc; box-shadow: none;
+          border: 1px solid #cbd5e1; background: #eef2f7; box-shadow: none;
         }
         .remit-banner__title { font-weight: 700; color: var(--remit-ink); }
         .remit-banner--empty .remit-banner__title {
@@ -357,10 +364,6 @@ def inject_css() -> None:
         details.remit-collapse > summary:hover .remit-banner {
           box-shadow: 0 6px 16px -6px rgba(15,23,42,.22);
           transform: translateY(-1px);
-        }
-        details.remit-collapse > summary:hover
-          .remit-banner:not(.remit-banner--alert):not(.remit-banner--warn):not(.remit-banner--ok) {
-          border-color: var(--remit-info);
         }
         /* App header */
         .remit-masthead, .st-key-masthead {
@@ -392,36 +395,36 @@ def inject_css() -> None:
           color: var(--remit-info); font-size: 0.95em; font-weight: 700;
         }
         details.remit-collapse[open] > summary .remit-chev { transform: rotate(90deg); }
-        /* Brand-new REMIT (published within FRESH_MINUTES) — a light that
-           "runs around" the card border so it's impossible to miss when the
-           Recent panel is expanded. Falls back to a soft pulse where the
-           browser can't animate a custom angle property. */
-        @property --remit-spin {
-          syntax: '<angle>'; inherits: false; initial-value: 0deg;
+        /* Banner cards: a solid border in the flare blue, no coloured left
+           accent (kind is already shown by the pill). Scoped to the collapse
+           body so other cards on the page are untouched. */
+        .remit-collapse__body .remit-card {
+          border: 1.5px solid #93c5fd;
         }
-        .remit-card--fresh { position: relative; border: 1px solid transparent; }
-        .remit-card--fresh::before {
-          content: ""; position: absolute; inset: 0; border-radius: inherit;
-          padding: 2px; pointer-events: none;
-          background: conic-gradient(from var(--remit-spin),
-            var(--remit-info) 0deg, #93c5fd 55deg, transparent 150deg,
-            transparent 300deg, var(--remit-info) 360deg);
-          -webkit-mask: linear-gradient(#000 0 0) content-box,
-                        linear-gradient(#000 0 0);
-          -webkit-mask-composite: xor;
-                  mask: linear-gradient(#000 0 0) content-box,
-                        linear-gradient(#000 0 0);
-                  mask-composite: exclude;
-          animation: remit-spin 2.4s linear infinite;
+        /* The 'current' (published within FRESH_MINUTES) highlight — three
+           investigation variants, all calmer than the old moving bezel: a
+           single pulse at most once per 30 s (first on expansion). */
+        .remit-card--fresh { position: relative; }
+        .remit-fresh-pulse.remit-card--fresh {
+          animation: remit-pulse30 30s ease-out infinite;
         }
-        @keyframes remit-spin { to { --remit-spin: 360deg; } }
-        @supports not (background: conic-gradient(from var(--remit-spin), #000, #fff)) {
-          .remit-card--fresh { animation: remit-pulse 1.6s ease-in-out infinite; }
-          .remit-card--fresh::before { display: none; }
+        .remit-fresh-glow.remit-card--fresh {
+          animation: remit-glow30 30s ease-out infinite;
         }
-        @keyframes remit-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,.45); }
-          50%      { box-shadow: 0 0 0 5px rgba(37,99,235,0); }
+        .remit-fresh-steady.remit-card--fresh {
+          border-color: var(--remit-info); border-width: 2px;
+          box-shadow: 0 0 0 1px rgba(37,99,235,.20);
+        }
+        @keyframes remit-pulse30 {
+          0%   { border-color: var(--remit-info);
+                 box-shadow: 0 0 0 4px rgba(37,99,235,.40); }
+          7%   { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+          100% { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+        }
+        @keyframes remit-glow30 {
+          0%   { box-shadow: 0 0 0 5px rgba(37,99,235,.35); }
+          8%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+          100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
         }
         .remit-fresh-badge {
           display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.45rem;
@@ -1168,7 +1171,7 @@ def render_changes_banner(
     drops = sum(1 for c in changes if c["to"] < c["from"])
     rises = sum(1 for c in changes if c["to"] > c["from"])
 
-    banner_class = "remit-banner remit-banner--alert" if drops else "remit-banner"
+    banner_class = "remit-banner remit-banner--active"
     summary = []
     if drops:
         summary.append(
@@ -1211,7 +1214,7 @@ def render_changes_banner(
         )
 
         cards.append(
-            f"<div class='remit-card' style='border-left-color:{arrow_color}'>"
+            f"<div class='remit-card'>"
             f"<div class='remit-card__head'>"
             f"<div>{type_pill(site, cat)} {planned_pill}</div>"
             f"<div class='remit-card__meta'>{when_str}</div>"
@@ -1243,9 +1246,35 @@ def render_changes_banner(
     )
 
 
-# A REMIT counts as "fresh" — and gets the running-border highlight — for this
-# many minutes after its publication timestamp.
-FRESH_MINUTES = 10
+# A REMIT counts as "fresh" — and gets the current-highlight — for this many
+# minutes after its publication timestamp. Temporarily 2 h (120) while there is
+# nothing in a 10-minute window to look at; revert to 10 later.
+FRESH_MINUTES = 120
+
+# Investigation toggle: how a freshly-published ("current") card is highlighted.
+FRESH_STYLES = {
+    "Pulse border": "remit-fresh-pulse",
+    "Glow only": "remit-fresh-glow",
+    "Steady": "remit-fresh-steady",
+}
+
+
+def render_fresh_style_selector() -> str:
+    """Segmented control to compare the 'current REMIT' highlight styles live.
+    Returns the CSS modifier class for the chosen variant; persists across the
+    auto-refresh via its widget key."""
+    if "fresh_style" not in st.session_state:
+        st.session_state["fresh_style"] = "Pulse border"
+    label = (
+        st.segmented_control(
+            "Current-REMIT highlight",
+            list(FRESH_STYLES),
+            key="fresh_style",
+            label_visibility="collapsed",
+        )
+        or st.session_state["fresh_style"]
+    )
+    return FRESH_STYLES[label]
 
 
 def compute_recent_changes(
@@ -1302,7 +1331,10 @@ def compute_recent_changes(
 
 
 def render_recent_banner(
-    items: list[dict], cmap: dict[str, str | None], lookback_hours: int = 24
+    items: list[dict],
+    cmap: dict[str, str | None],
+    lookback_hours: int = 24,
+    fresh_style: str = "remit-fresh-pulse",
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
 
@@ -1325,9 +1357,7 @@ def render_recent_banner(
         for k in order
         if k in counts
     )
-    # Alert styling if anything dropped out of the active picture
-    alert = any(it["kind"] in ("Dismissed", "Ended") for it in items)
-    banner_class = "remit-banner remit-banner--warn" if alert else "remit-banner"
+    banner_class = "remit-banner remit-banner--active"
 
     reason_col = cmap.get("reason")
     unit_col = cmap.get("unit")
@@ -1354,7 +1384,11 @@ def render_recent_banner(
         # Just-published REMITs get a running-border highlight + a "JUST IN"
         # badge for FRESH_MINUTES after publication.
         is_fresh = 0 <= mins_since <= FRESH_MINUTES
-        card_class = "remit-card remit-card--fresh" if is_fresh else "remit-card"
+        card_class = (
+            f"remit-card remit-card--fresh {fresh_style}"
+            if is_fresh
+            else "remit-card"
+        )
         fresh_badge = (
             "<span class='remit-fresh-badge'>&#9679; JUST IN</span>"
             if is_fresh
@@ -1377,8 +1411,7 @@ def render_recent_banner(
             )
 
         cards.append(
-            f"<div class='{card_class}' "
-            f"style='border-left-color:{it['kind_color']}'>"
+            f"<div class='{card_class}'>"
             f"<div class='remit-card__head'>"
             f"<div>{pill(it['kind'], it['kind_color'])} "
             f"{type_pill(it['site'], cat)}{fresh_badge}</div>"
@@ -2476,7 +2509,8 @@ render_changes_banner(_changes, cmap)
 # Recent changes — what moved in the last 24 h (uses df, so dismissed
 # REMITs are included)
 _recent = compute_recent_changes(df, cmap, lookback_hours=24)
-render_recent_banner(_recent, cmap, lookback_hours=24)
+_fresh_style = render_fresh_style_selector()
+render_recent_banner(_recent, cmap, lookback_hours=24, fresh_style=_fresh_style)
 
 # Overlapping/conflicting REMITs — computed up front so the capacity
 # timelines can shade the affected periods.
