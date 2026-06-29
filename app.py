@@ -401,30 +401,15 @@ def inject_css() -> None:
         .remit-collapse__body .remit-card {
           border: 1.5px solid #93c5fd;
         }
-        /* The 'current' (published within FRESH_MINUTES) highlight — three
-           investigation variants, all calmer than the old moving bezel: a
-           single pulse at most once per 30 s (first on expansion). */
-        .remit-card--fresh { position: relative; }
-        .remit-fresh-pulse.remit-card--fresh {
-          animation: remit-pulse30 30s ease-out infinite;
-        }
-        .remit-fresh-glow.remit-card--fresh {
+        /* The 'current' (published within FRESH_MINUTES) highlight: a soft glow
+           that smoothly swells up and back down over ~5 s (ease-in-out on each
+           leg), idle for the rest of a 15 s cycle. Blur (not spread) keeps it
+           brightest at the border and fading with distance, so neighbouring
+           fresh cards never overlap with a hard ring. */
+        .remit-card--fresh {
+          position: relative;
           animation: remit-glow 15s ease-in-out infinite;
         }
-        .remit-fresh-steady.remit-card--fresh {
-          border-color: var(--remit-info); border-width: 2px;
-          box-shadow: 0 0 0 1px rgba(37,99,235,.20);
-        }
-        @keyframes remit-pulse30 {
-          0%   { border-color: var(--remit-info);
-                 box-shadow: 0 0 0 4px rgba(37,99,235,.40); }
-          7%   { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
-          100% { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
-        }
-        /* Glow: a smooth swell up and back down over ~5 s (ease-in-out on
-           each leg), idle for the rest of a 15 s cycle. Uses blur (not spread)
-           so the glow is brightest at the border and fades with distance —
-           neighbouring cards no longer overlap with a hard ring. */
         @keyframes remit-glow {
           0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
           17%  { box-shadow: 0 0 9px 0 rgba(37,99,235,.55); }
@@ -1251,35 +1236,9 @@ def render_changes_banner(
     )
 
 
-# A REMIT counts as "fresh" — and gets the current-highlight — for this many
-# minutes after its publication timestamp. Temporarily 2 h (120) while there is
-# nothing in a 10-minute window to look at; revert to 10 later.
-FRESH_MINUTES = 120
-
-# Investigation toggle: how a freshly-published ("current") card is highlighted.
-FRESH_STYLES = {
-    "Pulse border": "remit-fresh-pulse",
-    "Glow only": "remit-fresh-glow",
-    "Steady": "remit-fresh-steady",
-}
-
-
-def render_fresh_style_selector() -> str:
-    """Segmented control to compare the 'current REMIT' highlight styles live.
-    Returns the CSS modifier class for the chosen variant; persists across the
-    auto-refresh via its widget key."""
-    if "fresh_style" not in st.session_state:
-        st.session_state["fresh_style"] = "Pulse border"
-    label = (
-        st.segmented_control(
-            "Current-REMIT highlight",
-            list(FRESH_STYLES),
-            key="fresh_style",
-            label_visibility="collapsed",
-        )
-        or st.session_state["fresh_style"]
-    )
-    return FRESH_STYLES[label]
+# A REMIT counts as "fresh" — and gets the glow highlight — for this many
+# minutes after its publication timestamp.
+FRESH_MINUTES = 15
 
 
 def compute_recent_changes(
@@ -1336,10 +1295,7 @@ def compute_recent_changes(
 
 
 def render_recent_banner(
-    items: list[dict],
-    cmap: dict[str, str | None],
-    lookback_hours: int = 24,
-    fresh_style: str = "remit-fresh-pulse",
+    items: list[dict], cmap: dict[str, str | None], lookback_hours: int = 24
 ) -> None:
     now = pd.Timestamp.now(tz="UTC")
 
@@ -1389,11 +1345,7 @@ def render_recent_banner(
         # Just-published REMITs get a running-border highlight + a "JUST IN"
         # badge for FRESH_MINUTES after publication.
         is_fresh = 0 <= mins_since <= FRESH_MINUTES
-        card_class = (
-            f"remit-card remit-card--fresh {fresh_style}"
-            if is_fresh
-            else "remit-card"
-        )
+        card_class = "remit-card remit-card--fresh" if is_fresh else "remit-card"
         fresh_badge = (
             "<span class='remit-fresh-badge'>&#9679; JUST IN</span>"
             if is_fresh
@@ -2514,8 +2466,7 @@ render_changes_banner(_changes, cmap)
 # Recent changes — what moved in the last 24 h (uses df, so dismissed
 # REMITs are included)
 _recent = compute_recent_changes(df, cmap, lookback_hours=24)
-_fresh_style = render_fresh_style_selector()
-render_recent_banner(_recent, cmap, lookback_hours=24, fresh_style=_fresh_style)
+render_recent_banner(_recent, cmap, lookback_hours=24)
 
 # Overlapping/conflicting REMITs — computed up front so the capacity
 # timelines can shade the affected periods.
