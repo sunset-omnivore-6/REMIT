@@ -330,22 +330,41 @@ def inject_css() -> None:
         .remit-kpi__sub {
           font-size: 0.84rem; color: var(--remit-ink-soft); margin-top: 0.1rem;
         }
-        /* Banner */
+        /* Banner — a firm, fully-bordered box (like the site tiles) rather than
+           a single left accent. A populated banner IS the clickable <summary>,
+           so it carries a shadow + hover lift to read as interactive; empty
+           states use a flat, muted, dashed variant so 'nothing to expand' looks
+           obviously different at a glance. */
         .remit-banner {
-          border-radius: var(--remit-radius); padding: 0.7rem 1rem;
-          margin-bottom: 0.6rem; border-left: 5px solid var(--remit-info);
-          background: #eff6ff;
+          border: 1.5px solid var(--remit-border);
+          border-radius: var(--remit-radius);
+          padding: 0.7rem 1rem; margin-bottom: 0.6rem;
+          background: #eff6ff; box-shadow: var(--remit-shadow);
+          transition: box-shadow .15s ease, border-color .15s ease,
+                      transform .15s ease;
         }
-        .remit-banner--alert {
-          border-left-color: var(--remit-bad); background: #fef2f2;
+        .remit-banner--alert { border-color: var(--remit-bad);  background: #fef2f2; }
+        .remit-banner--warn  { border-color: var(--remit-warn); background: #fffbeb; }
+        .remit-banner--ok    { border-color: var(--remit-ok);   background: #f0fdf4; }
+        /* Top summary banners: soft red when there is something to expand
+           (same soft palette as the blue tint), blue/grey when there is
+           nothing — so 'something vs nothing' reads instantly. */
+        .remit-banner--active { border-color: #f87171; background: #fef2f2; }
+        .remit-banner--active .remit-banner__title {
+          font-weight: 800; font-size: 1.05rem; color: var(--remit-ink);
         }
-        .remit-banner--warn {
-          border-left-color: var(--remit-warn); background: #fffbeb;
-        }
-        .remit-banner--ok {
-          border-left-color: var(--remit-ok); background: #f0fdf4;
+        .remit-banner--empty {
+          border: 1px solid #cbd5e1; background: #eef2f7; box-shadow: none;
         }
         .remit-banner__title { font-weight: 700; color: var(--remit-ink); }
+        .remit-banner--empty .remit-banner__title {
+          color: var(--remit-ink-soft); font-weight: 600;
+        }
+        /* Hover lift — only the clickable (populated) summary banners react. */
+        details.remit-collapse > summary:hover .remit-banner {
+          box-shadow: 0 6px 16px -6px rgba(15,23,42,.22);
+          transform: translateY(-1px);
+        }
         /* App header */
         .remit-masthead, .st-key-masthead {
           background: #eff6ff;
@@ -373,9 +392,36 @@ def inject_css() -> None:
         details.remit-collapse[open] > summary .remit-banner { margin-bottom: 0.5rem; }
         .remit-chev {
           display: inline-block; transition: transform 0.2s ease;
-          color: var(--remit-ink-soft); font-size: 0.8em;
+          color: var(--remit-info); font-size: 0.95em; font-weight: 700;
         }
         details.remit-collapse[open] > summary .remit-chev { transform: rotate(90deg); }
+        /* Banner cards: a solid border in the flare blue, no coloured left
+           accent (kind is already shown by the pill). Scoped to the collapse
+           body so other cards on the page are untouched. */
+        .remit-collapse__body .remit-card {
+          border: 1.5px solid #93c5fd;
+        }
+        /* The 'current' (published within FRESH_MINUTES) highlight: a soft glow
+           that smoothly swells up and back down over ~5 s (ease-in-out on each
+           leg), idle for the rest of a 15 s cycle. Blur (not spread) keeps it
+           brightest at the border and fading with distance, so neighbouring
+           fresh cards never overlap with a hard ring. */
+        .remit-card--fresh {
+          position: relative;
+          animation: remit-glow 15s ease-in-out infinite;
+        }
+        @keyframes remit-glow {
+          0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+          17%  { box-shadow: 0 0 9px 0 rgba(37,99,235,.55); }
+          33%  { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+          100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+        }
+        .remit-fresh-badge {
+          display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.45rem;
+          font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
+          color: #fff; background: var(--remit-info); border-radius: 999px;
+          vertical-align: middle;
+        }
         /* Click-to-expand / click-to-compress hint (closed shows expand). */
         .remit-hint { color: #94a3b8; font-weight: 400; font-size: 0.85em; }
         .remit-hint--compress { display: none; }
@@ -1105,7 +1151,7 @@ def render_changes_banner(
 
     if not changes:
         st.markdown(
-            "<div class='remit-banner'>"
+            "<div class='remit-banner remit-banner--empty'>"
             "<span class='remit-banner__title'>Zero upcoming capacity changes "
             "(next 7 days)</span></div>",
             unsafe_allow_html=True,
@@ -1115,7 +1161,7 @@ def render_changes_banner(
     drops = sum(1 for c in changes if c["to"] < c["from"])
     rises = sum(1 for c in changes if c["to"] > c["from"])
 
-    banner_class = "remit-banner remit-banner--alert" if drops else "remit-banner"
+    banner_class = "remit-banner remit-banner--active"
     summary = []
     if drops:
         summary.append(
@@ -1158,7 +1204,7 @@ def render_changes_banner(
         )
 
         cards.append(
-            f"<div class='remit-card' style='border-left-color:{arrow_color}'>"
+            f"<div class='remit-card'>"
             f"<div class='remit-card__head'>"
             f"<div>{type_pill(site, cat)} {planned_pill}</div>"
             f"<div class='remit-card__meta'>{when_str}</div>"
@@ -1188,6 +1234,11 @@ def render_changes_banner(
         "</details>",
         unsafe_allow_html=True,
     )
+
+
+# A REMIT counts as "fresh" — and gets the glow highlight — for this many
+# minutes after its publication timestamp.
+FRESH_MINUTES = 15
 
 
 def compute_recent_changes(
@@ -1250,7 +1301,7 @@ def render_recent_banner(
 
     if not items:
         st.markdown(
-            "<div class='remit-banner'>"
+            "<div class='remit-banner remit-banner--empty'>"
             f"<span class='remit-banner__title'>Zero recent REMIT changes "
             f"(last {lookback_hours} h)</span></div>",
             unsafe_allow_html=True,
@@ -1267,9 +1318,7 @@ def render_recent_banner(
         for k in order
         if k in counts
     )
-    # Alert styling if anything dropped out of the active picture
-    alert = any(it["kind"] in ("Dismissed", "Ended") for it in items)
-    banner_class = "remit-banner remit-banner--warn" if alert else "remit-banner"
+    banner_class = "remit-banner remit-banner--active"
 
     reason_col = cmap.get("reason")
     unit_col = cmap.get("unit")
@@ -1288,11 +1337,19 @@ def render_recent_banner(
         avail = row["__availCapacity__"]
         thread = row[thread_col] if thread_col else ""
         pub = it["publication"]
-        hrs = (now - pub).total_seconds() / 3600
+        mins_since = (now - pub).total_seconds() / 60
+        hrs = mins_since / 60
         pub_str = (
-            f"{hrs:.0f} h ago"
-            if hrs >= 1
-            else f"{(now - pub).total_seconds() / 60:.0f} min ago"
+            f"{hrs:.0f} h ago" if hrs >= 1 else f"{mins_since:.0f} min ago"
+        )
+        # Just-published REMITs get a running-border highlight + a "JUST IN"
+        # badge for FRESH_MINUTES after publication.
+        is_fresh = 0 <= mins_since <= FRESH_MINUTES
+        card_class = "remit-card remit-card--fresh" if is_fresh else "remit-card"
+        fresh_badge = (
+            "<span class='remit-fresh-badge'>&#9679; JUST IN</span>"
+            if is_fresh
+            else ""
         )
         reason = str(row[reason_col]) if reason_col else ""
         reason_html = (
@@ -1311,11 +1368,10 @@ def render_recent_banner(
             )
 
         cards.append(
-            f"<div class='remit-card' "
-            f"style='border-left-color:{it['kind_color']}'>"
+            f"<div class='{card_class}'>"
             f"<div class='remit-card__head'>"
             f"<div>{pill(it['kind'], it['kind_color'])} "
-            f"{type_pill(it['site'], cat)}</div>"
+            f"{type_pill(it['site'], cat)}{fresh_badge}</div>"
             f"<div class='remit-card__meta'>Thread {short_thread(thread)} · "
             f"rev {it['rev_num']} · published {pub_str}</div>"
             f"</div>"
@@ -1614,10 +1670,9 @@ def render_site_active(
 
     if df_active_site.empty:
         st.markdown(
-            "<div class='remit-banner' style='border-left-color:var(--remit-ok);"
-            "background:#f0fdf4'><span class='remit-banner__title' "
-            "style='color:var(--remit-ok)'>All capacity available</span> — "
-            "no active outages.</div>",
+            "<div class='remit-banner remit-banner--ok'>"
+            "<span class='remit-banner__title' style='color:var(--remit-ok)'>"
+            "All capacity available</span> — no active outages.</div>",
             unsafe_allow_html=True,
         )
 
