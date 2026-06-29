@@ -422,10 +422,12 @@ def inject_css() -> None:
           100% { border-color: #93c5fd; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
         }
         /* Glow: a smooth swell up and back down over ~5 s (ease-in-out on
-           each leg), idle for the rest of a 15 s cycle. */
+           each leg), idle for the rest of a 15 s cycle. Uses blur (not spread)
+           so the glow is brightest at the border and fades with distance —
+           neighbouring cards no longer overlap with a hard ring. */
         @keyframes remit-glow {
           0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
-          17%  { box-shadow: 0 0 0 6px rgba(37,99,235,.38); }
+          17%  { box-shadow: 0 0 9px 0 rgba(37,99,235,.55); }
           33%  { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
           100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
         }
