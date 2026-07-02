@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+import pickle
 import re
+import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -88,6 +91,37 @@ DEFAULT_UNIT: dict[str, str] = {
     "Injection": "GWh/d",
     "Storage": "TWh",
 }
+
+# Recognised spellings of the API's unitOfMeasurement -> factor converting the
+# value to the category's canonical unit (flows: GWh/d, storage: TWh).
+# A missing/blank unit assumes canonical; a unit present but NOT listed here
+# is flagged (__unitUnknown__), left unconverted, and surfaced as a page
+# warning — mixed units are never silently combined.
+_UNIT_FACTOR: dict[tuple[str, str], float] = {
+    ("Withdrawal", "gwh/d"): 1.0,
+    ("Withdrawal", "gwh/day"): 1.0,
+    ("Withdrawal", "mwh/d"): 1e-3,
+    ("Withdrawal", "twh/d"): 1e3,
+    ("Injection", "gwh/d"): 1.0,
+    ("Injection", "gwh/day"): 1.0,
+    ("Injection", "mwh/d"): 1e-3,
+    ("Injection", "twh/d"): 1e3,
+    ("Storage", "twh"): 1.0,
+    ("Storage", "gwh"): 1e-3,
+    ("Storage", "mwh"): 1e-6,
+}
+
+
+def _unit_factor(category: object, unit: str) -> float:
+    """Factor converting `unit` to the canonical unit for `category`.
+
+    1.0 when the unit is blank (assume canonical) or the category is unknown;
+    NaN when the unit is present but unrecognised for the category."""
+    if category not in DEFAULT_UNIT:
+        return 1.0
+    if not unit or unit in ("nan", "none", "-"):
+        return 1.0
+    return _UNIT_FACTOR.get((category, unit), float("nan"))
 
 # National Gas data portal — current stock (Opening Stock) + storage nominations
 # used to estimate the day's stock before the official figure publishes (~4pm).
@@ -475,6 +509,36 @@ st_autorefresh(interval=REFRESH_INTERVAL_MS, key="remit_auto_refresh")
 # Fetch
 # ---------------------------------------------------------------------------
 
+# Last-good snapshot persisted to disk so a cold start (new browser session /
+# container wake) can show data immediately while SSE is briefly unreachable.
+# Best-effort by design: every read/write is wrapped, the write is atomic
+# (tmp + rename), and any failure degrades to the previous in-memory-only
+# behaviour. Survives WAF blips and app sleeps, not container rebuilds.
+SNAPSHOT_PATH = os.path.join(tempfile.gettempdir(), "remit_last_good_snapshot.pkl")
+
+
+def _save_snapshot(raw_df: pd.DataFrame, fetched_at: pd.Timestamp) -> None:
+    try:
+        tmp = SNAPSHOT_PATH + ".tmp"
+        with open(tmp, "wb") as fh:
+            pickle.dump({"raw": raw_df, "at": fetched_at}, fh)
+        os.replace(tmp, SNAPSHOT_PATH)
+    except Exception:
+        pass
+
+
+def _load_snapshot() -> tuple[pd.DataFrame | None, pd.Timestamp | None]:
+    try:
+        with open(SNAPSHOT_PATH, "rb") as fh:
+            snap = pickle.load(fh)
+        raw_df, at = snap.get("raw"), snap.get("at")
+        if isinstance(raw_df, pd.DataFrame) and not raw_df.empty:
+            return raw_df, at
+    except Exception:
+        pass
+    return None, None
+
+
 @st.cache_resource(show_spinner=False)
 def _remit_session():
     """A primed session for the SSE API. Uses curl_cffi to impersonate
@@ -603,11 +667,20 @@ def _fetch_remit_via_session(revisions: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300, show_spinner="Fetching REMIT data…")
-def fetch_remit(revisions: str = "Latest") -> pd.DataFrame:
+def fetch_remit(revisions: str = "Latest") -> tuple[pd.DataFrame, pd.Timestamp]:
     """Fetch + paginate the SSE REMIT API, cached for 5 minutes to match the
     auto-refresh cycle. Raises on failure; the caller keeps the last good
-    snapshot and shows a banner instead of crashing."""
-    return _fetch_remit_via_session(revisions)
+    snapshot and shows a banner instead of crashing.
+
+    Returns (df, fetched_at). fetched_at is captured when the data is really
+    fetched and frozen into the cache entry, so freshness reporting stays
+    honest when a rerun is served from cache. Each successful Latest fetch is
+    also persisted to disk (_save_snapshot) for cold-start recovery."""
+    df = _fetch_remit_via_session(revisions)
+    fetched_at = pd.Timestamp.now(tz="UTC")
+    if revisions == "Latest" and not df.empty:
+        _save_snapshot(df, fetched_at)
+    return df, fetched_at
 
 
 # ---------------------------------------------------------------------------
@@ -903,6 +976,29 @@ def normalise(df: pd.DataFrame, cmap: dict[str, str | None]) -> pd.DataFrame:
             pd.to_numeric(out[col], errors="coerce") if col is not None else pd.NA
         )
 
+    # Unit normalisation: scale capacities to the category's canonical unit
+    # (flows GWh/d, storage TWh) using the row's unitOfMeasurement, so the
+    # hard-coded nameplate capacities and the API values are always compared
+    # in the same unit. Unrecognised units are flagged, never guessed.
+    unit_col = cmap["unit"]
+    if unit_col is not None:
+        raw_unit = out[unit_col].astype(str).map(
+            lambda u: re.sub(r"\s+", "", u).lower()
+        )
+    else:
+        raw_unit = pd.Series("", index=out.index)
+    factor = pd.Series(
+        [_unit_factor(c, u) for c, u in zip(out["__category__"], raw_unit)],
+        index=out.index,
+        dtype="float64",
+    )
+    out["__unitUnknown__"] = factor.isna()
+    factor = factor.fillna(1.0)
+    for logical in ("techCapacity", "availCapacity", "unavailCapacity"):
+        out[f"__{logical}__"] = (
+            pd.to_numeric(out[f"__{logical}__"], errors="coerce") * factor
+        )
+
     # Status
     status_col = cmap["status"]
     out["__status__"] = out[status_col].astype(str) if status_col else "Active"
@@ -969,6 +1065,23 @@ def fmt_dt(dt) -> str:
     if pd.isna(dt):
         return "—"
     return dt.strftime("%d %b %Y, %H:%M")
+
+
+def fmt_qty(v, category: str) -> str:
+    """Capacity value at per-category precision: TWh to 2 dp, flows to 1 dp."""
+    if v is None or pd.isna(v):
+        return "—"
+    dp = 2 if DEFAULT_UNIT.get(category) == "TWh" else 1
+    return f"{float(v):.{dp}f}"
+
+
+def unavail_html(v, category: str) -> str:
+    """'<b>66.9 GWh/d</b> unavailable', or an explicit 'not stated' when the
+    REMIT carries no unavailable-capacity figure (0 is assumed in the maths)."""
+    if v is None or pd.isna(v):
+        return "unavailable capacity <b>not stated</b>"
+    unit = DEFAULT_UNIT.get(category, "")
+    return f"<b>{fmt_qty(v, category)} {unit}</b> unavailable"
 
 
 # ---------------------------------------------------------------------------
@@ -1082,9 +1195,12 @@ def compute_capacity_changes(
     tech_lookup: dict[tuple[str, str], float],
     categories: list[str],
     lookahead_days: int = 7,
-    threshold: float = 0.5,
+    threshold: float = 0.001,
 ) -> list[dict]:
-    """Find every step change in effective available capacity within window."""
+    """Find every step change in effective available capacity within window.
+
+    threshold is a float-noise epsilon only: every real REMIT-driven step is
+    reported, however small."""
     now = pd.Timestamp.now(tz="UTC")
     horizon = now + pd.Timedelta(days=lookahead_days)
     changes: list[dict] = []
@@ -1210,10 +1326,10 @@ def render_changes_banner(
             f"<div class='remit-card__meta'>{when_str}</div>"
             f"</div>"
             f"<div class='remit-card__body' style='font-size:1.1rem'>"
-            f"<b>{c['from']:g} {unit}</b> "
+            f"<b>{fmt_qty(c['from'], cat)} {unit}</b> "
             f"<span style='color:{arrow_color};font-weight:700'>{arrow}</span> "
-            f"<b style='color:{arrow_color}'>{c['to']:g} {unit}</b> "
-            f"<span class='remit-card__meta'>(tech max {c['tech']:g})</span>"
+            f"<b style='color:{arrow_color}'>{fmt_qty(c['to'], cat)} {unit}</b> "
+            f"<span class='remit-card__meta'>(tech max {fmt_qty(c['tech'], cat)})</span>"
             f"</div>"
             f"{reason_html}"
             f"</div>"
@@ -1321,18 +1437,14 @@ def render_recent_banner(
     banner_class = "remit-banner remit-banner--active"
 
     reason_col = cmap.get("reason")
-    unit_col = cmap.get("unit")
     thread_col = cmap.get("threadId")
 
     cards: list[str] = []
     for it in items:
         row = it["row"]
         cat = it["category"]
-        unit = (
-            str(row[unit_col])
-            if unit_col and pd.notna(row[unit_col])
-            else DEFAULT_UNIT.get(cat, "")
-        )
+        # Values are unit-normalised in normalise(); label with the canonical unit.
+        unit = DEFAULT_UNIT.get(cat, "")
         unavail = row["__unavailCapacity__"]
         avail = row["__availCapacity__"]
         thread = row[thread_col] if thread_col else ""
@@ -1357,15 +1469,13 @@ def render_recent_banner(
             if reason and reason not in ("-", "nan", "None")
             else ""
         )
-        cap_html = ""
-        if pd.notna(unavail):
-            avail_txt = (
-                f" · available {avail:g} {unit}" if pd.notna(avail) else ""
-            )
-            cap_html = (
-                f"<div class='remit-card__body'>"
-                f"<b>{unavail:g} {unit}</b> unavailable{avail_txt}</div>"
-            )
+        avail_txt = (
+            f" · available {fmt_qty(avail, cat)} {unit}" if pd.notna(avail) else ""
+        )
+        cap_html = (
+            f"<div class='remit-card__body'>"
+            f"{unavail_html(unavail, cat)}{avail_txt}</div>"
+        )
 
         cards.append(
             f"<div class='{card_class}'>"
@@ -1408,7 +1518,6 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
     cat = row["__category__"] or "—"
     planned = row["__planned__"]
     unavail = row["__unavailCapacity__"]
-    unit = row[cmap["unit"]] if cmap["unit"] else ""
     reason = row[cmap["reason"]] if cmap["reason"] else ""
     remarks = row[cmap["remarks"]] if cmap["remarks"] else ""
     thread = row[cmap["threadId"]] if cmap["threadId"] else ""
@@ -1426,7 +1535,7 @@ def render_event_card(row: pd.Series, cmap: dict[str, str | None]) -> str:
         f"<div>{type_pill(row['__site__'], cat)} {status_pill(planned)}</div>"
         f"<div class='remit-card__meta'>Thread {short_thread(thread)} · rev {rev}</div>"
         f"</div>"
-        f"<div class='remit-card__body'><b>{unavail:g} {unit}</b> unavailable</div>"
+        f"<div class='remit-card__body'>{unavail_html(unavail, cat)}</div>"
         f"<div class='remit-card__sub'>From: {fmt_dt(row['__eventStart__'])}</div>"
         f"<div class='remit-card__sub'>To: {fmt_dt(row['__eventEnd__'])}</div>"
         f"<div class='remit-card__sub remit-card__sub--em'>Comments: {comment}</div>"
@@ -1461,46 +1570,85 @@ def dial_gradient_color(pct: float) -> str:
 PLOTLY_FONT = "IBM Plex Sans, system-ui, sans-serif"
 
 
+def _dial_semi() -> bool:
+    """Dial-style toggle state (dev trial): semicircular vs full doughnut."""
+    return (st.session_state.get("dial_style") or "Semi") == "Semi"
+
+
 def dial_figure(
     pct: float,
     color: str,
     center_text: str | None = None,
     striped: bool = False,
+    hover_lines: list[str] | None = None,
+    semi: bool = False,
 ) -> go.Figure:
-    """A doughnut 'dial', mirroring the desktop dashboard's capacity dials.
+    """A capacity 'dial': full doughnut, or a semicircular gauge (semi=True)
+    carrying the same information in noticeably less vertical space.
 
     center_text overrides the default "<b>NN%</b>" label (e.g. "<b>&lt;0</b>").
     striped hatches the filled wedge — used to flag a stock deviation.
+    hover_lines, when given, become the dial's hover tooltip (the active
+    events driving the number); otherwise hover stays disabled.
     """
     pct = max(0.0, min(100.0, float(pct)))
     # Defined track + slightly thicker ring + crisp white separator so each dial
     # reads as a solid gauge rather than a flat ring.
     track, hole, seg_line = "#cbd5e1", 0.70, dict(color="#ffffff", width=2)
-    marker = dict(colors=[color, track], line=seg_line)
+    if semi:
+        # Top half only: an invisible slice fills the bottom 180°, and
+        # rotation=270 starts the visible arc at 9 o'clock.
+        values = [pct, 100.0 - pct, 100.0]
+        colors = [color, track, "rgba(0,0,0,0)"]
+        rotation = 270
+    else:
+        values = [pct, 100.0 - pct]
+        colors = [color, track]
+        rotation = 0
+    marker = dict(colors=colors, line=seg_line)
     if striped:
-        marker["pattern"] = dict(shape=["/", ""], size=9, solidity=0.45)
+        marker["pattern"] = dict(
+            shape=["/"] + [""] * (len(values) - 1), size=9, solidity=0.45
+        )
+    if hover_lines:
+        hover_kwargs = dict(
+            hoverinfo="text",
+            hovertext=["<br>".join(hover_lines)] * len(values),
+        )
+    else:
+        hover_kwargs = dict(hoverinfo="skip")
     fig = go.Figure(
         go.Pie(
-            values=[pct, 100 - pct],
+            values=values,
             hole=hole,
             sort=False,
             direction="clockwise",
-            rotation=0,
+            rotation=rotation,
             marker=marker,
             textinfo="none",
-            hoverinfo="skip",
             showlegend=False,
+            **hover_kwargs,
         )
     )
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
-        height=128,
+        height=88 if semi else 128,
         paper_bgcolor="rgba(0,0,0,0)",
+        hoverlabel=dict(
+            bgcolor="#ffffff",
+            bordercolor="#cbd5e1",
+            align="left",
+            font=dict(family=PLOTLY_FONT, size=12, color="#0f172a"),
+        ),
         annotations=[
             dict(
+                # Semi: the label sits on the gauge's flat base (= pie centre);
+                # the full doughnut keeps it in the middle of the hole.
                 text=center_text if center_text is not None else f"<b>{pct:.0f}%</b>",
                 x=0.5, y=0.5, showarrow=False,
-                font=dict(family=PLOTLY_FONT, size=24, color=color),
+                font=dict(
+                    family=PLOTLY_FONT, size=20 if semi else 24, color=color
+                ),
             )
         ],
     )
@@ -1525,30 +1673,40 @@ def _render_capacity_dial(
         pct = float("nan")
     color = dial_gradient_color(pct if pd.notna(pct) else 100)
 
-    unit_col = cmap.get("unit")
-    if unit_col:
-        unit_vals = df_active_site[
-            (df_active_site["__site__"] == site)
-            & (df_active_site["__category__"] == cat)
-        ][unit_col].dropna()
-        unit_str = (
-            str(unit_vals.mode().iloc[0]) if not unit_vals.empty
-            else DEFAULT_UNIT.get(cat, "")
+    # Values are unit-normalised in normalise(); label with the canonical unit.
+    unit_str = DEFAULT_UNIT.get(cat, "")
+
+    # Hover tooltip: the active events driving this dial's number.
+    thread_col = cmap.get("threadId")
+    sub = df_active_site[
+        (df_active_site["__site__"] == site)
+        & (df_active_site["__category__"] == cat)
+    ]
+    hover_lines = (
+        [f"<b>{site_label(site)} {cat} — {len(sub)} active</b>"] if len(sub) else []
+    )
+    for _, r in sub.iterrows():
+        t = short_thread(r[thread_col]) if thread_col else "?"
+        un = r["__unavailCapacity__"]
+        un_txt = (
+            f"{fmt_qty(un, cat)} {unit_str} unavailable"
+            if pd.notna(un) else "unavailable not stated"
         )
-    else:
-        unit_str = DEFAULT_UNIT.get(cat, "")
+        hover_lines.append(
+            f"{t} · {r['__planned__']} · {un_txt} · to {fmt_dt(r['__eventEnd__'])}"
+        )
 
     count_txt = f"{n} active event{'s' if n != 1 else ''}"
     st.markdown(f"<div class='remit-dial__cat'>{cat_pill(cat)}</div>", unsafe_allow_html=True)
     if pd.notna(pct):
         st.plotly_chart(
-            dial_figure(pct, color),
+            dial_figure(pct, color, hover_lines=hover_lines, semi=_dial_semi()),
             use_container_width=True,
             config={"displayModeBar": False},
             key=f"dial-{site}-{cat}",
         )
-        avail_str = f"{avail:g}" if pd.notna(avail) else "—"
-        tech_str = f"{tech:g}" if pd.notna(tech) else "—"
+        avail_str = fmt_qty(avail, cat)
+        tech_str = fmt_qty(tech, cat)
         st.markdown(
             f"<div class='remit-dial__sub'>{avail_str} / {tech_str} {unit_str}</div>"
             f"<div class='remit-dial__count'>{count_txt}</div>",
@@ -1570,7 +1728,7 @@ def _render_stock_dial(site: str, status: dict | None) -> None:
     s = status or {"available": False}
     if not s.get("available"):
         st.plotly_chart(
-            dial_figure(0, "#cbd5e1", center_text="<b>n/a</b>"),
+            dial_figure(0, "#cbd5e1", center_text="<b>n/a</b>", semi=_dial_semi()),
             use_container_width=True, config={"displayModeBar": False},
             key=f"dial-{site}-Stock",
         )
@@ -1591,7 +1749,10 @@ def _render_stock_dial(site: str, status: dict | None) -> None:
         center, color = f"<b>{pct:.0f}%</b>", dial_gradient_color(fill)
 
     st.plotly_chart(
-        dial_figure(fill, color, center_text=center, striped=bool(s.get("flagged"))),
+        dial_figure(
+            fill, color, center_text=center,
+            striped=bool(s.get("flagged")), semi=_dial_semi(),
+        ),
         use_container_width=True, config={"displayModeBar": False},
         key=f"dial-{site}-Stock",
     )
@@ -1786,7 +1947,6 @@ def render_upcoming(
         for _, row in sub.iterrows():
             opacity = "0.75" if muted else "1.0"
             site = row["__site__"]
-            unit = row[cmap["unit"]] if cmap["unit"] else ""
             unavail = row["__unavailCapacity__"]
             reason = row[cmap["reason"]] if cmap["reason"] else ""
             st.markdown(
@@ -1795,7 +1955,7 @@ def render_upcoming(
                 f"<span class='remit-line'><b>{site_label(site)}</b> · "
                 f"{fmt_dt(row['__eventStart__'])} → "
                 f"{fmt_dt(row['__eventEnd__'])} · "
-                f"<b>{unavail:g} {unit}</b> unavailable · "
+                f"{unavail_html(unavail, cat)} · "
                 f"<span class='remit-line__meta'>{reason}</span></span>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -1998,7 +2158,8 @@ def render_conflicts(conflicts: list[dict], cmap: dict[str, str | None]) -> None
                 f"<b>{_ident(row)}</b> · "
                 f"{fmt_dt(row['__eventStart__'])} → "
                 f"{fmt_dt(row['__eventEnd__'])} · "
-                f"avail <b>{av:g}</b> / unavail <b>{un:g}</b> · "
+                f"avail <b>{fmt_qty(av, c['category'])}</b> / "
+                f"unavail <b>{fmt_qty(un, c['category'])}</b> · "
                 f"<span class='remit-line__meta'>{row['__planned__']}"
                 f"{reason}</span></div>"
             )
@@ -2287,6 +2448,14 @@ HORIZON_PRESETS = {"7d": 7, "14d": 14, "30d": 30, "60d": 60, "90d": 90}
 
 
 def _use_preset_horizon() -> None:
+    # segmented_control deselects when the active pill is clicked again; snap
+    # back to the previous choice so the app never silently reverts to the
+    # default with no pill highlighted.
+    if st.session_state.get("horizon_preset") is None:
+        st.session_state["horizon_preset"] = st.session_state.get(
+            "horizon_last_preset", "30d"
+        )
+    st.session_state["horizon_last_preset"] = st.session_state["horizon_preset"]
     st.session_state["horizon_mode"] = "preset"
 
 
@@ -2351,6 +2520,7 @@ with st.container(key="masthead"):
             "<div class='remit-header__sub'>Aldbrough &amp; Hornsea &middot; live "
             "REMIT / UoF data from "
             "<a href='https://thermaloutages.sse.com/gas-uof'>thermaloutages.sse.com</a>"
+            " &middot; all times UTC"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -2372,16 +2542,25 @@ ACTIVE_CATEGORIES = list(CATEGORIES)
 # the next 5-min auto-refresh.
 _fetch_error: str | None = None
 try:
-    _fresh = fetch_remit("Latest")
+    _fresh, _fetched_at = fetch_remit("Latest")
     if _fresh.empty:
         _fetch_error = "API returned no records."
     else:
         st.session_state["last_good_raw"] = _fresh
-        st.session_state["last_good_at"] = pd.Timestamp.now(tz="UTC")
+        st.session_state["last_good_at"] = _fetched_at
 except Exception as exc:
     _fetch_error = str(exc)
 
 raw = st.session_state.get("last_good_raw")
+
+# Cold start with a failing live fetch: fall back to the on-disk snapshot
+# from a previous session, shown behind the usual staleness banner.
+if raw is None or raw.empty:
+    _disk_raw, _disk_at = _load_snapshot()
+    if _disk_raw is not None:
+        st.session_state["last_good_raw"] = _disk_raw
+        st.session_state["last_good_at"] = _disk_at
+        raw = _disk_raw
 
 if raw is None or raw.empty:
     # Cold start and SSE briefly unreachable — show a clean "connecting" state,
@@ -2415,6 +2594,24 @@ if _fetch_error:
 
 cmap = detect_columns(raw)
 df = normalise(raw, cmap)
+
+# Unit-normalisation diagnostics: never silently mix units.
+if "__unitUnknown__" in df.columns and bool(df["__unitUnknown__"].any()):
+    _n_bad = int(df["__unitUnknown__"].sum())
+    _bad_units = (
+        sorted(
+            df.loc[df["__unitUnknown__"], cmap["unit"]]
+            .astype(str).str.strip().unique()
+        )
+        if cmap.get("unit")
+        else []
+    )
+    st.warning(
+        f"⚠️ {_n_bad} REMIT row(s) use an unrecognised unit of measurement"
+        + (f" ({', '.join(_bad_units)})" if _bad_units else "")
+        + " — these values are shown unconverted and capacity figures for the "
+        "affected site/category may be inconsistent."
+    )
 
 # Detection diagnostics
 missing = [k for k, v in cmap.items() if v is None
@@ -2478,6 +2675,14 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 #   3. active-now cards
 st.divider()
 section_header("Capacity availability", "Live — latest revision per thread")
+# Dial-style trial (dev): semicircular gauge vs the original full doughnut.
+st.session_state.setdefault("dial_style", "Semi")
+st.segmented_control(
+    "Dial style",
+    ["Semi", "Full"],
+    key="dial_style",
+    label_visibility="collapsed",
+)
 _ng = fetch_national_gas()  # current stock + nominations (None on failure)
 with st.container(key="wheels"):
     hero_l, hero_r = st.columns(2, gap="large")
@@ -2542,6 +2747,10 @@ with tl_r:
             "Atwick", df_op, horizon_days, ACTIVE_CATEGORIES
         ),
     )
+st.caption(
+    "Past portion is reconstructed from the latest revision of each REMIT — "
+    "revised or dismissed notices rewrite the displayed history. All times UTC."
+)
 
 st.divider()
 section_header("Detail views")
@@ -2580,7 +2789,7 @@ with tab_conf:
 history_df: pd.DataFrame | None = None
 if include_history:
     try:
-        hist_raw = fetch_remit("All")
+        hist_raw, _ = fetch_remit("All")
         if not hist_raw.empty:
             history_df = normalise(hist_raw, detect_columns(hist_raw))
     except Exception as exc:
@@ -2598,7 +2807,13 @@ with tab_rev:
             "the revision history of each REMIT thread."
         )
 
+_shown_at = st.session_state.get("last_good_at")
 st.caption(
-    f"Data refreshed at {now.strftime('%d %b %Y %H:%M UTC')}. "
-    f"Auto-refresh every 5 min — use ⟳ Refresh to force reload."
+    "Data fetched at "
+    + (
+        _shown_at.strftime("%d %b %Y %H:%M UTC")
+        if _shown_at is not None
+        else "—"
+    )
+    + ". Auto-refresh every 5 min — use ⟳ Refresh to force reload."
 )
