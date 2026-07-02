@@ -1570,70 +1570,70 @@ def dial_gradient_color(pct: float) -> str:
 PLOTLY_FONT = "IBM Plex Sans, system-ui, sans-serif"
 
 
-def _dial_semi() -> bool:
-    """Dial-style toggle state (dev trial): semicircular vs full doughnut."""
-    return (st.session_state.get("dial_style") or "Semi") == "Semi"
-
-
 def dial_figure(
     pct: float,
     color: str,
     center_text: str | None = None,
     striped: bool = False,
     hover_lines: list[str] | None = None,
-    semi: bool = False,
 ) -> go.Figure:
-    """A capacity 'dial': full doughnut, or a semicircular gauge (semi=True)
-    carrying the same information in noticeably less vertical space.
+    """A doughnut 'dial', mirroring the desktop dashboard's capacity dials.
 
     center_text overrides the default "<b>NN%</b>" label (e.g. "<b>&lt;0</b>").
     striped hatches the filled wedge — used to flag a stock deviation.
     hover_lines, when given, become the dial's hover tooltip (the active
-    events driving the number); otherwise hover stays disabled.
+    events driving the number); otherwise hover stays disabled. An invisible
+    marker over the doughnut hole makes the whole dial — centre included —
+    a hover target, not just the coloured ring.
     """
     pct = max(0.0, min(100.0, float(pct)))
     # Defined track + slightly thicker ring + crisp white separator so each dial
     # reads as a solid gauge rather than a flat ring.
     track, hole, seg_line = "#cbd5e1", 0.70, dict(color="#ffffff", width=2)
-    if semi:
-        # Top half only: an invisible slice fills the bottom 180°, and
-        # rotation=270 starts the visible arc at 9 o'clock.
-        values = [pct, 100.0 - pct, 100.0]
-        colors = [color, track, "rgba(0,0,0,0)"]
-        rotation = 270
-    else:
-        values = [pct, 100.0 - pct]
-        colors = [color, track]
-        rotation = 0
-    marker = dict(colors=colors, line=seg_line)
+    marker = dict(colors=[color, track], line=seg_line)
     if striped:
-        marker["pattern"] = dict(
-            shape=["/"] + [""] * (len(values) - 1), size=9, solidity=0.45
-        )
-    if hover_lines:
-        hover_kwargs = dict(
-            hoverinfo="text",
-            hovertext=["<br>".join(hover_lines)] * len(values),
-        )
+        marker["pattern"] = dict(shape=["/", ""], size=9, solidity=0.45)
+    hover_text = "<br>".join(hover_lines) if hover_lines else None
+    if hover_text:
+        hover_kwargs = dict(hoverinfo="text", hovertext=[hover_text, hover_text])
     else:
         hover_kwargs = dict(hoverinfo="skip")
     fig = go.Figure(
         go.Pie(
-            values=values,
+            values=[pct, 100 - pct],
             hole=hole,
             sort=False,
             direction="clockwise",
-            rotation=rotation,
+            rotation=0,
             marker=marker,
             textinfo="none",
             showlegend=False,
             **hover_kwargs,
         )
     )
+    if hover_text:
+        # Invisible marker filling the hole so hovering the centre (where the
+        # % label sits) also raises the tooltip. Hidden cartesian axes span
+        # the same square the pie is inscribed in.
+        fig.add_trace(
+            go.Scatter(
+                x=[0],
+                y=[0],
+                mode="markers",
+                marker=dict(size=hole * 128, color="rgba(0,0,0,0)"),
+                hoverinfo="text",
+                hovertext=hover_text,
+                showlegend=False,
+            )
+        )
+        fig.update_xaxes(visible=False, range=[-1, 1], fixedrange=True)
+        fig.update_yaxes(visible=False, range=[-1, 1], fixedrange=True)
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
-        height=88 if semi else 128,
+        height=128,
         paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        hovermode="closest",
         hoverlabel=dict(
             bgcolor="#ffffff",
             bordercolor="#cbd5e1",
@@ -1642,13 +1642,9 @@ def dial_figure(
         ),
         annotations=[
             dict(
-                # Semi: the label sits on the gauge's flat base (= pie centre);
-                # the full doughnut keeps it in the middle of the hole.
                 text=center_text if center_text is not None else f"<b>{pct:.0f}%</b>",
                 x=0.5, y=0.5, showarrow=False,
-                font=dict(
-                    family=PLOTLY_FONT, size=20 if semi else 24, color=color
-                ),
+                font=dict(family=PLOTLY_FONT, size=24, color=color),
             )
         ],
     )
@@ -1682,9 +1678,10 @@ def _render_capacity_dial(
         (df_active_site["__site__"] == site)
         & (df_active_site["__category__"] == cat)
     ]
-    hover_lines = (
-        [f"<b>{site_label(site)} {cat} — {len(sub)} active</b>"] if len(sub) else []
-    )
+    hover_lines = []
+    # Compact lines (three per event) so the tooltip never outgrows the dial
+    # column — plotly hover labels don't wrap, they clip at the plot edge.
+    # Site + category are omitted: the dial's own pills already say both.
     for _, r in sub.iterrows():
         t = short_thread(r[thread_col]) if thread_col else "?"
         un = r["__unavailCapacity__"]
@@ -1692,15 +1689,17 @@ def _render_capacity_dial(
             f"{fmt_qty(un, cat)} {unit_str} unavailable"
             if pd.notna(un) else "unavailable not stated"
         )
-        hover_lines.append(
-            f"{t} · {r['__planned__']} · {un_txt} · to {fmt_dt(r['__eventEnd__'])}"
-        )
+        if hover_lines:
+            hover_lines.append("")  # blank spacer between events
+        hover_lines.append(f"<b>{t}</b> · {r['__planned__']}")
+        hover_lines.append(un_txt)
+        hover_lines.append(f"until {fmt_dt(r['__eventEnd__'])}")
 
     count_txt = f"{n} active event{'s' if n != 1 else ''}"
     st.markdown(f"<div class='remit-dial__cat'>{cat_pill(cat)}</div>", unsafe_allow_html=True)
     if pd.notna(pct):
         st.plotly_chart(
-            dial_figure(pct, color, hover_lines=hover_lines, semi=_dial_semi()),
+            dial_figure(pct, color, hover_lines=hover_lines),
             use_container_width=True,
             config={"displayModeBar": False},
             key=f"dial-{site}-{cat}",
@@ -1728,7 +1727,7 @@ def _render_stock_dial(site: str, status: dict | None) -> None:
     s = status or {"available": False}
     if not s.get("available"):
         st.plotly_chart(
-            dial_figure(0, "#cbd5e1", center_text="<b>n/a</b>", semi=_dial_semi()),
+            dial_figure(0, "#cbd5e1", center_text="<b>n/a</b>"),
             use_container_width=True, config={"displayModeBar": False},
             key=f"dial-{site}-Stock",
         )
@@ -1749,10 +1748,7 @@ def _render_stock_dial(site: str, status: dict | None) -> None:
         center, color = f"<b>{pct:.0f}%</b>", dial_gradient_color(fill)
 
     st.plotly_chart(
-        dial_figure(
-            fill, color, center_text=center,
-            striped=bool(s.get("flagged")), semi=_dial_semi(),
-        ),
+        dial_figure(fill, color, center_text=center, striped=bool(s.get("flagged"))),
         use_container_width=True, config={"displayModeBar": False},
         key=f"dial-{site}-Stock",
     )
@@ -2675,14 +2671,6 @@ _conflicts = detect_conflicts(df_op, ACTIVE_CATEGORIES, cmap)
 #   3. active-now cards
 st.divider()
 section_header("Capacity availability", "Live — latest revision per thread")
-# Dial-style trial (dev): semicircular gauge vs the original full doughnut.
-st.session_state.setdefault("dial_style", "Semi")
-st.segmented_control(
-    "Dial style",
-    ["Semi", "Full"],
-    key="dial_style",
-    label_visibility="collapsed",
-)
 _ng = fetch_national_gas()  # current stock + nominations (None on failure)
 with st.container(key="wheels"):
     hero_l, hero_r = st.columns(2, gap="large")
