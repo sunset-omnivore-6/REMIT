@@ -1643,6 +1643,10 @@ def dial_figure(
         annotations=[
             dict(
                 text=center_text if center_text is not None else f"<b>{pct:.0f}%</b>",
+                # Paper coords, explicitly: when the hover-catcher axes exist,
+                # the default xref/yref becomes DATA coords and 0.5/0.5 lands
+                # up-right of centre instead of in the middle of the hole.
+                xref="paper", yref="paper",
                 x=0.5, y=0.5, showarrow=False,
                 font=dict(family=PLOTLY_FONT, size=24, color=color),
             )
