@@ -14,6 +14,8 @@ import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+import remit_availability as ra
+
 # curl_cffi speaks Chrome's actual TLS handshake (JA3/JA4) so we look like
 # Chromium at the socket level, not just the HTTP layer. This is the durable
 # fix for SSE's WAF — header-matching alone is fragile because the WAF can
@@ -515,21 +517,29 @@ st_autorefresh(interval=REFRESH_INTERVAL_MS, key="remit_auto_refresh")
 # (tmp + rename), and any failure degrades to the previous in-memory-only
 # behaviour. Survives WAF blips and app sleeps, not container rebuilds.
 SNAPSHOT_PATH = os.path.join(tempfile.gettempdir(), "remit_last_good_snapshot.pkl")
+# Separate snapshot for the Availability section's full-revision dataset.
+AVAIL_SNAPSHOT_PATH = os.path.join(
+    tempfile.gettempdir(), "remit_availability_snapshot.pkl"
+)
 
 
-def _save_snapshot(raw_df: pd.DataFrame, fetched_at: pd.Timestamp) -> None:
+def _save_snapshot(
+    raw_df: pd.DataFrame, fetched_at: pd.Timestamp, path: str = SNAPSHOT_PATH
+) -> None:
     try:
-        tmp = SNAPSHOT_PATH + ".tmp"
+        tmp = path + ".tmp"
         with open(tmp, "wb") as fh:
             pickle.dump({"raw": raw_df, "at": fetched_at}, fh)
-        os.replace(tmp, SNAPSHOT_PATH)
+        os.replace(tmp, path)
     except Exception:
         pass
 
 
-def _load_snapshot() -> tuple[pd.DataFrame | None, pd.Timestamp | None]:
+def _load_snapshot(
+    path: str = SNAPSHOT_PATH,
+) -> tuple[pd.DataFrame | None, pd.Timestamp | None]:
     try:
-        with open(SNAPSHOT_PATH, "rb") as fh:
+        with open(path, "rb") as fh:
             snap = pickle.load(fh)
         raw_df, at = snap.get("raw"), snap.get("at")
         if isinstance(raw_df, pd.DataFrame) and not raw_df.empty:
@@ -680,6 +690,44 @@ def fetch_remit(revisions: str = "Latest") -> tuple[pd.DataFrame, pd.Timestamp]:
     fetched_at = pd.Timestamp.now(tz="UTC")
     if revisions == "Latest" and not df.empty:
         _save_snapshot(df, fetched_at)
+    return df, fetched_at
+
+
+@st.cache_data(ttl=3600, show_spinner="Fetching full REMIT revision history…")
+def fetch_remit_all_revisions() -> tuple[pd.DataFrame, pd.Timestamp]:
+    """Every revision of every REMIT (revisionsReturned=All) for the
+    Availability section. Fires only from its Run button; cached 1 h so
+    widget interactions and repeat Runs never re-hammer the WAF.
+
+    Paginates until an EMPTY page — totalCount-style fields are deliberately
+    not trusted (a wrong guessed key once silently truncated the dataset to
+    100 rows and dropped a long-advance planned outage). The schema is
+    asserted so drift fails loudly instead of silently dropping columns."""
+    session = _remit_session()
+    rows: list[dict] = []
+    page = 1
+    while True:
+        payload, session = _get_page_with_retry(session, _api_params(page, "All"))
+        if isinstance(payload, dict):
+            items = (
+                payload.get("items")
+                or payload.get("data")
+                or payload.get("results")
+                or []
+            )
+        else:
+            items = payload or []
+        if not items:
+            break
+        rows.extend(items)
+        page += 1
+        if page > 500:  # runaway guard only — never a stop condition in practice
+            break
+    df = pd.json_normalize(rows)
+    ra.assert_schema(df)
+    fetched_at = pd.Timestamp.now(tz="UTC")
+    if not df.empty:
+        _save_snapshot(df, fetched_at, AVAIL_SNAPSHOT_PATH)
     return df, fetched_at
 
 
@@ -2798,6 +2846,150 @@ with tab_rev:
             "Enable “Include older revisions” at the top of the page to browse "
             "the revision history of each REMIT thread."
         )
+
+# ---------------------------------------------------------------------------
+# Withdrawal availability (storage year) — revision-aware daily reconstruction.
+# Standalone section at the bottom of the page. Non-intrusive: on load it
+# contributes only the compact control row; the engine (remit_availability.py)
+# runs ONLY when the Run button is clicked, and the result persists in
+# session_state so reruns (e.g. the download click) don't recompute.
+# ---------------------------------------------------------------------------
+
+st.divider()
+section_header("Withdrawal availability", "Storage year · revision-aware")
+
+# Aldbrough cap is year-dependent; prefilled on year change, user-overridable.
+_AVAIL_ALD_CAPS = {2025: 262.0, 2026: 287.777775}
+_AVAIL_ALD_DEFAULT = 287.777775
+_AVAIL_ATW_DEFAULT = 100.0
+
+
+def _avail_current_sy() -> int:
+    """Current storage year: SY N = 1 May N -> 30 Apr N+1 (Europe/London)."""
+    try:
+        from zoneinfo import ZoneInfo
+        t = datetime.now(ZoneInfo("Europe/London"))
+    except Exception:
+        t = datetime.now(timezone.utc)
+    return t.year if t.month >= 5 else t.year - 1
+
+
+def _avail_prefill_caps() -> None:
+    sy = st.session_state.get("avail_sy", _avail_current_sy())
+    st.session_state["avail_cap_ald"] = _AVAIL_ALD_CAPS.get(sy, _AVAIL_ALD_DEFAULT)
+    st.session_state["avail_cap_atw"] = _AVAIL_ATW_DEFAULT
+
+
+_avail_cur_sy = _avail_current_sy()
+if "avail_cap_ald" not in st.session_state:
+    st.session_state["avail_cap_ald"] = _AVAIL_ALD_CAPS.get(
+        _avail_cur_sy, _AVAIL_ALD_DEFAULT
+    )
+if "avail_cap_atw" not in st.session_state:
+    st.session_state["avail_cap_atw"] = _AVAIL_ATW_DEFAULT
+
+av_c1, av_c2, av_c3, av_c4 = st.columns(
+    [1.5, 1.5, 1.5, 1.0], vertical_alignment="bottom"
+)
+with av_c1:
+    _avail_sy = st.selectbox(
+        "Storage year",
+        list(range(_avail_cur_sy, _avail_cur_sy - 4, -1)),
+        key="avail_sy",
+        format_func=lambda y: f"SY{y} · May {y} – Apr {y + 1}",
+        on_change=_avail_prefill_caps,
+    )
+with av_c2:
+    _avail_cap_ald = st.number_input(
+        "Aldbrough max cap (GWh/d)", min_value=0.0, key="avail_cap_ald",
+        format="%.6f",
+    )
+with av_c3:
+    _avail_cap_atw = st.number_input(
+        "Atwick max cap (GWh/d)", min_value=0.0, key="avail_cap_atw",
+        format="%.6f",
+    )
+with av_c4:
+    _avail_run = st.button("Run availability", use_container_width=True)
+
+if _avail_run:
+    _av_banner: str | None = None
+    try:
+        _av_rev, _av_at = fetch_remit_all_revisions()
+    except Exception:
+        _av_rev, _av_at = _load_snapshot(AVAIL_SNAPSHOT_PATH)
+        if _av_rev is not None:
+            _av_when = (
+                _av_at.strftime("%d %b %Y %H:%M UTC")
+                if _av_at is not None else "an unknown time"
+            )
+            _av_banner = (
+                "Couldn't refresh REMIT data — results are from the last "
+                f"saved snapshot ({_av_when})."
+            )
+    if _av_rev is None or _av_rev.empty:
+        st.error(
+            "Couldn't fetch the REMIT revision history and no saved snapshot "
+            "is available — please try again in a few minutes."
+        )
+    else:
+        try:
+            _av_table = ra.compute_availability(
+                _av_rev,
+                int(_avail_sy),
+                {
+                    "Aldbrough": float(_avail_cap_ald),
+                    "Atwick": float(_avail_cap_atw),
+                },
+            )
+            st.session_state["avail_result"] = {
+                "table": _av_table,
+                "sy": int(_avail_sy),
+                "caps": (float(_avail_cap_ald), float(_avail_cap_atw)),
+                "banner": _av_banner,
+            }
+        except ValueError as exc:
+            st.error(str(exc))
+        except Exception:
+            st.error(
+                "The availability calculation failed — the REMIT data may "
+                "have changed shape. Please try again later."
+            )
+
+_av_res = st.session_state.get("avail_result")
+if _av_res is not None:
+    if _av_res["banner"]:
+        st.warning(f"⚠️ {_av_res['banner']}")
+    _av_t = _av_res["table"]
+    st.download_button(
+        "⬇ Download CSV",
+        _av_t.to_csv(index=False).encode(),
+        file_name=f"remit_availability_SY{_av_res['sy']}.csv",
+        mime="text/csv",
+    )
+    # Display copy only: st.dataframe renders null cells as a grey "None"
+    # (Styler na_rep and NumberColumn both ignored for nulls in 1.58), so the
+    # two avail columns are formatted as UNIFORM strings ("44.00" / "" ) for
+    # display — a single-dtype string column is Arrow-safe. The stored table
+    # (session_state) and the CSV keep the real float NaN columns.
+    _av_disp = _av_t.copy()
+    for _av_c in ("Aldbrough avail GWh/d", "Atwick avail GWh/d"):
+        _av_disp[_av_c] = _av_disp[_av_c].map(
+            lambda v: "" if pd.isna(v) else f"{v:.2f}"
+        )
+    st.dataframe(
+        _av_disp,
+        use_container_width=True,
+        hide_index=True,
+        # Natural height (all rows visible) — no fixed-height scroll box.
+        height=int(35 * (len(_av_disp) + 1) + 4),
+    )
+    st.caption(
+        f"SY{_av_res['sy']} · caps {_av_res['caps'][0]:g} / "
+        f"{_av_res['caps'][1]:g} GWh/d · blank = full availability (at cap) · "
+        "flags: midrev = revised mid-event that day, posthumous = revised "
+        "after the event ended (counted on the stop day) · 0 = clean."
+    )
 
 _shown_at = st.session_state.get("last_good_at")
 st.caption(
