@@ -105,14 +105,21 @@ def compute_availability(
     r = df_revisions[df_revisions["typeOfEvent"] == "Withdrawal unavailability"].copy()
     # Timestamps mix fractional and non-fractional seconds — ISO8601 mode is
     # required; a fixed format string crashes.
+    # .dt.as_unit("ns") pins one resolution: pandas 3 otherwise infers
+    # s/us/ns per column from the strings, and the minute grid / searchsorted
+    # / fillna below all assume a common unit.
     r["publicationDateTime"] = pd.to_datetime(
         r["publicationDateTime"], format="ISO8601", utc=True
-    )
-    r["eventStart"] = pd.to_datetime(r["eventStart"], format="ISO8601", utc=True)
+    ).dt.as_unit("ns")
+    r["eventStart"] = pd.to_datetime(
+        r["eventStart"], format="ISO8601", utc=True
+    ).dt.as_unit("ns")
     # Missing stop = indefinitely active (runs to the analysis window end).
-    r["eventStop"] = pd.to_datetime(
-        r["eventStop"], format="ISO8601", utc=True
-    ).fillna(y_end_utc)
+    r["eventStop"] = (
+        pd.to_datetime(r["eventStop"], format="ISO8601", utc=True)
+        .dt.as_unit("ns")
+        .fillna(y_end_utc)
+    )
     # Blank availableCapacity means "no available capacity", not "unknown".
     r["availableCapacity"] = pd.to_numeric(
         r["availableCapacity"], errors="coerce"
