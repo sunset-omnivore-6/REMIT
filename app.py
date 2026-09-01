@@ -148,6 +148,7 @@ COLOR = {
     "Stock": "#0891b2",
     "Planned": "#2563eb",
     "Unplanned": "#dc2626",
+    "Retired": "#7c3aed",   # Inactive before its stop time (superseded)
 }
 
 # Display-only site rename: data keeps "Atwick" everywhere (matching, thread
@@ -1105,6 +1106,67 @@ def upcoming(df: pd.DataFrame, now: pd.Timestamp, horizon_days: int) -> pd.DataF
     return df[mask].sort_values("__eventStart__")
 
 
+def status_flags(status: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """(dismissed, inactive) boolean masks from an eventStatus series."""
+    s = status.astype(str).str.lower()
+    return s.str.contains("dismiss", na=False), s.str.contains("inactive", na=False)
+
+
+def build_operational(
+    df: pd.DataFrame, cmap: dict[str, str | None], categories: list[str]
+) -> pd.DataFrame:
+    """Operational dataset: known site + category, not Dismissed, latest
+    revision per thread — with 'Inactive' notices in force only until the
+    revision that retired them was published.
+
+    SSE retires a notice by publishing a revision whose eventStatus is
+    'Inactive' (not 'Dismissed'), and uses the same status when an outage
+    simply ends. The two are told apart by timing: an outage that ended
+    naturally already has its stop at/before that publication (clamping is a
+    no-op), whereas a notice retired or superseded early still carries a
+    future stop. Pulling that stop back to the retirement instant releases
+    the capacity in every operational view (wheels, active outages, upcoming
+    changes, timeline, calendar, conflicts) while the reconstructed past still
+    shows the period the notice genuinely ran. The original stop is kept in
+    `df` (Recent changes / All data) untouched.
+    """
+    dismissed, _ = status_flags(df["__status__"])
+    out = df[
+        df["__site__"].isin(SITES)
+        & ~dismissed
+        & df["__category__"].isin(categories)
+    ].copy()
+    if out.empty:
+        return out
+
+    _, inactive = status_flags(out["__status__"])
+    clamp = inactive & out["__publication__"].notna()
+    if clamp.any():
+        end = out.loc[clamp, "__eventEnd__"]
+        pub = out.loc[clamp, "__publication__"]
+        # Keep the stop where it is already at/before the retirement; pull it
+        # back to the retirement instant otherwise (NaT stop -> retirement).
+        out.loc[clamp, "__eventEnd__"] = end.where(end <= pub, pub)
+
+    # Safety net: keep only the latest revision per thread. The API already
+    # does this via revisionsReturned=Latest, so this is a no-op on normal
+    # data. Rows without a thread id are left untouched (never collapsed).
+    thr = cmap.get("threadId")
+    rev = cmap.get("revisionNumber")
+    if thr and rev and thr in out.columns:
+        valid = out[thr].notna() & (out[thr].astype(str).str.strip() != "")
+        if valid.any():
+            deduped = (
+                out[valid]
+                .assign(__rev__=pd.to_numeric(out.loc[valid, rev], errors="coerce").fillna(-1))
+                .sort_values("__rev__")
+                .drop_duplicates(subset=[thr], keep="last")
+                .drop(columns="__rev__")
+            )
+            out = pd.concat([deduped, out[~valid]]).sort_index()
+    return out
+
+
 def site_category_headline(
     df_active: pd.DataFrame,
     df_all_site: pd.DataFrame,
@@ -1388,6 +1450,10 @@ def compute_recent_changes(
 
         if "dismiss" in status:
             kind, kind_color = "Dismissed", COLOR["bad"]
+        elif "inactive" in status and (pd.isna(end) or end > now):
+            # Marked Inactive before its stop time: retired / superseded.
+            # Capacity is released from the publication instant.
+            kind, kind_color = "Retired", COLOR["Retired"]
         elif pd.notna(end) and end < now:
             kind, kind_color = "Ended", COLOR["muted"]
         elif rev_num > 1:
@@ -1424,7 +1490,7 @@ def render_recent_banner(
         )
         return
 
-    order = ["Dismissed", "Ended", "Revised", "New"]
+    order = ["Dismissed", "Retired", "Ended", "Revised", "New"]
     counts: dict[str, int] = {}
     for it in items:
         counts[it["kind"]] = counts.get(it["kind"], 0) + 1
@@ -2625,31 +2691,10 @@ if missing:
     with st.expander("Field-detection diagnostics"):
         st.write({"detected": cmap, "columns": list(raw.columns)})
 
-# Operational dataset: latest revisions, not dismissed, with known site,
-# and (optionally) excluding storage.
-df_op = df[
-    df["__site__"].isin(SITES)
-    & ~df["__status__"].str.contains("dismiss", case=False, na=False)
-    & df["__category__"].isin(ACTIVE_CATEGORIES)
-].copy()
-
-# Safety net: keep only the latest revision per thread. The API already does
-# this via revisionsReturned=Latest, so this is a no-op on normal data — it only
-# bites if a thread ever appears with multiple revisions. Rows without a thread
-# id are left untouched (never collapsed together).
-_thr = cmap.get("threadId")
-_rev = cmap.get("revisionNumber")
-if _thr and _rev and _thr in df_op.columns and not df_op.empty:
-    _valid = df_op[_thr].notna() & (df_op[_thr].astype(str).str.strip() != "")
-    if _valid.any():
-        _deduped = (
-            df_op[_valid]
-            .assign(__rev__=pd.to_numeric(df_op.loc[_valid, _rev], errors="coerce").fillna(-1))
-            .sort_values("__rev__")
-            .drop_duplicates(subset=[_thr], keep="last")
-            .drop(columns="__rev__")
-        )
-        df_op = pd.concat([_deduped, df_op[~_valid]]).sort_index()
+# Operational dataset: known site + category, not Dismissed, latest revision
+# per thread, Inactive notices clamped at their retirement (see
+# build_operational). Storage is always included.
+df_op = build_operational(df, cmap, ACTIVE_CATEGORIES)
 
 now = pd.Timestamp.now(tz="UTC")
 df_active = active_now(df_op, now)
