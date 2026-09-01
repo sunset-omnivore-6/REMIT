@@ -966,7 +966,12 @@ def normalise(df: pd.DataFrame, cmap: dict[str, str | None]) -> pd.DataFrame:
     for logical in ("eventStart", "eventEnd", "publication"):
         col = cmap[logical]
         if col is not None:
-            out[f"__{logical}__"] = pd.to_datetime(out[col], errors="coerce", utc=True)
+            # Pin to one resolution: pandas 3 infers s/us/ns per column from
+            # the strings (the API mixes fractional and whole seconds), and
+            # then refuses cross-resolution assignments between columns.
+            out[f"__{logical}__"] = pd.to_datetime(
+                out[col], errors="coerce", utc=True
+            ).dt.as_unit("ns")
         else:
             out[f"__{logical}__"] = nat_series.copy()
 
@@ -1142,11 +1147,13 @@ def build_operational(
     _, inactive = status_flags(out["__status__"])
     clamp = inactive & out["__publication__"].notna()
     if clamp.any():
-        end = out.loc[clamp, "__eventEnd__"]
-        pub = out.loc[clamp, "__publication__"]
+        end = out["__eventEnd__"]
+        pub = out["__publication__"]
         # Keep the stop where it is already at/before the retirement; pull it
         # back to the retirement instant otherwise (NaT stop -> retirement).
-        out.loc[clamp, "__eventEnd__"] = end.where(end <= pub, pub)
+        # Whole-column replacement (not .loc into a slice) so a resolution
+        # mismatch can never trigger pandas 3's upcast TypeError.
+        out["__eventEnd__"] = end.where(~clamp | (end <= pub), pub)
 
     # Safety net: keep only the latest revision per thread. The API already
     # does this via revisionsReturned=Latest, so this is a no-op on normal
