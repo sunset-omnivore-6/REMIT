@@ -37,7 +37,7 @@ def render_controls(wall: bool = False) -> Controls:
     if wall:
         return Controls(_horizon(), st.session_state["r2_show_as"], False, True, False)
 
-    c1, c2, c3, c4, c5, c6 = st.columns([3.2, 1.1, 1.6, 1.2, 1.2, 1.0], vertical_alignment="bottom")
+    c1, c2, c3, c5, c6 = st.columns([3.2, 1.1, 1.6, 1.2, 1.0], vertical_alignment="bottom")
     with c1:
         st.segmented_control("Horizon", list(HORIZON_PRESETS), key="r2_horizon_preset",
                              on_change=_use_preset, help="How far ahead the graphs look")
@@ -49,13 +49,11 @@ def render_controls(wall: bool = False) -> Controls:
                              help="Plant: Hornsea in equipment terms (comps, Vortisep, Phase 6)")
         if st.session_state.get("r2_show_as") is None:
             st.session_state["r2_show_as"] = "Values"
-    with c4:
-        show_tables = st.toggle("Tables", value=False, key="r2_show_tables", help="Open every graph's table view")
     with c5:
         patterns = st.toggle("Patterns", value=True, key="r2_patterns", help="Hatch the cause lanes as well as colouring them")
     with c6:
         refresh = st.button("⟳ Refresh", width="stretch")
-    return Controls(_horizon(), st.session_state.get("r2_show_as") or "Values", show_tables, patterns, refresh)
+    return Controls(_horizon(), st.session_state.get("r2_show_as") or "Values", False, patterns, refresh)
 
 
 def _horizon() -> int:

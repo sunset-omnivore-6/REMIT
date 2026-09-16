@@ -38,15 +38,28 @@ def _masthead(fetched_at, source: str) -> None:
     )
 
 
+@st.dialog("New ad-hoc adjustment")
+def _new_adhoc_dialog() -> None:
+    st.info("The ad-hoc register is being connected (next milestone). The form will go here: "
+            "Site → Direction → Units or Rate change → When → Notes → Save.")
+    if st.button("Close"):
+        st.rerun()
+
+
 def _register_strip(register, now) -> None:
     n_active = sum(1 for r in register.records if r.status(now) == "active")
     n_planned = sum(1 for r in register.records if r.status(now) == "planned")
-    st.markdown(
-        "<div class='r2-strip'><b>Ad-hoc adjustments</b>"
-        f"<span class='stat'>Active {n_active}</span><span class='stat'>Planned {n_planned}</span>"
-        "<span class='sub' style='color:#475569'>Register goes live in the next milestone — entries will appear here and in the graphs.</span></div>",
-        unsafe_allow_html=True,
-    )
+    left, right = st.columns([5, 1.2], vertical_alignment="center")
+    with left:
+        st.markdown(
+            "<div class='r2-strip'><b>Ad-hoc adjustments</b>"
+            f"<span class='stat'>Active {n_active}</span><span class='stat'>Planned {n_planned}</span>"
+            "<span style='color:#475569'>None recorded yet.</span></div>",
+            unsafe_allow_html=True,
+        )
+    with right:
+        if st.button("＋ New ad-hoc", type="primary", width="stretch"):
+            _new_adhoc_dialog()
 
 
 def _recent_and_upcoming(data: d.RemitData, now: pd.Timestamp, horizon: int) -> None:
@@ -117,7 +130,7 @@ def _body() -> None:
         _recent_and_upcoming(data, now, controls.horizon_days)
     st.markdown(
         f"<p class='r2-foot'>Cause lanes: {theme.chip('Planned REMIT', theme.PLANNED)} {theme.chip('Unplanned REMIT', theme.UNPLANNED)} "
-        f"{theme.chip('Ad-hoc', theme.ADHOC)} — each lane is hatched as well as coloured. Every graph has a table view. "
+        f"{theme.chip('Ad-hoc', theme.ADHOC)} — each lane is hatched as well as coloured. "
         f"Auto-refresh every 5 min.</p>", unsafe_allow_html=True)
 
 

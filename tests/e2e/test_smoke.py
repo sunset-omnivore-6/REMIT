@@ -54,6 +54,7 @@ def test_hero_renders(server, tmp_path):
         assert page.locator(".js-plotly-plot").count() == 4
         assert page.get_by_text("Traceback").count() == 0
         assert page.get_by_text("Ad-hoc adjustments").count() >= 1
+        assert page.get_by_text("New ad-hoc").count() == 1
         assert page.get_by_text("available now").count() == 4          # four narratives
         page.screenshot(path=str(tmp_path / "desktop.png"), full_page=True)
         m = b.new_page(viewport={"width": 390, "height": 900})
@@ -63,5 +64,5 @@ def test_hero_renders(server, tmp_path):
         w = b.new_page(viewport={"width": 1920, "height": 1080})
         w.goto(server + "/?mode=wall", wait_until="networkidle", timeout=120000)
         w.wait_for_selector(".js-plotly-plot", timeout=60000)
-        assert w.get_by_text("Table view", exact=True).count() == 0     # wall mode hides tables/controls
+        assert w.get_by_text("New ad-hoc").count() == 0                 # wall mode hides controls
         b.close()

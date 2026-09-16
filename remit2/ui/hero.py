@@ -182,9 +182,3 @@ def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls:
         st.markdown(f"<p class='r2-narr'>{narrate_panel(series, equipment, mode)}</p>", unsafe_allow_html=True)
         st.plotly_chart(panel_figure(series, equipment, controls.patterns, wall), width="stretch",
                         config={"displayModeBar": False, "responsive": True}, key=f"fig-{key}")
-        if not wall:
-            with st.expander("Table view", expanded=controls.show_tables):
-                t = panel_table(series)
-                st.dataframe(t, width="stretch", hide_index=True, height=min(400, 38 * (len(t) + 1) + 4))
-                st.download_button("Download CSV", t.to_csv(index=False).encode(), mime="text/csv",
-                                   file_name=f"availability_{series.site}_{series.direction}.csv", key=f"dl-{key}")
