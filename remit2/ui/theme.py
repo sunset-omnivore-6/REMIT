@@ -109,3 +109,9 @@ def inject_css(wall: bool = False) -> None:
 def chip(label: str, color: str) -> str:
     """Cause chip: swatch + word (never colour alone)."""
     return f"<span class='r2-chip' style='border-color:{color}'><i style='background:{color}'></i>{label}</span>"
+
+
+def rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"

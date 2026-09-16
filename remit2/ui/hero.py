@@ -7,7 +7,6 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
 
 from ..adhoc.combine import LANES, PanelSeries
 from ..adhoc.model import EquipmentConfig
@@ -33,13 +32,37 @@ def _driver_text(seg) -> str:
     return "<br>".join(lines) if lines else "no outages"
 
 
+CAUSE_PRIORITY = ("Ad-hoc", "Unplanned REMIT", "Planned REMIT")
+
+
+def _cause_of(seg) -> str | None:
+    f = seg.state.flags()
+    for lane, key in zip(CAUSE_PRIORITY, ("adhoc", "remit_unplanned", "remit_planned")):
+        if f[key]:
+            return lane
+    return None
+
+
+def _cause_runs(series: PanelSeries) -> list[tuple[str | None, list[tuple[pd.Timestamp, float]]]]:
+    """Contiguous runs of segments sharing a cause -> polyline points for a
+    filled step area (last point closes the run at its own held value)."""
+    runs: list[tuple[str | None, list]] = []
+    for seg in series.segments:
+        cause = _cause_of(seg)
+        if runs and runs[-1][0] == cause:
+            runs[-1][1].append((seg.start, seg.available))
+        else:
+            runs.append((cause, [(seg.start, seg.available)]))
+        runs[-1][1].append((seg.end, seg.available))
+    return runs
+
+
 def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool = True,
                  wall: bool = False) -> go.Figure:
     tech = series.tech
     start, end = series.window
     now = series.now
     pts = series.points.copy()
-    # Per-point driver text and pct via the segment each point falls in.
     seg_starts = pd.Series([s.start for s in series.segments])
     idx = seg_starts.searchsorted(pts["date"], side="right") - 1
     idx = idx.clip(0, max(0, len(series.segments) - 1))
@@ -47,78 +70,63 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
     pts["drivers"] = [_driver_text(series.segments[i]) if series.segments else "" for i in idx]
     pts["x"] = pts["date"].map(_naive_local)
 
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.76, 0.24], vertical_spacing=0.06)
-
-    # Row 1 — past wash, nameplate hairline, step line, change markers
-    fig.add_vrect(x0=_naive_local(start), x1=_naive_local(now), fillcolor="rgba(15,23,42,0.035)", line_width=0, row=1, col=1)
-    fig.add_hline(y=tech, line=dict(color=theme.NAMEPLATE, width=1), row=1, col=1)
+    fig = go.Figure()
+    fig.add_vrect(x0=_naive_local(start), x1=_naive_local(now), fillcolor="rgba(15,23,42,0.035)", line_width=0)
+    fig.add_hline(y=tech, line=dict(color=theme.NAMEPLATE, width=1))
     fig.add_annotation(x=_naive_local(end), y=tech, text=f"nameplate {tech:g}", showarrow=False, xanchor="right",
-                       yanchor="bottom", font=dict(size=11, color=theme.INK_SOFT), row=1, col=1)
+                       yanchor="bottom", font=dict(size=11, color=theme.INK_SOFT))
+
+    # Area under the line, coloured (and hatched) by the cause of the level.
+    shown: set[str] = set()
+    for cause, poly in _cause_runs(series):
+        color = theme.LANE_COLOR.get(cause, "#94a3b8")
+        name = cause or "No outage"
+        kw = dict(fillcolor=theme.rgba(color, 0.32 if cause else 0.10))
+        if patterns and cause:
+            kw["fillpattern"] = dict(shape=theme.LANE_PATTERN[cause], size=7, solidity=0.25, fgcolor=color, bgcolor=theme.rgba(color, 0.18))
+        fig.add_trace(go.Scatter(
+            x=[_naive_local(t) for t, _ in poly], y=[v for _, v in poly], mode="lines",
+            line=dict(width=0, shape="hv"), fill="tozeroy", name=name, legendgroup=name,
+            showlegend=name not in shown, hoverinfo="skip", **kw,
+        ))
+        shown.add(name)
+
     fig.add_trace(go.Scatter(
-        x=pts["x"], y=pts["available"], mode="lines", name="Available",
-        line=dict(color=theme.INK, width=2.2, shape="hv"), fill="tozeroy", fillcolor="rgba(15,23,42,0.06)",
+        x=pts["x"], y=pts["available"], mode="lines", name="Available", showlegend=False,
+        line=dict(color=theme.INK, width=2.2, shape="hv"),
         customdata=list(zip(pts["pct"], pts["drivers"])),
         hovertemplate="<b>%{y:.1f} GWh/d</b> · %{customdata[0]:.0f}% of nameplate<br>%{customdata[1]}<extra></extra>",
-    ), row=1, col=1)
+    ))
     ups = [s for s in series.segments if s.delta_prev > 1e-6]
     downs = [s for s in series.segments if s.delta_prev < -1e-6]
-    for segs, sym, name in ((downs, "triangle-down", "drop"), (ups, "triangle-up", "restore")):
+    for segs, sym in ((downs, "triangle-down"), (ups, "triangle-up")):
         if segs:
             fig.add_trace(go.Scatter(
-                x=[_naive_local(s.start) for s in segs], y=[s.available for s in segs], mode="markers", name=name,
+                x=[_naive_local(s.start) for s in segs], y=[s.available for s in segs], mode="markers",
                 marker=dict(symbol=sym, size=11, color=theme.INK, line=dict(color=theme.SURFACE, width=2)),
                 hoverinfo="skip", showlegend=False,
-            ), row=1, col=1)
+            ))
     cur = series.segment_at(now)
-    if cur is not None:
-        fig.add_annotation(x=_naive_local(now), y=cur.available, text=f"now {cur.available:.1f}", showarrow=False,
-                           xanchor="left", yanchor="bottom", xshift=6, yshift=4,
-                           font=dict(size=12, color=theme.INK), bgcolor="rgba(255,255,255,.85)", row=1, col=1)
-
-    # Row 2 — cause lanes (horizontal bars on a date axis: base=start, x=duration ms)
-    for lane in LANES:
-        bars = [l for l in series.lanes if l.lane == lane]
-        color = theme.LANE_COLOR[lane]
-        marker = dict(color=color, opacity=0.85, line=dict(color=theme.SURFACE, width=1))
-        if patterns:
-            # fillmode="overlay": hatch drawn OVER the lane colour (the default
-            # "replace" mode would paint the hatch on a transparent bar).
-            marker["pattern"] = dict(shape=theme.LANE_PATTERN[lane], size=6, solidity=0.3,
-                                     fillmode="overlay", fgcolor=theme.SURFACE, fgopacity=0.55)
-        if not bars:
-            fig.add_trace(go.Bar(x=[0], base=[_naive_local(start)], y=[lane], orientation="h", marker=marker,
-                                 hoverinfo="skip", showlegend=False), row=2, col=1)
-            continue
-        total = (end - start).total_seconds()
-        fig.add_trace(go.Bar(
-            x=[(l.end - l.start).total_seconds() * 1000 for l in bars],
-            base=[_naive_local(l.start) for l in bars],
-            y=[lane] * len(bars), orientation="h", marker=marker, name=lane, showlegend=False,
-            text=[", ".join(short_thread(i) for i in l.ids) if (l.end - l.start).total_seconds() > 0.08 * total else "" for l in bars],
-            textposition="inside", insidetextanchor="start", textfont=dict(color=theme.SURFACE, size=11),
-            customdata=[(l.label, fmt_local(l.start), fmt_local(l.end)) for l in bars],
-            hovertemplate="<b>" + lane + "</b><br>%{customdata[0]}<br>%{customdata[1]} → %{customdata[2]}<extra></extra>",
-        ), row=2, col=1)
-
-    # now line across both rows
     x_now = _naive_local(now)
     fig.add_vline(x=x_now, line=dict(color=theme.INK, width=1.5))
+    if cur is not None:
+        fig.add_annotation(x=x_now, y=cur.available, text=f"now {cur.available:.1f}", showarrow=False,
+                           xanchor="left", yanchor="bottom", xshift=6, yshift=4,
+                           font=dict(size=12, color=theme.INK), bgcolor="rgba(255,255,255,.85)")
 
-    fig.update_yaxes(range=[-0.018 * tech, 1.12 * tech], title_text="GWh/d", gridcolor=theme.GRID, zeroline=False,
-                     showline=True, linecolor=theme.GRID, mirror=True, row=1, col=1)
-    fig.update_yaxes(categoryorder="array", categoryarray=list(reversed(LANES)), showgrid=False, showline=True,
-                     linecolor=theme.GRID, mirror=True, tickfont=dict(size=11),
-                     tickvals=list(LANES), ticktext=["Planned", "Unplanned", "Ad-hoc"], row=2, col=1)
+    fig.update_yaxes(range=[-0.018 * tech, 1.14 * tech], title_text="GWh/d", gridcolor=theme.GRID, zeroline=False,
+                     showline=True, linecolor=theme.GRID, mirror=True)
     fig.update_xaxes(type="date", range=[_naive_local(start), _naive_local(end)], gridcolor=theme.GRID,
-                     showline=True, linecolor=theme.GRID, mirror=True,
+                     showline=True, linecolor=theme.GRID, mirror=True, title_text="Europe/London",
                      tickformatstops=[dict(dtickrange=[None, 3600000 * 12], value="%H:%M\n%d %b"),
                                       dict(dtickrange=[3600000 * 12, None], value="%d %b")])
-    fig.update_xaxes(title_text="Europe/London", row=2, col=1)
     fig.update_layout(
-        height=420 if wall else 320, margin=dict(l=70, r=14, t=22, b=40), barmode="overlay", bargap=0.35,
+        height=380 if wall else 290, margin=dict(l=56, r=14, t=30, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=11),
+                    itemclick=False, itemdoubleclick=False),
         hovermode="x unified", hoverlabel=dict(bgcolor=theme.SURFACE, bordercolor=theme.GRID, align="left",
                                                 font=dict(family=theme.FONT, size=12, color=theme.INK)),
-        plot_bgcolor=theme.SURFACE, paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
+        plot_bgcolor=theme.SURFACE, paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family=theme.FONT, size=16 if wall else 12, color=theme.INK),
         transition=dict(duration=0), uirevision="panel",
     )

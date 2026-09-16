@@ -130,7 +130,7 @@ def _body() -> None:
         _recent_and_upcoming(data, now, controls.horizon_days)
     st.markdown(
         f"<p class='r2-foot'>Cause lanes: {theme.chip('Planned REMIT', theme.PLANNED)} {theme.chip('Unplanned REMIT', theme.UNPLANNED)} "
-        f"{theme.chip('Ad-hoc', theme.ADHOC)} — each lane is hatched as well as coloured. "
+        f"{theme.chip('Ad-hoc', theme.ADHOC)} — the area under each line is coloured and hatched by the cause of the level. "
         f"Auto-refresh every 5 min.</p>", unsafe_allow_html=True)
 
 
