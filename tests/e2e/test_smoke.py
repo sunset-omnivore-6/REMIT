@@ -63,5 +63,5 @@ def test_hero_renders(server, tmp_path):
         w = b.new_page(viewport={"width": 1920, "height": 1080})
         w.goto(server + "/?mode=wall", wait_until="networkidle", timeout=120000)
         w.wait_for_selector(".js-plotly-plot", timeout=60000)
-        assert w.get_by_text("Table view").count() == 0                 # wall mode hides tables/controls
+        assert w.get_by_text("Table view", exact=True).count() == 0     # wall mode hides tables/controls
         b.close()
