@@ -1014,11 +1014,15 @@ def normalise(df: pd.DataFrame, cmap: dict[str, str | None]) -> pd.DataFrame:
     for logical in ("eventStart", "eventEnd", "publication"):
         col = cmap[logical]
         if col is not None:
+            # format="ISO8601": the API mixes fractional and whole-second
+            # strings; without it pandas infers the format from the first
+            # row and silently coerces every other row to NaT (notices
+            # vanish from dials/timeline/recent changes).
             # Pin to one resolution: pandas 3 infers s/us/ns per column from
             # the strings (the API mixes fractional and whole seconds), and
             # then refuses cross-resolution assignments between columns.
             out[f"__{logical}__"] = pd.to_datetime(
-                out[col], errors="coerce", utc=True
+                out[col], errors="coerce", utc=True, format="ISO8601"
             ).dt.as_unit("ns")
         else:
             out[f"__{logical}__"] = nat_series.copy()
