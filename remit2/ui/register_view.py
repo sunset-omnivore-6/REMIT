@@ -19,11 +19,14 @@ def _what(r, equipment: EquipmentConfig) -> str:
 
 def render_register(register: Register, equipment: EquipmentConfig, now: pd.Timestamp, actor: str, editor: bool,
                     store_ok: bool) -> None:
-    show_cancelled = st.checkbox("Show cancelled", value=False, key="rv_show_cancelled")
-    recs = [r for r in register.records if show_cancelled or r.status(now) != "cancelled"]
-    recs.sort(key=lambda r: (r.status(now) not in ("active", "planned"), r.start), reverse=False)
+    live = [r for r in register.records if r.status(now) in ("active", "planned")]
+    past = [r for r in register.records if r.status(now) in ("ended", "cancelled")]
+    show_past = st.toggle(f"Show ended / cancelled ({len(past)})", value=False, key="rv_show_past",
+                          help="Past entries are kept for the record but hidden by default")
+    recs = live + (past if show_past else [])
+    recs.sort(key=lambda r: (r.status(now) not in ("active", "planned"), r.start))
     if not recs:
-        st.caption("No ad-hoc adjustments recorded.")
+        st.caption("No live ad-hoc adjustments." + (f" {len(past)} ended/cancelled hidden." if past else ""))
         return
     rows = []
     for r in recs:

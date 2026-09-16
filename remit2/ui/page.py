@@ -140,8 +140,10 @@ def _body() -> None:
             with col:
                 render_panel_card(panels[(site, direction)], equipment, controls, wall)
     if not wall:
-        n_reg = sum(1 for r in register.records if r.status(now) != "cancelled")
-        with st.expander(f"Ad-hoc register ({n_reg})", expanded=bool(st.session_state.get("rv_table"))):
+        n_live = sum(1 for r in register.records if r.status(now) in ("active", "planned"))
+        n_past = len(register.records) - n_live
+        title = f"Ad-hoc register ({n_live} live" + (f" · {n_past} past)" if n_past else ")")
+        with st.expander(title, expanded=bool(st.session_state.get("rv_table"))):
             render_register(register, equipment, now, actor, editor, loaded.status in ("ok", "local"))
         st.markdown("<div class='r2-sec'>On demand</div>", unsafe_allow_html=True)
         _recent_and_upcoming(data, now, controls.horizon_days)

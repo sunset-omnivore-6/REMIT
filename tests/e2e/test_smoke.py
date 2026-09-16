@@ -92,7 +92,7 @@ def test_adhoc_create_and_cancel(server):
         assert pg.get_by_text("Active 1").count() == 1
         assert pg.get_by_text("Ad-hoc saved").count() == 1
         assert pg.get_by_text("15.0", exact=True).count() >= 1            # Hornsea Injection tile
-        pg.get_by_text("Ad-hoc register (1)").click()
+        pg.get_by_text("Ad-hoc register (1 live)").click()
         pg.wait_for_timeout(2000)
         grid = pg.locator("[data-testid='stDataFrame']").first
         box = grid.bounding_box()
