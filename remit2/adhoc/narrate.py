@@ -28,7 +28,7 @@ def plant_terms(state: State, equipment: EquipmentConfig, site: str, direction: 
         adhoc_out = len(state.lost_units)
         remit_equiv = int(round(remit_reduction / per)) if per else 0
         avail_units = max(0, n - adhoc_out - remit_equiv)
-        noun = cfg.unit_noun + ("s" if avail_units != 1 else "")
+        noun = cfg.unit_noun + ("s" if n != 1 else "")          # "1 of 4 comps"
         parts.append(f"{avail_units} of {n} {noun} available")
         if adhoc_out:
             parts.append(", ".join(labels.get(u, u) for u in state.lost_units) + " out (ad-hoc)")
@@ -52,7 +52,9 @@ def plant_terms(state: State, equipment: EquipmentConfig, site: str, direction: 
 
 def _cause(seg: Segment) -> str:
     ids = [d.label for d in seg.state.drivers if d.binding]
-    return f" ({'; '.join(ids)})" if ids else ""
+    if ids:
+        return f" ({'; '.join(ids)})"
+    return " (outage ends)" if seg.delta_prev > 0 else ""
 
 
 def narrate_panel(series: PanelSeries, equipment: EquipmentConfig, mode: str = "values") -> str:
@@ -62,7 +64,8 @@ def narrate_panel(series: PanelSeries, equipment: EquipmentConfig, mode: str = "
         return "No data for this window."
     tech = series.tech
     if mode == "plant" and equipment.get(series.site, series.direction).plant_view:
-        head = plant_terms(cur.state, equipment, series.site, series.direction).capitalize() + " now"
+        pt = plant_terms(cur.state, equipment, series.site, series.direction)
+        head = pt[:1].upper() + pt[1:] + " now"
         head += f" ({_q(cur.available)} of {tech:g} GWh/d)."
     else:
         head = f"{_q(cur.available)} of {tech:g} GWh/d available now ({cur.state.pct:.0f}%)."
