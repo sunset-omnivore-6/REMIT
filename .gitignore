@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.streamlit/secrets.toml
+data/local/
+tests/e2e/_out/

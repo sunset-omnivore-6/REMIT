@@ -1,0 +1,6805 @@
+{
+ "source": "/home/user/REMIT/app.py",
+ "now": "2026-09-16T12:00:00+00:00",
+ "cmap": {
+  "asset": "generationUnitName",
+  "unitEic": "generationUnitEicCode",
+  "eventStart": "eventStart",
+  "eventEnd": "eventStop",
+  "publication": "publicationDateTime",
+  "status": "eventStatus",
+  "typeOfEvent": "typeOfEvent",
+  "typeOfUnavailability": "typeOfUnavailability",
+  "techCapacity": "technicalCapacity",
+  "availCapacity": "availableCapacity",
+  "unavailCapacity": "unavailableCapacity",
+  "unit": "unitOfMeasurement",
+  "reason": "reasonForUnavailability",
+  "remarks": "remarks",
+  "threadId": "threadId",
+  "revisionNumber": "revisionNumber",
+  "messageId": "threadId"
+ },
+ "tech": {
+  "Aldbrough/Withdrawal": 287.78,
+  "Aldbrough/Injection": 293.33,
+  "Aldbrough/Storage": 3.3,
+  "Atwick/Withdrawal": 130.0,
+  "Atwick/Injection": 30.0,
+  "Atwick/Storage": 3.47
+ },
+ "operational": [
+  {
+   "threadId": "00001126",
+   "site": "Atwick",
+   "category": "Injection",
+   "status": "Inactive",
+   "planned": "Planned",
+   "start": "2026-09-16T08:00:00+00:00",
+   "end": "2026-09-16T11:00:00.123456700+00:00",
+   "publication": "2026-09-16T11:00:00.123456700+00:00",
+   "avail": 0.0,
+   "unavail": 30.0,
+   "tech": 30.0,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ALD_000000000000000001303",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "status": "Active",
+   "planned": "Planned",
+   "start": "2026-09-19T12:00:00+00:00",
+   "end": "2026-09-20T00:00:00+00:00",
+   "publication": "2026-09-14T12:00:00.123456700+00:00",
+   "avail": 143.89,
+   "unavail": 143.89,
+   "tech": 287.78,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ALD_000000000000000001304",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "status": "Active",
+   "planned": "Unplanned",
+   "start": "2026-09-15T16:00:00+00:00",
+   "end": "2026-09-17T12:00:00+00:00",
+   "publication": "2026-09-15T16:00:00.123456700+00:00",
+   "avail": 218.89,
+   "unavail": 74.44,
+   "tech": 293.33,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ALD_000000000000000001305",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "status": "Active",
+   "planned": "Planned",
+   "start": "2026-09-16T06:00:00+00:00",
+   "end": "2026-09-16T22:00:00+00:00",
+   "publication": "2026-09-16T04:00:00+00:00",
+   "avail": 195.55,
+   "unavail": 97.78,
+   "tech": 293.33,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ALD_000000000000000001307",
+   "site": "Aldbrough",
+   "category": "Storage",
+   "status": "Active",
+   "planned": "Planned",
+   "start": "2026-09-13T12:00:00+00:00",
+   "end": "2026-10-16T12:00:00+00:00",
+   "publication": "2026-09-13T12:00:00.123456700+00:00",
+   "avail": 2.75,
+   "unavail": 0.55,
+   "tech": 3.3,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ATW_000000000000000001282",
+   "site": "Atwick",
+   "category": "Injection",
+   "status": "Inactive",
+   "planned": "Planned",
+   "start": "2026-09-06T12:00:00+00:00",
+   "end": "2026-09-06T15:57:00+00:00",
+   "publication": "2026-09-06T16:00:00.123456700+00:00",
+   "avail": 0.0,
+   "unavail": 30.0,
+   "tech": 30.0,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ATW_000000000000000001390",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "status": "Active",
+   "planned": "Unplanned",
+   "start": "2026-09-10T12:00:00+00:00",
+   "end": "2026-09-11T12:00:00+00:00",
+   "publication": "2026-09-10T12:00:00.123456700+00:00",
+   "avail": 0.0,
+   "unavail": 130.0,
+   "tech": 130.0,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ATW_000000000000000001401",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "status": "Active",
+   "planned": "Unplanned",
+   "start": "2026-09-16T07:00:00+00:00",
+   "end": "2026-09-18T12:00:00+00:00",
+   "publication": "2026-09-16T07:00:00.123456700+00:00",
+   "avail": 100.0,
+   "unavail": 30.0,
+   "tech": 130.0,
+   "unitUnknown": false
+  },
+  {
+   "threadId": "ATW_000000000000000001402",
+   "site": "Atwick",
+   "category": "Injection",
+   "status": "Active",
+   "planned": "Planned",
+   "start": "2026-09-17T09:00:00+00:00",
+   "end": "2026-09-21T12:00:00+00:00",
+   "publication": "2026-09-16T09:00:00.123456700+00:00",
+   "avail": 15.0,
+   "unavail": 15.0,
+   "tech": 30.0,
+   "unitUnknown": false
+  }
+ ],
+ "grid": [
+  "2026-09-14T12:00:00+00:00",
+  "2026-09-14T18:00:00+00:00",
+  "2026-09-15T00:00:00+00:00",
+  "2026-09-15T06:00:00+00:00",
+  "2026-09-15T12:00:00+00:00",
+  "2026-09-15T18:00:00+00:00",
+  "2026-09-16T00:00:00+00:00",
+  "2026-09-16T06:00:00+00:00",
+  "2026-09-16T12:00:00+00:00",
+  "2026-09-16T18:00:00+00:00",
+  "2026-09-17T00:00:00+00:00",
+  "2026-09-17T06:00:00+00:00",
+  "2026-09-17T12:00:00+00:00",
+  "2026-09-17T18:00:00+00:00",
+  "2026-09-18T00:00:00+00:00",
+  "2026-09-18T06:00:00+00:00",
+  "2026-09-18T12:00:00+00:00",
+  "2026-09-18T18:00:00+00:00",
+  "2026-09-19T00:00:00+00:00",
+  "2026-09-19T06:00:00+00:00",
+  "2026-09-19T12:00:00+00:00",
+  "2026-09-19T18:00:00+00:00",
+  "2026-09-20T00:00:00+00:00",
+  "2026-09-20T06:00:00+00:00",
+  "2026-09-20T12:00:00+00:00",
+  "2026-09-20T18:00:00+00:00",
+  "2026-09-21T00:00:00+00:00",
+  "2026-09-21T06:00:00+00:00",
+  "2026-09-21T12:00:00+00:00",
+  "2026-09-21T18:00:00+00:00",
+  "2026-09-22T00:00:00+00:00",
+  "2026-09-22T06:00:00+00:00",
+  "2026-09-22T12:00:00+00:00",
+  "2026-09-22T18:00:00+00:00",
+  "2026-09-23T00:00:00+00:00",
+  "2026-09-23T06:00:00+00:00",
+  "2026-09-23T12:00:00+00:00"
+ ],
+ "capacity_at": {
+  "Atwick/Withdrawal": [
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0,
+   130.0
+  ],
+  "Atwick/Injection": [
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   15.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0,
+   30.0
+  ],
+  "Aldbrough/Withdrawal": [
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   143.89,
+   143.89,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78,
+   287.78
+  ],
+  "Aldbrough/Injection": [
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   218.89,
+   218.89,
+   195.55,
+   195.55,
+   195.55,
+   218.89,
+   218.89,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33,
+   293.33
+  ]
+ },
+ "changes": [
+  {
+   "site": "Aldbrough",
+   "category": "Injection",
+   "when": "2026-09-16T22:00:00+00:00",
+   "from": 195.55,
+   "to": 218.89
+  },
+  {
+   "site": "Atwick",
+   "category": "Injection",
+   "when": "2026-09-17T09:00:00+00:00",
+   "from": 30.0,
+   "to": 15.0
+  },
+  {
+   "site": "Aldbrough",
+   "category": "Injection",
+   "when": "2026-09-17T12:00:00+00:00",
+   "from": 218.89,
+   "to": 293.33
+  },
+  {
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "when": "2026-09-18T12:00:00+00:00",
+   "from": 100.0,
+   "to": 130.0
+  },
+  {
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "when": "2026-09-19T12:00:00+00:00",
+   "from": 287.78,
+   "to": 143.89
+  },
+  {
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "when": "2026-09-20T00:00:00+00:00",
+   "from": 143.89,
+   "to": 287.78
+  },
+  {
+   "site": "Atwick",
+   "category": "Injection",
+   "when": "2026-09-21T12:00:00+00:00",
+   "from": 15.0,
+   "to": 30.0
+  }
+ ],
+ "series_window": [
+  "2026-09-12T12:00:00+00:00",
+  "2026-09-23T12:00:00+00:00"
+ ],
+ "series": [
+  {
+   "date": "2026-09-12T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-13T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-14T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-15T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-16T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-17T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-18T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-19T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-19T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 143.89
+  },
+  {
+   "date": "2026-09-20T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-20T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-21T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-22T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-23T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Withdrawal",
+   "available": 287.78
+  },
+  {
+   "date": "2026-09-12T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-13T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-14T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-15T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-15T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 195.55
+  },
+  {
+   "date": "2026-09-16T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-16T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 218.89
+  },
+  {
+   "date": "2026-09-17T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-17T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-18T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-19T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-20T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-21T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T13:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T14:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T15:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T16:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T17:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T18:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T19:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T20:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T21:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T22:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-22T23:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T00:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T01:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T02:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T03:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T04:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T05:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T06:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T07:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T08:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T09:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T10:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T11:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-23T12:00:00+00:00",
+   "site": "Aldbrough",
+   "category": "Injection",
+   "available": 293.33
+  },
+  {
+   "date": "2026-09-12T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-13T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-14T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-15T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-16T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-16T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-17T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 100.0
+  },
+  {
+   "date": "2026-09-18T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-18T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-19T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-20T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-21T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-22T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-23T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Withdrawal",
+   "available": 130.0
+  },
+  {
+   "date": "2026-09-12T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-12T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-13T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-14T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-15T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 0.0
+  },
+  {
+   "date": "2026-09-16T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 0.0
+  },
+  {
+   "date": "2026-09-16T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 0.0
+  },
+  {
+   "date": "2026-09-16T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 0.0
+  },
+  {
+   "date": "2026-09-16T11:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T12:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T13:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T14:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T15:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T16:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T17:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T18:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T19:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T20:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T21:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T22:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-16T23:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T00:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T01:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T02:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T03:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T04:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T05:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T06:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T07:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T08:00:00.123456700+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-17T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-17T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-18T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-19T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-20T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 15.0
+  },
+  {
+   "date": "2026-09-21T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-21T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T13:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T14:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T15:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T16:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T17:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T18:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T19:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T20:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T21:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T22:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-22T23:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T00:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T01:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T02:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T03:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T04:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T05:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T06:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T07:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T08:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T09:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T10:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T11:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  },
+  {
+   "date": "2026-09-23T12:00:00+00:00",
+   "site": "Atwick",
+   "category": "Injection",
+   "available": 30.0
+  }
+ ],
+ "recent": [
+  [
+   "00001126",
+   "Retired"
+  ],
+  [
+   "ALD_000000000000000001304",
+   "New"
+  ],
+  [
+   "ALD_000000000000000001305",
+   "New"
+  ],
+  [
+   "ALD_000000000000000001306",
+   "Dismissed"
+  ],
+  [
+   "ATW_000000000000000001401",
+   "New"
+  ],
+  [
+   "ATW_000000000000000001402",
+   "Revised"
+  ]
+ ]
+}
