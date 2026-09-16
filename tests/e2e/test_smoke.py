@@ -25,7 +25,10 @@ def _free_port() -> int:
 @pytest.fixture(scope="module")
 def server():
     port = _free_port()
-    env = {**os.environ, "REMIT2_FIXTURE": str(ROOT / "data/samples/remit_sample.json")}
+    import tempfile
+    local_dir = tempfile.mkdtemp(prefix="remit2_e2e_")
+    env = {**os.environ, "REMIT2_FIXTURE": str(ROOT / "data/samples/remit_sample.json"),
+           "REMIT2_STORE": "local", "REMIT2_LOCAL_DIR": local_dir, "REMIT2_ACTOR": "e2e@test"}
     proc = subprocess.Popen([sys.executable, "-m", "streamlit", "run", "app.py", "--server.headless", "true",
                              "--server.port", str(port)], cwd=ROOT, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -65,4 +68,43 @@ def test_hero_renders(server, tmp_path):
         w.goto(server + "/?mode=wall", wait_until="networkidle", timeout=120000)
         w.wait_for_selector(".js-plotly-plot", timeout=60000)
         assert w.get_by_text("New ad-hoc").count() == 0                 # wall mode hides controls
+        b.close()
+
+
+def test_adhoc_create_and_cancel(server):
+    """Create 'Comp 2 + Comp 3 out' at Hornsea Injection through the dialog,
+    check the strip/tile react, then cancel it from the register."""
+    with playwright.sync_playwright() as p:
+        b = _launch(p)
+        pg = b.new_page(viewport={"width": 1400, "height": 1100})
+        pg.goto(server, wait_until="networkidle", timeout=120000)
+        pg.wait_for_selector(".js-plotly-plot", timeout=60000)
+        pg.wait_for_timeout(3000)
+        pg.get_by_role("button", name="New ad-hoc").click()
+        dlg = pg.get_by_role("dialog")
+        dlg.get_by_text("Comp 2", exact=True).click()
+        dlg.get_by_text("Comp 3", exact=True).click()
+        dlg.get_by_label("Notes (required)").fill("e2e: comps 2 and 3 out")
+        pg.keyboard.press("Tab")
+        pg.wait_for_timeout(1500)
+        dlg.get_by_role("button", name="Save ad-hoc").click()
+        pg.wait_for_timeout(6000)
+        assert pg.get_by_text("Active 1").count() == 1
+        assert pg.get_by_text("Ad-hoc saved").count() == 1
+        assert pg.get_by_text("15.0", exact=True).count() >= 1            # Hornsea Injection tile
+        pg.get_by_text("Ad-hoc register (1)").click()
+        pg.wait_for_timeout(2000)
+        grid = pg.locator("[data-testid='stDataFrame']").first
+        box = grid.bounding_box()
+        pg.mouse.click(box["x"] + 18, box["y"] + 55)                    # selection checkbox of row 1
+        pg.wait_for_timeout(2500)
+        pg.get_by_role("button", name="Cancel entry").click()
+        dlg = pg.get_by_role("dialog")
+        dlg.get_by_label("Reason (required)").fill("test entry")
+        pg.keyboard.press("Tab")
+        pg.wait_for_timeout(1000)
+        dlg.get_by_role("button", name="Cancel this ad-hoc").click()
+        pg.wait_for_timeout(6000)
+        assert pg.get_by_text("Active 0").count() == 1
+        assert pg.get_by_text("Traceback").count() == 0
         b.close()

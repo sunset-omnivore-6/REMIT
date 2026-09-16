@@ -13,6 +13,7 @@ import streamlit as st
 
 from ..adhoc.combine import PanelSeries, compute_combined_series
 from ..adhoc.model import EquipmentConfig, Register
+from ..adhoc.store import GitHubClient, GitHubStore, LocalFileStore, Loaded
 from ..core import fetch as core_fetch
 from ..core.constants import CATEGORIES
 from ..core.normalise import detect_columns, normalise
@@ -91,9 +92,54 @@ def get_equipment() -> EquipmentConfig:
     return _equipment_from_file(str(p), p.stat().st_mtime)
 
 
-def get_register() -> tuple[Register, str]:
-    """(register, version). M1: empty in-memory register; M2 wires the store."""
-    return Register(), "empty"
+def _secret(key: str, default=None):
+    try:
+        return st.secrets[key]
+    except Exception:
+        return default
+
+
+@st.cache_resource(show_spinner=False)
+def get_store():
+    """GitHub data repo when a token is configured (unless REMIT2_STORE=local),
+    otherwise a local folder (dev / tests — not persistent on the Cloud)."""
+    mode = os.environ.get("REMIT2_STORE") or _secret("store")
+    gh = _secret("github")
+    if mode != "local" and gh and gh.get("token"):
+        client = GitHubClient(gh["owner"], gh["repo"], gh["token"], gh.get("branch", "main"))
+        return GitHubStore(client)
+    return LocalFileStore(os.environ.get("REMIT2_LOCAL_DIR") or ROOT / "data" / "local")
+
+
+def get_register(max_age_s: float = 30) -> Loaded:
+    return get_store().load(max_age_s)
+
+
+def get_equipment_live() -> EquipmentConfig:
+    try:
+        return get_store().load_equipment(get_equipment())
+    except Exception:
+        return get_equipment()
+
+
+def get_actor() -> str:
+    try:
+        u = st.user
+        email = u.get("email") if hasattr(u, "get") else getattr(u, "email", None)
+        if email:
+            return str(email)
+    except Exception:
+        pass
+    return str(_secret("dev_actor") or os.environ.get("REMIT2_ACTOR") or "unknown user")
+
+
+def is_editor(actor: str) -> bool:
+    """Editors list in secrets gates add/edit/close/cancel. No list configured
+    (local dev / first test runs) = everyone may edit."""
+    editors = _secret("editors")
+    if not editors:
+        return True
+    return actor.lower() in {str(e).lower() for e in editors}
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
