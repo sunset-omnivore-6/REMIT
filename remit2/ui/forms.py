@@ -104,13 +104,14 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
 
     st.markdown("**When**")
     start = _when("af_start", _now_local_rounded(), "Start")
-    open_ended = st.checkbox("Until further notice", value=True, key="af_open")
+    ends = st.radio("Ends", ["Until further notice", "At a set time"], horizontal=True, key="af_ends")
     end = None
-    if not open_ended:
-        end = _when("af_end", _now_local_rounded() + pd.Timedelta(days=1), "End")
     exp = None
-    if open_ended and st.checkbox("Add an expected return", key="af_hasexp"):
-        exp = _when("af_exp", _now_local_rounded() + pd.Timedelta(days=1), "Expected return")
+    if ends == "At a set time":
+        end = _when("af_end", _now_local_rounded() + pd.Timedelta(days=1), "End")
+    else:
+        if st.checkbox("Add an expected return (for tracking only — the entry stays active until it is closed)", key="af_hasexp"):
+            exp = _when("af_exp", _now_local_rounded() + pd.Timedelta(days=1), "Expected return")
 
     threads = _overlapping_threads(df_op, site, direction, start, end)
     cov_label = st.selectbox("Already covered by a published REMIT?", ["None — not published"] + [t[1] for t in threads],
@@ -167,8 +168,17 @@ def _save_new(rec: AdhocRecord, actor: str, now: pd.Timestamp) -> None:
 
 
 
+def _reset_keys(prefix: str) -> None:
+    """Dialog widgets are keyed; without this a re-opened dialog would show the
+    previous open's values instead of the record's."""
+    if st.session_state.pop(f"{prefix}_reset", False):
+        for k in [k for k in st.session_state if k.startswith(prefix)]:
+            del st.session_state[k]
+
+
 @st.dialog("Edit ad-hoc", width="large")
 def edit_adhoc_dialog(rec: AdhocRecord, equipment: EquipmentConfig, actor: str) -> None:
+    _reset_keys("ef_")
     cfg = equipment.get(rec.site, rec.direction)
     st.markdown(f"**{rec.id}** · {site_label(rec.site)} · {rec.direction} · {'Units out' if rec.kind == 'unit_out' else 'Rate change'}")
     changes: dict = {}
@@ -182,8 +192,9 @@ def edit_adhoc_dialog(rec: AdhocRecord, equipment: EquipmentConfig, actor: str) 
                                                                 value=float(rec.resulting_avail_gwhd or 0), step=0.5, key=f"ef_rate_{rec.id}"))
     start_loc = parse_iso(rec.start).tz_convert(LONDON).to_pydatetime().replace(tzinfo=None)
     changes["start"] = iso_utc(_when(f"ef_start_{rec.id}", start_loc, "Start"))
-    open_ended = st.checkbox("Until further notice", value=rec.end is None, key=f"ef_open_{rec.id}")
-    if open_ended:
+    ends = st.radio("Ends", ["Until further notice", "At a set time"], horizontal=True,
+                    index=0 if rec.end is None else 1, key=f"ef_ends_{rec.id}")
+    if ends == "Until further notice":
         changes["end"] = None
     else:
         end_loc = (parse_iso(rec.end) if rec.end else pd.Timestamp.now(tz="UTC") + pd.Timedelta(days=1)).tz_convert(LONDON).to_pydatetime().replace(tzinfo=None)
@@ -211,6 +222,7 @@ def edit_adhoc_dialog(rec: AdhocRecord, equipment: EquipmentConfig, actor: str) 
 
 @st.dialog("Close ad-hoc")
 def close_adhoc_dialog(rec: AdhocRecord, actor: str) -> None:
+    _reset_keys("cf_")
     st.markdown(f"**{rec.id}** · {site_label(rec.site)} · {rec.direction}")
     mode = st.radio("When did it end?", ["Now", "At a time"], horizontal=True, key=f"cf_mode_{rec.id}")
     now = pd.Timestamp.now(tz="UTC")
@@ -226,6 +238,7 @@ def close_adhoc_dialog(rec: AdhocRecord, actor: str) -> None:
 
 @st.dialog("Cancel ad-hoc")
 def cancel_adhoc_dialog(rec: AdhocRecord, actor: str) -> None:
+    _reset_keys("xf_")
     st.markdown(f"**{rec.id}** · {site_label(rec.site)} · {rec.direction}")
     st.caption("Cancelling removes the entry from the graphs and counts. It stays in the history (nothing is deleted).")
     reason = st.text_input("Reason (required)", key=f"xf_reason_{rec.id}", placeholder="e.g. entered in error / test entry")

@@ -33,6 +33,7 @@ def render_register(register: Register, equipment: EquipmentConfig, now: pd.Time
             "ID": r.id, "Site": site_label(r.site), "Type": r.direction, "What": _what(r, equipment),
             "Impact GWh/d": r.impact_gwhd(equipment), "Start": fmt_local(r.start),
             "End": "until further notice" if r.end is None else fmt_local(r.end),
+            "Expected return": fmt_local(r.expected_return) if r.expected_return else "",
             "Status": status + flag, "Covered by": r.covered_by_thread or "", "Entered by": r.created_by,
             "Updated": fmt_local(r.updated_at) + f" by {r.updated_by}",
         })
@@ -50,14 +51,17 @@ def render_register(register: Register, equipment: EquipmentConfig, now: pd.Time
     with c1:
         if st.button("Edit", key=f"rv_edit_{rec.id}", disabled=not can, width="stretch"):
             st.session_state["r2_dialog_open"] = True
+            st.session_state["ef__reset"] = True
             forms.edit_adhoc_dialog(rec, equipment, actor)
     with c2:
         if st.button("Close", key=f"rv_close_{rec.id}", disabled=not can or rec.status(now) in ("ended", "cancelled"), width="stretch"):
             st.session_state["r2_dialog_open"] = True
+            st.session_state["cf__reset"] = True
             forms.close_adhoc_dialog(rec, actor)
     with c3:
         if st.button("Cancel entry", key=f"rv_cancel_{rec.id}", disabled=not can or rec.status(now) == "cancelled", width="stretch"):
             st.session_state["r2_dialog_open"] = True
+            st.session_state["xf__reset"] = True
             forms.cancel_adhoc_dialog(rec, actor)
     with st.expander("History"):
         for h in rec.history:

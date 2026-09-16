@@ -114,9 +114,11 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
                            xanchor="left", yanchor="bottom", xshift=6, yshift=4,
                            font=dict(size=12, color=theme.INK), bgcolor="rgba(255,255,255,.85)")
 
+    # No zoom/pan: the window is set by "Days ahead"; an accidental drag-zoom
+    # with the modebar hidden had no way back.
     fig.update_yaxes(range=[-0.018 * tech, 1.14 * tech], title_text="GWh/d", gridcolor=theme.GRID, zeroline=False,
-                     showline=True, linecolor=theme.GRID, mirror=True)
-    fig.update_xaxes(type="date", range=[_naive_local(start), _naive_local(end)], gridcolor=theme.GRID,
+                     showline=True, linecolor=theme.GRID, mirror=True, fixedrange=True)
+    fig.update_xaxes(type="date", range=[_naive_local(start), _naive_local(end)], gridcolor=theme.GRID, fixedrange=True,
                      showline=True, linecolor=theme.GRID, mirror=True, title_text="Europe/London",
                      tickformatstops=[dict(dtickrange=[None, 3600000 * 12], value="%H:%M\n%d %b"),
                                       dict(dtickrange=[3600000 * 12, None], value="%d %b")])
@@ -128,7 +130,7 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
                                                 font=dict(family=theme.FONT, size=12, color=theme.INK)),
         plot_bgcolor=theme.SURFACE, paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family=theme.FONT, size=16 if wall else 12, color=theme.INK),
-        transition=dict(duration=0), uirevision="panel",
+        transition=dict(duration=0), dragmode=False,
     )
     return fig
 
@@ -189,4 +191,4 @@ def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls:
         mode = "plant" if controls.show_as == "Plant" else "values"
         st.markdown(f"<p class='r2-narr'>{narrate_panel(series, equipment, mode)}</p>", unsafe_allow_html=True)
         st.plotly_chart(panel_figure(series, equipment, controls.patterns, wall), width="stretch",
-                        config={"displayModeBar": False, "responsive": True}, key=f"fig-{key}")
+                        config={"displayModeBar": False, "responsive": True, "scrollZoom": False, "doubleClick": "reset"}, key=f"fig-{key}")
