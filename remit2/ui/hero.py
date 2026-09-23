@@ -123,7 +123,7 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
                      tickformatstops=[dict(dtickrange=[None, 3600000 * 12], value="%H:%M\n%d %b"),
                                       dict(dtickrange=[3600000 * 12, None], value="%d %b")])
     fig.update_layout(
-        height=380 if wall else 290, margin=dict(l=56, r=14, t=30, b=40),
+        height=400 if wall else 320, margin=dict(l=56, r=14, t=30, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=11),
                     itemclick=False, itemdoubleclick=False),
         hovermode="x unified", hoverlabel=dict(bgcolor=theme.SURFACE, bordercolor=theme.GRID, align="left",
@@ -154,7 +154,7 @@ def _tile_html(series: PanelSeries, equipment: EquipmentConfig, controls: Contro
     cur = series.segment_at(series.now)
     tech = series.tech
     if cur is None:
-        return f"<div class='r2-tile'><span class='label'>{site_label(site)} · {direction}</span><span class='value'>—</span></div>"
+        return f"<div class='r2-tile'><span class='label'>{direction}</span><span class='value'>—</span></div>"
     plant = controls.show_as == "Plant" and cfg.plant_view
     value = plant_terms(cur.state, equipment, site, direction) if plant else f"{cur.available:.1f}"
     unit = "" if plant else "<span class='unit'>GWh/d</span>"
@@ -176,7 +176,7 @@ def _tile_html(series: PanelSeries, equipment: EquipmentConfig, controls: Contro
         chips = "<span class='r2-chip' style='border-color:#94a3b8'><i style='background:#94a3b8'></i>No outage</span>"
     placeholder = " · placeholder unit values" if any(u.placeholder for u in cfg.units) and controls.show_as == "Plant" else ""
     return (
-        f"<div class='r2-tile'><span class='label'>{site_label(site)} · {direction}</span>"
+        f"<div class='r2-tile'><span class='label'>{direction}</span>"
         f"{value_html}<span class='sub'>{pct:.0f}% of {tech:g}{placeholder}</span></div>"
         f"<div class='r2-meter' role='meter' aria-valuemin='0' aria-valuemax='{tech:g}' aria-valuenow='{cur.available:.1f}'"
         f" aria-label='{site_label(site)} {direction} available'><span style='width:{max(0, min(100, pct)):.1f}%'></span></div>"

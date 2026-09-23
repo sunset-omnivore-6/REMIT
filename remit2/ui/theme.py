@@ -33,7 +33,7 @@ CSS = f"""
 }}
 html, body, .stApp, [data-testid="stMarkdownContainer"] * {{ font-family:{FONT}; }}
 .stApp {{ background:var(--r2-page); }}
-.block-container {{ padding-top:3.4rem; max-width:1320px; }}
+.block-container {{ padding-top:3.2rem; max-width:100%; padding-left:2.2rem; padding-right:2.2rem; }}
 /* Minimum readable text */
 [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {{ font-size:15px; }}
 /* Visible keyboard focus everywhere */
@@ -74,6 +74,12 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible, input:focu
   border-radius:var(--r2-radius); background:var(--r2-surface); padding:.6rem .9rem; margin:.3rem 0 .9rem; font-size:.95rem; }}
 .r2-strip b {{ font-weight:600; }}
 .r2-strip .stat {{ padding:.15rem .55rem; border-radius:8px; background:#f1f5f9; }}
+/* Site band: one full-width label per site row so its two cards read as a pair */
+.r2-siteband {{ display:flex; align-items:baseline; gap:.8rem; margin:.9rem 0 .35rem; padding-bottom:.3rem;
+  border-bottom:2px solid var(--r2-border); }}
+.r2-siteband .name {{ font-size:1.15rem; font-weight:600; color:var(--r2-ink); }}
+.r2-siteband .meta {{ font-size:.9rem; color:var(--r2-ink-soft); }}
+[class*="st-key-card-"] {{ min-height:0; }}
 /* Section header */
 .r2-sec {{ font-size:1.05rem; font-weight:600; color:var(--r2-ink); margin:.4rem 0 .2rem; }}
 /* Plain list rows (recent / upcoming) */
@@ -93,7 +99,7 @@ body.r2-wall header, body.r2-wall [data-testid="stToolbar"] {{ display:none; }}
 WALL_CSS = """
 <style>
 header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] { display:none !important; }
-.block-container { padding-top:.8rem; max-width:1800px; }
+.block-container { padding-top:.8rem; max-width:100%; }
 .r2-tile .value { font-size:2.6rem; }
 .r2-narr { font-size:1.15rem; }
 </style>

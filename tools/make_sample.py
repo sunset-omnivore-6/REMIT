@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-NOW = pd.Timestamp("2026-09-16T12:00:00Z")
+NOW = pd.Timestamp("2026-09-23T12:00:00Z")
 H = pd.Timedelta(hours=1)
 D = pd.Timedelta(days=1)
 

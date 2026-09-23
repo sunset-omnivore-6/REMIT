@@ -34,8 +34,8 @@ def _masthead(fetched_at, source: str) -> None:
     when = f"data fetched {fmt_local(fetched_at)}" if fetched_at is not None else "no data yet"
     src = {"fixture": " · FIXTURE DATA", "session": " · last good copy", "snapshot": " · disk snapshot", "none": ""}.get(source, "")
     st.markdown(
-        f"<div class='r2-mast'><h1>{TITLE}</h1><span class='sub'>Available capacity by site and direction · "
-        f"published REMITs + ad-hoc adjustments · {when}{src} · times Europe/London</span></div>",
+        f"<div class='r2-mast'><h1>{TITLE}</h1><span class='sub'>published REMITs + ad-hoc adjustments · "
+        f"{when}{src} · times Europe/London</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -102,14 +102,21 @@ def _recent_and_upcoming(data: d.RemitData, now: pd.Timestamp, horizon: int) -> 
 
 def _body() -> None:
     wall = _wall()
-    controls = render_controls(wall)
+    data = d.load_remit()
+    now = pd.Timestamp.now(tz="UTC")
+    if wall:
+        controls = render_controls(wall)
+        _masthead(data.fetched_at, data.source)
+    else:
+        left, right = st.columns([1.1, 1.6], vertical_alignment="center")
+        with left:
+            _masthead(data.fetched_at, data.source)
+        with right:
+            controls = render_controls(wall)
     if controls.refresh:
         st.session_state["r2_dialog_open"] = False
         st.cache_data.clear()
         st.rerun()
-    data = d.load_remit()
-    now = pd.Timestamp.now(tz="UTC")
-    _masthead(data.fetched_at, data.source)
     if data.source == "none":
         _banner("Connecting to the SSE REMIT feed — the page fills in automatically once data arrives (retries every 5 minutes).", "info")
         if data.error:
@@ -135,7 +142,13 @@ def _body() -> None:
     panels = d.compute_panels(data, register, version, controls.horizon_days, now)
 
     for site in ("Atwick", "Aldbrough"):
-        cols = st.columns(2, gap="large")
+        live_adhoc = sum(1 for r in register.records if r.site == site and r.status(now) in ("active", "planned"))
+        st.markdown(
+            f"<div class='r2-siteband'><span class='name'>{site_label(site)}</span>"
+            f"<span class='meta'>withdrawal · injection" + (f" · {live_adhoc} live ad-hoc" if live_adhoc else "") + "</span></div>",
+            unsafe_allow_html=True,
+        )
+        cols = st.columns(2, gap="medium")
         for col, direction in zip(cols, ("Withdrawal", "Injection")):
             with col:
                 render_panel_card(panels[(site, direction)], equipment, controls, wall)
