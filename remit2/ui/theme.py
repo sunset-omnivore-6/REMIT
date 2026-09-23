@@ -35,8 +35,9 @@ def mix(hex_a: str, hex_b: str, t: float) -> str:
     return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
 
 
-# Plot areas: a lighter shade of their band, so charts read as graphs, not flat colour.
-PLOT_BG = {k: mix(v, "#ffffff", 0.62) for k, v in SITE_BG.items()}
+# Plot areas: a lighter, still clearly tinted shade of their band (light blue for
+# Hornsea, light orange for Aldbrough) so charts read as graphs, not flat colour.
+PLOT_BG = {"Atwick": "#f1f6fb", "Aldbrough": "#fcf4ea"}
 
 LANE_COLOR = {"Planned REMIT": PLANNED, "Unplanned REMIT": UNPLANNED, "Ad-hoc": ADHOC}
 LANE_PATTERN = {"Planned REMIT": "/", "Unplanned REMIT": "\\", "Ad-hoc": "."}
@@ -122,14 +123,11 @@ header[data-testid="stHeader"] {{ background:transparent; }}
 .r2-status {{ font-size:.85rem; color:{INK}; white-space:nowrap; }}
 
 /* Coming up column */
-.r2-up {{ background:{SURFACE}; border:1px solid rgba(15,23,42,.08); border-radius:4px; padding:.55rem .8rem .45rem;
-  box-shadow:0 1px 0 rgba(15,23,42,.03); }}
+.r2-up {{ background:transparent; border:1px solid rgba(15,23,42,.14); border-radius:3px; padding:.55rem .8rem .45rem;
+  min-height:178px; }}   /* band colour inside; height matches the plot area */
 .r2-up .hd {{ font-size:.78rem; color:{INK_SOFT}; letter-spacing:.04em; margin-bottom:.25rem; font-weight:500; }}
 .r2-up li:last-child {{ border-bottom:none; }}
-.r2-up--plain {{ background:transparent; border:none; box-shadow:none; border-left:1px solid rgba(15,23,42,.14); border-radius:0; padding:.1rem 0 .1rem .9rem; }}
-.r2-up--plain li {{ border-bottom-color:rgba(15,23,42,.1); }}
-.r2-up--tint {{ border:none; box-shadow:none; border-radius:0; margin-top:0; min-height:178px; }}   /* matches the plot area */
-.r2-up--left {{ background:transparent; border:none; box-shadow:none; border-top:1px solid rgba(15,23,42,.1); border-radius:0; padding:.5rem 0 0; margin-top:.7rem; }}
+.r2-up li {{ border-bottom-color:rgba(15,23,42,.1) !important; }}
 .r2-up ul {{ list-style:none; margin:0; padding:0; }}
 .r2-up li {{ display:grid; grid-template-columns:1rem 3.1rem 1fr; column-gap:.3rem; font-size:.86rem; color:{INK};
   padding:.18rem 0; border-bottom:1px dotted {RULE}; font-variant-numeric:tabular-nums; }}
@@ -163,7 +161,7 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecor
 .block-container { padding-top:1rem; }
 .r2-num .val { font-size:2.6rem; }
 .r2-up li { font-size:1rem; }
-.r2-up--tint { min-height:228px; }
+.r2-up { min-height:228px; }
 </style>
 """
 

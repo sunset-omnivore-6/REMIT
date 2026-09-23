@@ -189,19 +189,11 @@ def _short(ts) -> str:
     return t.strftime("%a&nbsp;%d&nbsp;%b") + " " + t.strftime("%H:%M")   # time may wrap; the date never splits
 
 
-def _up_class(series: PanelSeries, variant: str) -> str:
-    return "r2-up" + ("" if variant == "panel" else f" r2-up--{variant}")
-
-
-def _up_style(series: PanelSeries, variant: str) -> str:
-    return f" style='background:{theme.PLOT_BG.get(series.site, theme.SURFACE)}'" if variant == "tint" else ""
-
-
-def _upcoming_html(series: PanelSeries, limit: int = 4, variant: str = "panel") -> str:
+def _upcoming_html(series: PanelSeries, limit: int = 4) -> str:
     future = [s for s in series.segments if s.start > series.now and abs(s.delta_prev) > 1e-6]
     days = max(1, (series.window[1] - series.now).days)
     if not future:
-        return f"<div class='{_up_class(series, variant)}'{_up_style(series, variant)}><div class='hd'>Coming up</div><div class='none'>No changes in the next {days} days.</div></div>"
+        return f"<div class='r2-up'><div class='hd'>Coming up</div><div class='none'>No changes in the next {days} days.</div></div>"
     rows = []
     for s in future[:limit]:
         glyph = "▼" if s.delta_prev < 0 else "▲"
@@ -211,7 +203,7 @@ def _upcoming_html(series: PanelSeries, limit: int = 4, variant: str = "panel") 
         rows.append(f"<li><span class='g {cls}'>{glyph}</span><span class='v'>{s.available:.1f}</span>"
                     f"<span class='t'>{_short(s.start)}</span><span class='w'>{why}</span></li>")
     more = f"<div class='more'>+ {len(future) - limit} more</div>" if len(future) > limit else ""
-    return f"<div class='{_up_class(series, variant)}'{_up_style(series, variant)}><div class='hd'>Coming up</div><ul>{''.join(rows)}</ul>{more}</div>"
+    return f"<div class='r2-up'><div class='hd'>Coming up</div><ul>{''.join(rows)}</ul>{more}</div>"
 
 
 def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, wall: bool = False) -> None:
@@ -219,30 +211,16 @@ def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls:
     column widths and date range, so timelines line up down the page."""
     key = f"card-{series.site.lower()}-{series.direction.lower()}"
     mode = "plant" if controls.show_as == "Plant" else "values"
-    variant = up_variant()
     plot_bg = theme.PLOT_BG.get(series.site, theme.SURFACE)
     fig = panel_figure(series, equipment, True, wall, plot_bg)
-    cfg = {"displayModeBar": False, "responsive": True, "scrollZoom": False}
     numbers = (_numbers_html(series, equipment, controls)
                + f"<p class='r2-sr'>{narrate_panel(series, equipment, mode)}</p>")
     with st.container(key=key):
-        if variant == "left":
-            c1, c2 = st.columns([1.25, 5.95], gap="medium", vertical_alignment="top")
-            with c1:
-                st.markdown(numbers + _upcoming_html(series, 3, variant), unsafe_allow_html=True)
-            with c2:
-                st.plotly_chart(fig, width="stretch", config=cfg, key=f"fig-{key}")
-            return
         c1, c2, c3 = st.columns([0.95, 4.9, 1.35], gap="medium", vertical_alignment="top")
         with c1:
             st.markdown(numbers, unsafe_allow_html=True)
         with c2:
-            st.plotly_chart(fig, width="stretch", config=cfg, key=f"fig-{key}")
+            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
+                            key=f"fig-{key}")
         with c3:
-            st.markdown(_upcoming_html(series, 4, variant), unsafe_allow_html=True)
-
-
-def up_variant() -> str:
-    """Coming-up layout under evaluation: ?up=tint|panel|plain|left (default tint)."""
-    v = st.query_params.get("up", "tint")
-    return v if v in ("panel", "plain", "tint", "left") else "tint"
+            st.markdown(_upcoming_html(series), unsafe_allow_html=True)
