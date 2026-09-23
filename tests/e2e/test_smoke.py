@@ -56,7 +56,7 @@ def test_hero_renders(server, tmp_path):
         page.wait_for_timeout(4000)
         assert page.locator(".js-plotly-plot").count() == 4
         assert page.get_by_text("Traceback").count() == 0
-        assert page.get_by_text("Ad-hoc adjustments").count() >= 1
+        assert page.get_by_text("Ad-hoc:").count() >= 1
         assert page.get_by_text("New ad-hoc").count() == 1
         assert page.get_by_text("available now").count() == 4          # four narratives
         page.screenshot(path=str(tmp_path / "desktop.png"), full_page=True)
@@ -89,9 +89,10 @@ def test_adhoc_create_and_cancel(server):
         pg.wait_for_timeout(1500)
         dlg.get_by_role("button", name="Save ad-hoc").click()
         pg.wait_for_timeout(6000)
-        assert pg.get_by_text("Active 1").count() == 1
+        assert "1 active" in pg.locator(".r2-adhoc").inner_text()
         assert pg.get_by_text("Ad-hoc saved").count() == 1
-        assert pg.get_by_text("15.0", exact=True).count() >= 1            # Hornsea Injection tile
+        card = pg.locator("[class*='st-key-card-atwick-injection'] .r2-stline").inner_text()
+        assert "Ad-hoc" in card                                            # ad-hoc now drives Hornsea Injection
         pg.get_by_text("Ad-hoc register (1 live)").click()
         pg.wait_for_timeout(2000)
         grid = pg.locator("[data-testid='stDataFrame']").first
@@ -105,6 +106,7 @@ def test_adhoc_create_and_cancel(server):
         pg.wait_for_timeout(1000)
         dlg.get_by_role("button", name="Cancel this ad-hoc").click()
         pg.wait_for_timeout(6000)
-        assert pg.get_by_text("Active 0").count() == 1
+        assert "0 active" in pg.locator(".r2-adhoc").inner_text()
+        assert "Ad-hoc" not in pg.locator("[class*='st-key-card-atwick-injection'] .r2-stline").inner_text()
         assert pg.get_by_text("Traceback").count() == 0
         b.close()

@@ -71,7 +71,7 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
     pts["x"] = pts["date"].map(_naive_local)
 
     fig = go.Figure()
-    fig.add_vrect(x0=_naive_local(start), x1=_naive_local(now), fillcolor="rgba(15,23,42,0.035)", line_width=0)
+    fig.add_vrect(x0=_naive_local(start), x1=_naive_local(now), fillcolor="rgba(15,23,42,0.025)", line_width=0)
     fig.add_hline(y=tech, line=dict(color=theme.NAMEPLATE, width=1))
     fig.add_annotation(x=_naive_local(end), y=tech, text=f"nameplate {tech:g}", showarrow=False, xanchor="right",
                        yanchor="bottom", font=dict(size=11, color=theme.INK_SOFT))
@@ -79,8 +79,10 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
     # Area under the line, coloured (and hatched) by the cause of the level.
     shown: set[str] = set()
     for cause, poly in _cause_runs(series):
-        color = theme.LANE_COLOR.get(cause, "#94a3b8")
-        name = cause or "No outage"
+        if cause is None:
+            continue            # no fill where nothing is out: only real causes are shaded
+        color = theme.LANE_COLOR[cause]
+        name = cause
         kw = dict(fillcolor=theme.rgba(color, 0.32 if cause else 0.10))
         if patterns and cause:
             kw["fillpattern"] = dict(shape=theme.LANE_PATTERN[cause], size=7, solidity=0.25, fgcolor=color, bgcolor=theme.rgba(color, 0.18))
@@ -116,19 +118,18 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
 
     # No zoom/pan: the window is set by "Days ahead"; an accidental drag-zoom
     # with the modebar hidden had no way back.
-    fig.update_yaxes(range=[-0.018 * tech, 1.14 * tech], title_text="GWh/d", gridcolor=theme.GRID, zeroline=False,
-                     showline=True, linecolor=theme.GRID, mirror=True, fixedrange=True)
-    fig.update_xaxes(type="date", range=[_naive_local(start), _naive_local(end)], gridcolor=theme.GRID, fixedrange=True,
-                     showline=True, linecolor=theme.GRID, mirror=True, title_text="Europe/London",
+    fig.update_yaxes(range=[-0.018 * tech, 1.14 * tech], gridcolor=theme.GRID, zeroline=False,
+                     showline=False, fixedrange=True, ticks="", nticks=4, tickfont=dict(size=11, color=theme.INK_SOFT))
+    fig.update_xaxes(type="date", range=[_naive_local(start), _naive_local(end)], showgrid=False, fixedrange=True,
+                     showline=True, linecolor="#cbd5e1", ticks="outside", ticklen=4, tickcolor="#cbd5e1",
+                     tickfont=dict(size=11, color=theme.INK_SOFT),
                      tickformatstops=[dict(dtickrange=[None, 3600000 * 12], value="%H:%M\n%d %b"),
                                       dict(dtickrange=[3600000 * 12, None], value="%d %b")])
     fig.update_layout(
-        height=400 if wall else 320, margin=dict(l=56, r=14, t=30, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=11),
-                    itemclick=False, itemdoubleclick=False),
+        height=260 if wall else 205, margin=dict(l=34, r=8, t=6, b=26), showlegend=False,
         hovermode="x unified", hoverlabel=dict(bgcolor=theme.SURFACE, bordercolor=theme.GRID, align="left",
                                                 font=dict(family=theme.FONT, size=12, color=theme.INK)),
-        plot_bgcolor=theme.SURFACE, paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
         font=dict(family=theme.FONT, size=16 if wall else 12, color=theme.INK),
         transition=dict(duration=0), dragmode=False,
     )
@@ -148,47 +149,73 @@ def panel_table(series: PanelSeries) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _tile_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls) -> str:
+def _status_html(state) -> str:
+    f = state.flags()
+    parts = [lane for lane, key in (("Planned REMIT", "remit_planned"), ("Unplanned REMIT", "remit_unplanned"),
+                                    ("Ad-hoc", "adhoc")) if f[key]]
+    if not parts:
+        return "<span class='r2-status'><i class='sw sw-none'></i>No outage</span>"
+    return " ".join(f"<span class='r2-status'><i class='sw {theme.LANE_CLASS[p]}'></i>{p}</span>" for p in parts)
+
+
+def _numbers_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls) -> str:
     site, direction = series.site, series.direction
     cfg = equipment.get(site, direction)
     cur = series.segment_at(series.now)
     tech = series.tech
     if cur is None:
-        return f"<div class='r2-tile'><span class='label'>{direction}</span><span class='value'>—</span></div>"
-    plant = controls.show_as == "Plant" and cfg.plant_view
-    value = plant_terms(cur.state, equipment, site, direction) if plant else f"{cur.available:.1f}"
-    unit = "" if plant else "<span class='unit'>GWh/d</span>"
-    value_html = f"<span class='value' style='font-size:{'1.35rem' if plant else '2.1rem'}'>{value}</span>{unit}"
+        return f"<div class='r2-num'><div class='dir'>{direction}</div><div class='val'>—</div></div>"
     pct = cur.state.pct
-    nxt = next((s for s in series.segments if s.start > series.now and abs(s.delta_prev) > 1e-6), None)
-    if nxt is None:
-        next_html = "<div class='r2-next'>No change in the horizon.</div>"
+    plant = controls.show_as == "Plant" and cfg.plant_view
+    if plant:
+        big = f"<div class='val val--text'>{plant_terms(cur.state, equipment, site, direction)}</div>"
+        sub = f"{cur.available:.1f} of {tech:g} GWh/d · {pct:.0f}%"
     else:
-        glyph, word = ("▼", "drop") if nxt.delta_prev < 0 else ("▲", "restore")
-        who = "; ".join(d.label for d in nxt.state.drivers if d.binding) or ("outage ends" if nxt.delta_prev > 0 else "—")
-        next_html = f"<div class='r2-next'>Next: {glyph} {word} to <b>{nxt.available:.1f}</b> at {fmt_local(nxt.start)} <span class='sub'>({who})</span></div>"
-    chips = ""
-    flags = cur.state.flags()
-    for lane, flag in (("Planned REMIT", flags["remit_planned"]), ("Unplanned REMIT", flags["remit_unplanned"]), ("Ad-hoc", flags["adhoc"])):
-        if flag:
-            chips += theme.chip(lane, theme.LANE_COLOR[lane])
-    if not chips:
-        chips = "<span class='r2-chip' style='border-color:#94a3b8'><i style='background:#94a3b8'></i>No outage</span>"
-    placeholder = " · placeholder unit values" if any(u.placeholder for u in cfg.units) and controls.show_as == "Plant" else ""
+        big = f"<div class='val'>{cur.available:.1f}<span class='unit'>GWh/d</span></div>"
+        sub = f"of {tech:g} · {pct:.0f}%"
+    ph = "<div class='note'>placeholder unit values</div>" if plant and any(u.placeholder for u in cfg.units) else ""
     return (
-        f"<div class='r2-tile'><span class='label'>{direction}</span>"
-        f"{value_html}<span class='sub'>{pct:.0f}% of {tech:g}{placeholder}</span></div>"
+        f"<div class='r2-num'><div class='dir'>{direction}</div>{big}<div class='of'>{sub}</div>"
         f"<div class='r2-meter' role='meter' aria-valuemin='0' aria-valuemax='{tech:g}' aria-valuenow='{cur.available:.1f}'"
         f" aria-label='{site_label(site)} {direction} available'><span style='width:{max(0, min(100, pct)):.1f}%'></span></div>"
-        f"{next_html}<div class='r2-chips'>{chips}</div>"
+        f"<div class='r2-stline'>{_status_html(cur.state)}</div>{ph}</div>"
     )
 
 
+def _short(ts) -> str:
+    return pd.Timestamp(ts).tz_convert(LONDON).strftime("%a %d %b %H:%M")
+
+
+def _upcoming_html(series: PanelSeries, limit: int = 4) -> str:
+    future = [s for s in series.segments if s.start > series.now and abs(s.delta_prev) > 1e-6]
+    days = max(1, (series.window[1] - series.now).days)
+    if not future:
+        return f"<div class='r2-up'><div class='hd'>Coming up</div><div class='none'>No changes in the next {days} days.</div></div>"
+    rows = []
+    for s in future[:limit]:
+        glyph = "▼" if s.delta_prev < 0 else "▲"
+        cls = "dn" if s.delta_prev < 0 else "upv"
+        why = "; ".join(short_thread(d.id) if d.source == "remit" else d.id for d in s.state.drivers if d.binding) \
+            or ("outage ends" if s.delta_prev > 0 else "")
+        rows.append(f"<li><span class='g {cls}'>{glyph}</span><span class='v'>{s.available:.1f}</span>"
+                    f"<span class='t'>{_short(s.start)}</span><span class='w'>{why}</span></li>")
+    more = f"<div class='more'>+ {len(future) - limit} more</div>" if len(future) > limit else ""
+    return f"<div class='r2-up'><div class='hd'>Coming up</div><ul>{''.join(rows)}</ul>{more}</div>"
+
+
 def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, wall: bool = False) -> None:
+    """One site/direction row: numbers | wide chart | coming up. Rows share
+    column widths and date range, so timelines line up down the page."""
     key = f"card-{series.site.lower()}-{series.direction.lower()}"
+    mode = "plant" if controls.show_as == "Plant" else "values"
     with st.container(key=key):
-        st.markdown(_tile_html(series, equipment, controls), unsafe_allow_html=True)
-        mode = "plant" if controls.show_as == "Plant" else "values"
-        st.markdown(f"<p class='r2-narr'>{narrate_panel(series, equipment, mode)}</p>", unsafe_allow_html=True)
-        st.plotly_chart(panel_figure(series, equipment, controls.patterns, wall), width="stretch",
-                        config={"displayModeBar": False, "responsive": True, "scrollZoom": False, "doubleClick": "reset"}, key=f"fig-{key}")
+        c1, c2, c3 = st.columns([0.95, 4.9, 1.35], gap="medium", vertical_alignment="top")
+        with c1:
+            st.markdown(_numbers_html(series, equipment, controls)
+                        + f"<p class='r2-sr'>{narrate_panel(series, equipment, mode)}</p>", unsafe_allow_html=True)
+        with c2:
+            st.plotly_chart(panel_figure(series, equipment, True, wall), width="stretch",
+                            config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
+                            key=f"fig-{key}")
+        with c3:
+            st.markdown(_upcoming_html(series), unsafe_allow_html=True)
