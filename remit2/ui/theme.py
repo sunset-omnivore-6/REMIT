@@ -20,12 +20,23 @@ RULE = "#e3e5e8"
 GRID = "#eceef1"
 NAMEPLATE = "#b9bfc9"
 SURFACE = "#ffffff"
-PAGE = "#fcfcfb"
+PAGE = "#f5f5f2"          # soft neutral page — no stark white behind the site bands
 FONT = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 # Site bands: neutral tints — cool slate for Hornsea, warm stone for Aldbrough —
 # chosen well away from the three cause colours so they never read as meaning.
-SITE_BG = {"Atwick": "#eef2f5", "Aldbrough": "#f5f1ea"}
+SITE_BG = {"Atwick": "#e9eef2", "Aldbrough": "#f1ece3"}
+
+
+def mix(hex_a: str, hex_b: str, t: float) -> str:
+    """Blend hex_a toward hex_b by t (0..1)."""
+    a = [int(hex_a.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
+    b = [int(hex_b.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
+
+
+# Plot areas: a lighter shade of their band, so charts read as graphs, not flat colour.
+PLOT_BG = {k: mix(v, "#ffffff", 0.62) for k, v in SITE_BG.items()}
 
 LANE_COLOR = {"Planned REMIT": PLANNED, "Unplanned REMIT": UNPLANNED, "Ad-hoc": ADHOC}
 LANE_PATTERN = {"Planned REMIT": "/", "Unplanned REMIT": "\\", "Ad-hoc": "."}
@@ -54,9 +65,11 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible, input:focu
 summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:2px !important; }}
 
 /* Title line */
-.r2-title {{ display:flex; flex-direction:column; gap:.15rem; }}
-.r2-title h1 {{ font-size:1.45rem; font-weight:600; color:{INK}; margin:0; padding:0; letter-spacing:-.005em; }}
-.r2-title h1 span {{ color:{INK_SOFT}; font-weight:400; }}
+header[data-testid="stHeader"] {{ background:transparent; }}
+.r2-title {{ display:flex; flex-direction:column; gap:.35rem; margin-bottom:.2rem; }}
+.r2-title .kicker {{ font-size:.85rem; color:{INK_SOFT}; font-weight:500; letter-spacing:.02em; }}
+.r2-title h1 {{ font-size:2.5rem; font-weight:600; color:{INK}; margin:0; padding:0; line-height:1.08; letter-spacing:-.02em; }}
+.r2-title .lede {{ font-size:1.05rem; color:{INK_SOFT}; max-width:60rem; line-height:1.45; }}
 .fresh {{ font-size:.88rem; color:{INK_SOFT}; font-variant-numeric:tabular-nums; }}
 .fresh b {{ font-weight:500; color:{INK}; }}
 .fresh .tag {{ font-size:.72rem; letter-spacing:.06em; color:#9a3412; border:1px solid #fdba74; border-radius:3px; padding:.05rem .35rem; margin-left:.4rem; }}
@@ -85,12 +98,13 @@ summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:
 .sw-none {{ background:#e5e7eb; box-shadow:inset 0 0 0 1px #cbd0d6; }}
 
 /* Site sections */
-[class*="st-key-site-"] {{ margin:1.1rem -2.4rem 0; padding:.9rem 2.4rem 1.3rem; width:calc(100% + 4.8rem) !important; max-width:none !important; }}
+[class*="st-key-site-"] {{ margin:1.1rem -2.4rem 0; padding:1.1rem 2.4rem 1.4rem; width:calc(100% + 4.8rem) !important; max-width:none !important;
+  border-top:1px solid rgba(15,23,42,.06); }}
 .st-key-site-atwick {{ background:{SITE_BG['Atwick']}; }}
-.st-key-site-aldbrough {{ background:{SITE_BG['Aldbrough']}; margin-top:0; }}
+.st-key-site-aldbrough {{ background:{SITE_BG['Aldbrough']}; margin-top:-1rem; border-bottom:1px solid rgba(15,23,42,.06); }}
 [class*="st-key-site-"] [class*="st-key-card-"] {{ border-top-color:rgba(15,23,42,.09); }}
 .r2-site {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem 1.2rem; margin:0; }}
-.r2-site h2 {{ font-size:1.2rem; font-weight:600; color:{INK}; margin:0; padding:0; }}
+.r2-site h2 {{ font-size:1.35rem; font-weight:600; color:{INK}; margin:0; padding:0; }}
 .r2-site .sum {{ font-size:.9rem; color:{INK_SOFT}; font-variant-numeric:tabular-nums; }}
 .r2-site .sum b {{ font-weight:500; color:{INK}; }}
 [class*="st-key-card-"] {{ border-top:1px solid {RULE}; padding-top:.7rem; margin-top:.35rem; }}
@@ -112,6 +126,10 @@ summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:
   box-shadow:0 1px 0 rgba(15,23,42,.03); }}
 .r2-up .hd {{ font-size:.78rem; color:{INK_SOFT}; letter-spacing:.04em; margin-bottom:.25rem; font-weight:500; }}
 .r2-up li:last-child {{ border-bottom:none; }}
+.r2-up--plain {{ background:transparent; border:none; box-shadow:none; border-left:1px solid rgba(15,23,42,.14); border-radius:0; padding:.1rem 0 .1rem .9rem; }}
+.r2-up--plain li {{ border-bottom-color:rgba(15,23,42,.1); }}
+.r2-up--tint {{ border:none; box-shadow:none; border-radius:0; margin-top:0; min-height:178px; }}   /* matches the plot area */
+.r2-up--left {{ background:transparent; border:none; box-shadow:none; border-top:1px solid rgba(15,23,42,.1); border-radius:0; padding:.5rem 0 0; margin-top:.7rem; }}
 .r2-up ul {{ list-style:none; margin:0; padding:0; }}
 .r2-up li {{ display:grid; grid-template-columns:1rem 3.1rem 1fr; column-gap:.3rem; font-size:.86rem; color:{INK};
   padding:.18rem 0; border-bottom:1px dotted {RULE}; font-variant-numeric:tabular-nums; }}
@@ -145,6 +163,7 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecor
 .block-container { padding-top:1rem; }
 .r2-num .val { font-size:2.6rem; }
 .r2-up li { font-size:1rem; }
+.r2-up--tint { min-height:228px; }
 </style>
 """
 

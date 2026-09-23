@@ -18,7 +18,7 @@ from .hero import render_panel_card
 from . import forms
 from .register_view import render_register
 
-TITLE = "Hornsea &amp; Aldbrough <span>· storage availability</span>"
+TITLE = "Hornsea &amp; Aldbrough availability"
 
 
 def _wall() -> bool:
@@ -30,13 +30,16 @@ def _banner(text: str, level: str = "warn") -> None:
     st.markdown(f"<div class='r2-banner r2-banner--{level}'>{icon} {text}</div>", unsafe_allow_html=True)
 
 
-def _title_line(fetched_at, source: str) -> bool:
+def _title_line(fetched_at, source: str, days: int) -> bool:
     """Title, then the data time with a small refresh icon beside it. Returns refresh click."""
     tag = {"fixture": "FIXTURE DATA", "session": "LAST GOOD COPY", "snapshot": "DISK SNAPSHOT"}.get(source, "")
     tag_html = f"<span class='tag'>{tag}</span>" if tag else ""
     when = (f"Data <b>{fmt_local(fetched_at)}</b> · refreshes every 5 min · UK times" if fetched_at is not None
             else "Waiting for data")
-    st.markdown(f"<div class='r2-title'><h1>{TITLE}</h1></div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='r2-title'><span class='kicker'>SSE gas storage · REMIT</span><h1>{TITLE}</h1>"
+        f"<span class='lede'>Withdrawal and injection capacity at both sites over the next {days} days — "
+        f"from published REMIT notices and ad-hoc plant changes.</span></div>", unsafe_allow_html=True)
     with st.container(key="r2fresh"):
         c1, c2 = st.columns([1, 1], gap="small", vertical_alignment="center")
         with c1:
@@ -118,7 +121,7 @@ def _body() -> None:
     data = d.load_remit()
     now = pd.Timestamp.now(tz="UTC")
     controls = ctl.current()
-    if _title_line(data.fetched_at, data.source) and not wall:
+    if _title_line(data.fetched_at, data.source, controls.horizon_days) and not wall:
         st.session_state["r2_dialog_open"] = False
         st.cache_data.clear()
         st.rerun()
