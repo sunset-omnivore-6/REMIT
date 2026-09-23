@@ -31,17 +31,19 @@ def _banner(text: str, level: str = "warn") -> None:
 
 
 def _title_line(fetched_at, source: str) -> bool:
-    """Title left; data freshness and refresh right. Returns refresh click."""
+    """Title, then the data time with a small refresh icon beside it. Returns refresh click."""
     tag = {"fixture": "FIXTURE DATA", "session": "LAST GOOD COPY", "snapshot": "DISK SNAPSHOT"}.get(source, "")
     tag_html = f"<span class='tag'>{tag}</span>" if tag else ""
     when = (f"Data <b>{fmt_local(fetched_at)}</b> · refreshes every 5 min · UK times" if fetched_at is not None
             else "Waiting for data")
-    left, right = st.columns([6, 1], vertical_alignment="bottom")
-    with left:
-        st.markdown(f"<div class='r2-title'><h1>{TITLE}</h1><span class='fresh'>{when}{tag_html}</span></div>",
-                    unsafe_allow_html=True)
-    with right:
-        return st.button("⟳ Refresh", type="tertiary", width="stretch", help="Fetch the latest REMIT data now")
+    st.markdown(f"<div class='r2-title'><h1>{TITLE}</h1></div>", unsafe_allow_html=True)
+    with st.container(key="r2fresh"):
+        c1, c2 = st.columns([1, 1], gap="small", vertical_alignment="center")
+        with c1:
+            st.markdown(f"<span class='fresh'>{when}{tag_html}</span>", unsafe_allow_html=True)
+        with c2:
+            return st.button("", icon=":material/refresh:", type="tertiary", key="r2_refresh",
+                             help="Refresh now — fetch the latest REMIT data")
 
 
 def _toolbar(loaded, equipment, now, actor: str, editor: bool, df_op) -> None:
@@ -154,10 +156,11 @@ def _body() -> None:
             if cur is not None:
                 summary.append(f"{direction.lower()} <b>{cur.available:.1f}</b> / {panels[(site, direction)].tech:g}")
         extra = f" · {live_adhoc} live ad-hoc" if live_adhoc else ""
-        st.markdown(f"<div class='r2-site'><h2>{site_label(site)}</h2>"
-                    f"<span class='sum'>{' · '.join(summary)} GWh/d{extra}</span></div>", unsafe_allow_html=True)
-        for direction in ("Withdrawal", "Injection"):
-            render_panel_card(panels[(site, direction)], equipment, controls, wall)
+        with st.container(key=f"site-{site.lower()}"):          # full-bleed tinted band per site
+            st.markdown(f"<div class='r2-site'><h2>{site_label(site)}</h2>"
+                        f"<span class='sum'>{' · '.join(summary)} GWh/d{extra}</span></div>", unsafe_allow_html=True)
+            for direction in ("Withdrawal", "Injection"):
+                render_panel_card(panels[(site, direction)], equipment, controls, wall)
     if not wall:
         n_live = sum(1 for r in register.records if r.status(now) in ("active", "planned"))
         n_past = len(register.records) - n_live

@@ -23,6 +23,10 @@ SURFACE = "#ffffff"
 PAGE = "#fcfcfb"
 FONT = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
+# Site bands: neutral tints — cool slate for Hornsea, warm stone for Aldbrough —
+# chosen well away from the three cause colours so they never read as meaning.
+SITE_BG = {"Atwick": "#eef2f5", "Aldbrough": "#f5f1ea"}
+
 LANE_COLOR = {"Planned REMIT": PLANNED, "Unplanned REMIT": UNPLANNED, "Ad-hoc": ADHOC}
 LANE_PATTERN = {"Planned REMIT": "/", "Unplanned REMIT": "\\", "Ad-hoc": "."}
 LANE_CLASS = {"Planned REMIT": "sw-planned", "Unplanned REMIT": "sw-unplanned", "Ad-hoc": "sw-adhoc"}
@@ -53,9 +57,16 @@ summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:
 .r2-title {{ display:flex; flex-direction:column; gap:.15rem; }}
 .r2-title h1 {{ font-size:1.45rem; font-weight:600; color:{INK}; margin:0; padding:0; letter-spacing:-.005em; }}
 .r2-title h1 span {{ color:{INK_SOFT}; font-weight:400; }}
-.r2-title .fresh {{ font-size:.88rem; color:{INK_SOFT}; font-variant-numeric:tabular-nums; }}
-.r2-title .fresh b {{ font-weight:500; color:{INK}; }}
-.r2-title .tag {{ font-size:.72rem; letter-spacing:.06em; color:#9a3412; border:1px solid #fdba74; border-radius:3px; padding:.05rem .35rem; margin-left:.4rem; }}
+.fresh {{ font-size:.88rem; color:{INK_SOFT}; font-variant-numeric:tabular-nums; }}
+.fresh b {{ font-weight:500; color:{INK}; }}
+.fresh .tag {{ font-size:.72rem; letter-spacing:.06em; color:#9a3412; border:1px solid #fdba74; border-radius:3px; padding:.05rem .35rem; margin-left:.4rem; }}
+
+/* Data time + refresh icon sit together, sized to content */
+[class*="st-key-r2fresh"] [data-testid="stHorizontalBlock"] {{ gap:.1rem; flex-wrap:nowrap; align-items:center; }}
+[class*="st-key-r2fresh"] [data-testid="stColumn"] {{ flex:0 0 auto !important; width:auto !important; min-width:0 !important; }}
+[class*="st-key-r2fresh"] [data-testid="stColumn"]:first-child {{ flex:0 1 auto !important; }}
+[class*="st-key-r2fresh"] button {{ min-height:0; padding:.1rem .3rem; color:{INK_SOFT}; }}
+[class*="st-key-r2fresh"] button:hover {{ color:{PLANNED}; }}
 
 /* Toolbar: one ruled line holding view controls, key and ad-hoc actions */
 [class*="st-key-r2toolbar"] {{ border-top:1px solid {RULE}; border-bottom:1px solid {RULE}; padding:.35rem 0 .35rem; margin:.5rem 0 .2rem; }}
@@ -74,7 +85,11 @@ summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:
 .sw-none {{ background:#e5e7eb; box-shadow:inset 0 0 0 1px #cbd0d6; }}
 
 /* Site sections */
-.r2-site {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem 1.2rem; margin:1.6rem 0 0; }}
+[class*="st-key-site-"] {{ margin:1.1rem -2.4rem 0; padding:.9rem 2.4rem 1.3rem; width:calc(100% + 4.8rem) !important; max-width:none !important; }}
+.st-key-site-atwick {{ background:{SITE_BG['Atwick']}; }}
+.st-key-site-aldbrough {{ background:{SITE_BG['Aldbrough']}; margin-top:0; }}
+[class*="st-key-site-"] [class*="st-key-card-"] {{ border-top-color:rgba(15,23,42,.09); }}
+.r2-site {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem 1.2rem; margin:0; }}
 .r2-site h2 {{ font-size:1.2rem; font-weight:600; color:{INK}; margin:0; padding:0; }}
 .r2-site .sum {{ font-size:.9rem; color:{INK_SOFT}; font-variant-numeric:tabular-nums; }}
 .r2-site .sum b {{ font-weight:500; color:{INK}; }}
@@ -93,12 +108,15 @@ summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:
 .r2-status {{ font-size:.85rem; color:{INK}; white-space:nowrap; }}
 
 /* Coming up column */
-.r2-up .hd {{ font-size:.78rem; color:{MUTED}; letter-spacing:.04em; margin-bottom:.25rem; }}
+.r2-up {{ background:{SURFACE}; border:1px solid rgba(15,23,42,.08); border-radius:4px; padding:.55rem .8rem .45rem;
+  box-shadow:0 1px 0 rgba(15,23,42,.03); }}
+.r2-up .hd {{ font-size:.78rem; color:{INK_SOFT}; letter-spacing:.04em; margin-bottom:.25rem; font-weight:500; }}
+.r2-up li:last-child {{ border-bottom:none; }}
 .r2-up ul {{ list-style:none; margin:0; padding:0; }}
 .r2-up li {{ display:grid; grid-template-columns:1rem 3.1rem 1fr; column-gap:.3rem; font-size:.86rem; color:{INK};
   padding:.18rem 0; border-bottom:1px dotted {RULE}; font-variant-numeric:tabular-nums; }}
 .r2-up li .w {{ grid-column:2 / 4; font-size:.76rem; color:{INK_SOFT}; overflow-wrap:anywhere; }}
-.r2-up li .t {{ color:{INK_SOFT}; white-space:nowrap; font-size:.82rem; }}
+.r2-up li .t {{ color:{INK_SOFT}; font-size:.82rem; min-width:0; }}
 .r2-up .dn {{ color:{UNPLANNED}; }} .r2-up .upv {{ color:{ADHOC}; }}
 .r2-up .none, .r2-up .more {{ font-size:.85rem; color:{INK_SOFT}; }}
 
@@ -117,7 +135,7 @@ summary:focus-visible {{ outline:3px solid {PLANNED} !important; outline-offset:
 
 @media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ animation:none !important; transition:none !important; }} }}
 @media (max-width: 1400px) {{ .r2-num .val {{ font-size:1.75rem; }} }}
-@media (max-width: 640px) {{ .r2-lbl--days {{ display:none; }} .block-container {{ padding-left:14px; padding-right:14px; }} .r2-adhoc {{ text-align:left; }} }}
+@media (max-width: 640px) {{ [class*="st-key-site-"] {{ margin-left:-14px; margin-right:-14px; padding-left:14px; padding-right:14px; width:calc(100% + 28px) !important; }} .r2-lbl--days {{ display:none; }} .block-container {{ padding-left:14px; padding-right:14px; }} .r2-adhoc {{ text-align:left; }} }}
 </style>
 """
 

@@ -58,7 +58,7 @@ def _cause_runs(series: PanelSeries) -> list[tuple[str | None, list[tuple[pd.Tim
 
 
 def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool = True,
-                 wall: bool = False) -> go.Figure:
+                 wall: bool = False, bg: str = theme.PAGE) -> go.Figure:
     tech = series.tech
     start, end = series.window
     now = series.now
@@ -71,7 +71,6 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
     pts["x"] = pts["date"].map(_naive_local)
 
     fig = go.Figure()
-    fig.add_vrect(x0=_naive_local(start), x1=_naive_local(now), fillcolor="rgba(15,23,42,0.025)", line_width=0)
     fig.add_hline(y=tech, line=dict(color=theme.NAMEPLATE, width=1))
     fig.add_annotation(x=_naive_local(end), y=tech, text=f"nameplate {tech:g}", showarrow=False, xanchor="right",
                        yanchor="bottom", font=dict(size=11, color=theme.INK_SOFT))
@@ -105,16 +104,19 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool
         if segs:
             fig.add_trace(go.Scatter(
                 x=[_naive_local(s.start) for s in segs], y=[s.available for s in segs], mode="markers",
-                marker=dict(symbol=sym, size=11, color=theme.INK, line=dict(color=theme.SURFACE, width=2)),
+                marker=dict(symbol=sym, size=11, color=theme.INK, line=dict(color=bg, width=2)),
                 hoverinfo="skip", showlegend=False,
             ))
     cur = series.segment_at(now)
     x_now = _naive_local(now)
-    fig.add_vline(x=x_now, line=dict(color=theme.INK, width=1.5))
+    # Fade the past: a veil in the row's own background colour drawn ABOVE the
+    # data left of now, so what is coming reads first and history stays legible.
+    fig.add_vrect(x0=_naive_local(start), x1=x_now, fillcolor=theme.rgba(bg, 0.58), line_width=0, layer="above")
+    fig.add_vline(x=x_now, line=dict(color=theme.INK_SOFT, width=1))
     if cur is not None:
         fig.add_annotation(x=x_now, y=cur.available, text=f"now {cur.available:.1f}", showarrow=False,
                            xanchor="left", yanchor="bottom", xshift=6, yshift=4,
-                           font=dict(size=12, color=theme.INK), bgcolor="rgba(255,255,255,.85)")
+                           font=dict(size=12, color=theme.INK), bgcolor=theme.rgba(bg, 0.9))
 
     # No zoom/pan: the window is set by "Days ahead"; an accidental drag-zoom
     # with the modebar hidden had no way back.
@@ -183,7 +185,8 @@ def _numbers_html(series: PanelSeries, equipment: EquipmentConfig, controls: Con
 
 
 def _short(ts) -> str:
-    return pd.Timestamp(ts).tz_convert(LONDON).strftime("%a %d %b %H:%M")
+    t = pd.Timestamp(ts).tz_convert(LONDON)
+    return t.strftime("%a&nbsp;%d&nbsp;%b") + " " + t.strftime("%H:%M")   # time may wrap; the date never splits
 
 
 def _upcoming_html(series: PanelSeries, limit: int = 4) -> str:
@@ -214,7 +217,7 @@ def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls:
             st.markdown(_numbers_html(series, equipment, controls)
                         + f"<p class='r2-sr'>{narrate_panel(series, equipment, mode)}</p>", unsafe_allow_html=True)
         with c2:
-            st.plotly_chart(panel_figure(series, equipment, True, wall), width="stretch",
+            st.plotly_chart(panel_figure(series, equipment, True, wall, theme.SITE_BG.get(series.site, theme.PAGE)), width="stretch",
                             config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
                             key=f"fig-{key}")
         with c3:
