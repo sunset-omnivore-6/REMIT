@@ -21,3 +21,17 @@
   strings, so rows not matching the first row's format were silently coerced to NaT
   (notices vanished from dials/timeline/recent changes). `remit2.core.normalise`
   uses `format="ISO8601"`; the same one-line fix was ported to 1.0 dev.
+- **Design review rev A (implemented)**: the chart shades only capacity that is *out*,
+  split into its REMIT part (T − R) and ad-hoc part (R − Avail), coloured and hatched
+  by cause, with available capacity as a grey wash and everything before now in grey;
+  numbered change markers match the numbered Coming up list; gas-day grid (05:00 UK,
+  darker Mondays); headline block = level now, cause, next change; one toolbar with
+  the legend and an ad-hoc chip that opens the register; ink (not blue) buttons;
+  type scale 34/28/20/15/13/12 at weights 400/600.
+- **Attribution fix**: an ad-hoc unit-out no longer counts as binding when a REMIT
+  already holds availability at 0 (it removes nothing).
+- **Wall screen**: selected by URL — open the app with `?mode=wall` on the wall
+  display. Dark tokens, no controls, clock with gas day, refresh every minute.
+  Dark cause colours are re-stepped, not reused: Planned `#459cdd`, Unplanned
+  `#e06f36`, Ad-hoc `#1dab80` — all ≥ 5.4:1 against the dark bands/plots, CVD ΔE ≥ 10,
+  normal-vision ΔE ≥ 16. Cause colours are only ever fills, never text.

@@ -1,10 +1,13 @@
 [theme]
 base = "light"
-primaryColor = "#0072B2"
-backgroundColor = "#f6f8fb"
+primaryColor = "#1c2430"          # ink: buttons never wear a data colour (blue means Planned REMIT only)
+backgroundColor = "#f5f5f2"
 secondaryBackgroundColor = "#ffffff"
-textColor = "#0f172a"
+textColor = "#1c2430"
 font = "sans serif"
+
+[client]
+toolbarMode = "minimal"           # no Deploy button / developer menu on the wall screen
 
 [server]
 headless = true

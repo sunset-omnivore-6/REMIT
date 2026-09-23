@@ -85,22 +85,24 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
         direction = st.segmented_control("Type", DIRECTIONS, key="af_dir", default="Injection") or "Injection"
     site = SITES_UI[site_ui]
     cfg = equipment.get(site, direction)
-    kind_ui = st.radio("What is affected?", ["Units out", "Rate change"], horizontal=True, key="af_kind")
+    st.session_state.setdefault("af_kind", "Units out")
+    kind_ui = st.session_state["af_kind"]
     units: list[str] = []
     resulting: float | None = None
     if kind_ui == "Units out":
-        labels = {u.label: u.id for u in cfg.units}
-        picked = st.pills("Units unavailable", list(labels), selection_mode="multi", key="af_units") or []
+        # Equipment as tiles: each shows what the unit is worth; the selection is dotted like the ad-hoc shading.
+        labels = {unit_tile_label(u): u.id for u in cfg.units}
+        picked = st.pills("What’s out", list(labels), selection_mode="multi", key="af_units") or []
         units = [labels[l] for l in picked]
         if any(u.placeholder for u in cfg.units):
             st.caption("⚠ Placeholder unit values for this site — confirm before relying on the numbers.")
-        if units:
-            lost = equipment.gwhd_lost(site, direction, units)
-            st.caption(f"≈ {lost:g} GWh/d lost → {max(0, cfg.nameplate_gwhd - lost):g} of {cfg.nameplate_gwhd:g} available on its own")
     else:
         resulting = st.number_input("Resulting available capacity (GWh/d)", min_value=0.0,
                                     max_value=float(cfg.nameplate_gwhd), value=float(cfg.nameplate_gwhd), step=0.5,
                                     key="af_rate", help="Enter what will be AVAILABLE, not the reduction")
+    if st.button("Rate change instead" if kind_ui == "Units out" else "Units out instead", type="tertiary", key="af_kind_btn"):
+        st.session_state["af_kind"] = "Rate change" if kind_ui == "Units out" else "Units out"
+        st.rerun(scope="fragment")
 
     st.markdown("**When**")
     start = _when("af_start", _now_local_rounded(), "Start")
@@ -126,9 +128,7 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
     ack_ok = True
     if not errors:
         thr = threshold_check(rec, register, equipment, df_op, now)
-        st.markdown(f"**Preview** — availability at start: {thr.baseline_avail:.1f} → **{thr.resulting_avail:.1f} GWh/d** "
-                    f"(impact {thr.impact_gwhd:.1f}; total unpublished reduction {thr.aggregate_after_gwhd:.1f}; "
-                    f"REMIT threshold {thr.quarter} > {thr.threshold:g})")
+        _preview(rec, thr, register, equipment, df_op, now)
         dup = [r for r in register.for_site_direction(site, direction) if r.kind == "unit_out" and set(r.units) & set(units)
                and r.status(now) in ("active", "planned")]
         if dup:
@@ -140,7 +140,7 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
         for e in errors:
             st.caption(f"• {e}")
 
-    c1, c2 = st.columns([1, 1])
+    _, c2, c1 = st.columns([3, 1, 1.2])
     with c1:
         if st.button("Save ad-hoc", type="primary", disabled=st.session_state.get("af_saving", False), width="stretch"):
             if errors:
@@ -159,6 +159,48 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
         if st.button("Cancel", width="stretch"):
             st.session_state["r2_dialog_open"] = False
             st.rerun()
+
+
+def unit_tile_label(u) -> str:
+    return f"{u.label} · {u.gwhd_lost:g} GWh/d"
+
+
+def _preview(rec: AdhocRecord, thr, register: Register, equipment: EquipmentConfig, df_op: pd.DataFrame,
+             now: pd.Timestamp) -> None:
+    """See the effect before saving: the site/direction chart with the new entry
+    included, the resulting levels in words, and the threshold as a measured bar."""
+    from ..adhoc.combine import compute_combined_series
+    from .hero import day_label, panel_figure, time_label
+    trial = Register(schema_version=register.schema_version, meta=dict(register.meta), records=list(register.records) + [rec])
+    horizon = int(st.session_state.get("r2_horizon_days", 30))
+    start = (now - pd.Timedelta(days=max(1, horizon // 4))).floor("h")
+    end = (now + pd.Timedelta(days=horizon)).ceil("h")
+    if rec.end_ts is not None and rec.end_ts + pd.Timedelta(days=2) > end:
+        end = (rec.end_ts + pd.Timedelta(days=2)).ceil("h")
+    series = compute_combined_series(df_op, trial, equipment, rec.site, rec.direction, start, end, now)
+    with st.container(key=f"af_prev_{rec.site.lower()}"):
+        st.markdown(f"<div class='r2-prevhd'><span>Effect on {site_label(rec.site)} {rec.direction.lower()}</span>"
+                    f"<span>preview</span></div>", unsafe_allow_html=True)
+        st.plotly_chart(panel_figure(series, equipment, mini=True, show_x=False, max_events=3), width="stretch",
+                        config={"displayModeBar": False, "responsive": True}, key="af_prev_fig")
+        t0 = rec.start_ts
+        window = [s for s in series.segments if s.end > t0 and (rec.end_ts is None or s.start < rec.end_ts)]
+        low = min(window, key=lambda s: s.available) if window else None
+        bits = [f"<b>{thr.resulting_avail:.1f}</b> at start (was {thr.baseline_avail:.1f})"]
+        if low is not None and low.available < thr.resulting_avail - 1e-6:
+            when = max(low.start, t0)
+            bits.append(f"lowest <b>{low.available:.1f}</b> from {day_label(when)} {time_label(when)}")
+        if rec.end_ts is not None:
+            back = series.segment_at(rec.end_ts)
+            if back is not None:
+                bits.append(f"<b>{back.available:.1f}</b> again from {day_label(rec.end_ts)} {time_label(rec.end_ts)}")
+        pct = min(100.0, 100.0 * thr.aggregate_after_gwhd / thr.threshold) if thr.threshold else 100.0
+        over = "r2-thr--over" if thr.exceeds else ""
+        st.markdown(
+            f"<p class='r2-prevtxt'>{' · '.join(bits)}</p>"
+            f"<div class='r2-thr {over}'><div class='bar'><span style='width:{pct:.1f}%'></span></div>"
+            f"<span>Unpublished reduction <b>{thr.aggregate_after_gwhd:.1f} of {thr.threshold:g} GWh/d</b> · "
+            f"{'above' if thr.exceeds else 'below'} the {thr.quarter} REMIT threshold</span></div>", unsafe_allow_html=True)
 
 
 def _save_new(rec: AdhocRecord, actor: str, now: pd.Timestamp) -> None:
@@ -183,7 +225,7 @@ def edit_adhoc_dialog(rec: AdhocRecord, equipment: EquipmentConfig, actor: str) 
     st.markdown(f"**{rec.id}** · {site_label(rec.site)} · {rec.direction} · {'Units out' if rec.kind == 'unit_out' else 'Rate change'}")
     changes: dict = {}
     if rec.kind == "unit_out":
-        labels = {u.label: u.id for u in cfg.units}
+        labels = {unit_tile_label(u): u.id for u in cfg.units}
         cur = [l for l, i in labels.items() if i in rec.units]
         picked = st.pills("Units unavailable", list(labels), selection_mode="multi", default=cur, key=f"ef_units_{rec.id}") or []
         changes["units"] = [labels[l] for l in picked]

@@ -1,226 +1,397 @@
-"""Hero cards: header tile + narrative + two-row Plotly figure (step line over
-cause lanes) + table twin. Accessible by construction: text twins always
-rendered; lanes carry colour AND pattern AND a word; shape encodes change
-direction; nothing depends on hover alone."""
+"""One site/direction row (design review sheets 02–03): headline block | chart | Coming up.
+
+The chart shades only what is MISSING: the band between the line and the
+maximum, split into its REMIT part (T − R) and its ad-hoc part (R − Avail),
+each coloured AND hatched by cause. What is available stays a calm grey wash.
+Colour starts at now — history is grey with the same hatch directions.
+Future steps carry numbered markers that match the Coming up list; the grid is
+the gas day (05:00 UK), darker on Mondays. One unified tooltip lists every
+cause at the hovered moment. Nothing depends on hover alone: the headline
+block, the numbered list and a screen-reader sentence carry the same facts.
+"""
 from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from ..adhoc.combine import LANES, PanelSeries
+from ..adhoc.combine import LostPart, PanelSeries, lost_parts
 from ..adhoc.model import EquipmentConfig
-from ..adhoc.narrate import narrate_panel, plant_terms
+from ..adhoc.narrate import ChangeEvent, change_events, narrate_panel
 from ..core.capacity import short_thread
-from ..core.constants import site_label
-from ..core.timeutil import LONDON, fmt_local
+from ..core.timeutil import LONDON
 from . import theme
 from .controls import Controls
 
+EPS = 1e-6
 
-def _naive_local(ts: pd.Timestamp):
+
+# ---------------------------------------------------------------------------
+# Formatting
+# ---------------------------------------------------------------------------
+
+def _loc(ts) -> pd.Timestamp:
+    return pd.Timestamp(ts).tz_convert(LONDON)
+
+
+def _naive_local(ts):
     """Plotly coerces tz-aware datetimes to UTC; plot naive Europe/London."""
-    return pd.Timestamp(ts).tz_convert(LONDON).tz_localize(None)
+    return _loc(ts).tz_localize(None)
 
 
-def _driver_text(seg) -> str:
-    lines = []
-    for d in seg.state.drivers:
-        if d.binding:
-            red = f" −{d.reduction:.1f}" if d.reduction is not None else ""
-            lines.append(f"{d.label}{red}")
-    return "<br>".join(lines) if lines else "no outages"
+def day_label(ts) -> str:
+    t = _loc(ts)
+    return f"{t.strftime('%a')} {t.day} {t.strftime('%b')}"      # 'Thu 24 Sep'
 
 
-CAUSE_PRIORITY = ("Ad-hoc", "Unplanned REMIT", "Planned REMIT")
+def time_label(ts) -> str:
+    return _loc(ts).strftime("%H:%M")
 
 
-def _cause_of(seg) -> str | None:
-    f = seg.state.flags()
-    for lane, key in zip(CAUSE_PRIORITY, ("adhoc", "remit_unplanned", "remit_planned")):
-        if f[key]:
-            return lane
-    return None
+def rel_label(ts, now) -> str:
+    n = (_loc(ts).normalize() - _loc(now).normalize()).days
+    if n == 0:
+        return "today"
+    if n == 1:
+        return "tomorrow"
+    if n > 1:
+        return f"in {n} days"
+    return "yesterday" if n == -1 else f"{-n} days ago"
 
 
-def _cause_runs(series: PanelSeries) -> list[tuple[str | None, list[tuple[pd.Timestamp, float]]]]:
-    """Contiguous runs of segments sharing a cause -> polyline points for a
-    filled step area (last point closes the run at its own held value)."""
-    runs: list[tuple[str | None, list]] = []
-    for seg in series.segments:
-        cause = _cause_of(seg)
-        if runs and runs[-1][0] == cause:
-            runs[-1][1].append((seg.start, seg.available))
+def _cap(v: float) -> str:
+    return f"{v:g}" if abs(v - round(v)) > 1e-9 else str(int(round(v)))
+
+
+def _tick(v: float) -> str:
+    return str(int(round(v))) if abs(v - round(v)) < 1e-9 else f"{v:.1f}"
+
+
+def part_ids(part: LostPart, series: PanelSeries, equipment: EquipmentConfig, state) -> str:
+    if part.lane == "Ad-hoc":
+        labels = {u.id: u.label for u in equipment.get(series.site, series.direction).units}
+        return ", ".join(d.id + (f" ({', '.join(labels.get(u, u) for u in d.units)})" if d.units else "")
+                         for d in state.drivers if d.source == "adhoc" and d.binding)
+    return ", ".join(short_thread(i) for i in part.ids)
+
+
+# ---------------------------------------------------------------------------
+# Chart
+# ---------------------------------------------------------------------------
+
+def _rects(rects: list[tuple]) -> tuple[list, list]:
+    xs, ys = [], []
+    for x0, x1, y0, y1 in rects:
+        xs += [x0, x1, x1, x0, x0, None]
+        ys += [y0, y0, y1, y1, y0, None]
+    return xs, ys
+
+
+def _gas_days(start, end) -> list[pd.Timestamp]:
+    """05:00 UK each day within the window (UTC timestamps)."""
+    out = []
+    d = _loc(start).normalize() - pd.Timedelta(days=1)
+    stop = _loc(end).normalize() + pd.Timedelta(days=1)
+    while d <= stop:
+        t = pd.Timestamp(d.year, d.month, d.day, 5, 0).tz_localize(LONDON).tz_convert("UTC")
+        if start <= t <= end:
+            out.append(t)
+        d += pd.Timedelta(days=1)
+    return out
+
+
+def _hover_text(series: PanelSeries, equipment: EquipmentConfig, seg, t: dict, past: bool) -> str:
+    parts = lost_parts(seg.state)
+    head = f"<b>{seg.available:.1f}</b> of {_cap(series.tech)} GWh/d available" + (" · history" if past else "")
+    if not parts:
+        return head + "<br>Full capacity"
+    rows = []
+    for p in parts:
+        col = t["past"] if past else t[theme.LANE_KEY[p.lane]]
+        ids = part_ids(p, series, equipment, seg.state)
+        rows.append(f"<span style='color:{col}'>▬</span> {p.lane}{' · ' + ids if ids else ''}  <b>−{p.amount:.1f}</b>")
+    return head + "<br>" + "<br>".join(rows)
+
+
+def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool = False, show_x: bool = True,
+                 mini: bool = False, max_events: int | None = None, events: list[ChangeEvent] | None = None) -> go.Figure:
+    t = theme.tokens(wall)
+    T = series.tech
+    S, E = series.window
+    N = series.now
+    bg = t["plot"].get(series.site, t["card"])
+    X = _naive_local
+    mark_y = 1.095 * T
+
+    # Split segments at now: history is drawn grey.
+    segs = []
+    for s in series.segments:
+        a, b = max(s.start, S), min(s.end, E)
+        if b <= a:
+            continue
+        if a < N < b:
+            segs += [(a, N, s, True), (N, b, s, False)]
         else:
-            runs.append((cause, [(seg.start, seg.available)]))
-        runs[-1][1].append((seg.end, seg.available))
-    return runs
-
-
-def panel_figure(series: PanelSeries, equipment: EquipmentConfig, patterns: bool = True,
-                 wall: bool = False, bg: str = theme.PAGE) -> go.Figure:
-    tech = series.tech
-    start, end = series.window
-    now = series.now
-    pts = series.points.copy()
-    seg_starts = pd.Series([s.start for s in series.segments])
-    idx = seg_starts.searchsorted(pts["date"], side="right") - 1
-    idx = idx.clip(0, max(0, len(series.segments) - 1))
-    pts["pct"] = [100.0 * v / tech if tech else 0 for v in pts["available"]]
-    pts["drivers"] = [_driver_text(series.segments[i]) if series.segments else "" for i in idx]
-    pts["x"] = pts["date"].map(_naive_local)
+            segs.append((a, b, s, b <= N))
 
     fig = go.Figure()
-    fig.add_hline(y=tech, line=dict(color=theme.NAMEPLATE, width=1))
-    fig.add_annotation(x=_naive_local(end), y=tech, text=f"nameplate {tech:g}", showarrow=False, xanchor="right",
-                       yanchor="bottom", font=dict(size=11, color=theme.INK_SOFT))
+    shapes = [dict(type="rect", xref="x", yref="y", x0=X(S), x1=X(E), y0=0, y1=T, fillcolor=bg, line_width=0, layer="below")]
+    span_days = (E - S) / pd.Timedelta(days=1)
+    gd = _gas_days(S, E)
+    for g in gd:
+        mon = _loc(g).weekday() == 0
+        if span_days > 62 and not mon:
+            continue
+        shapes.append(dict(type="line", xref="x", yref="y", x0=X(g), x1=X(g), y0=0, y1=T, layer="below",
+                           line=dict(color=t["grid_mon"] if mon else t["grid"], width=1)))
+    shapes.append(dict(type="line", xref="x", yref="y", x0=X(S), x1=X(E), y0=T / 2, y1=T / 2, layer="below",
+                       line=dict(color=t["grid"], width=1)))
 
-    # Area under the line, coloured (and hatched) by the cause of the level.
-    shown: set[str] = set()
-    for cause, poly in _cause_runs(series):
-        if cause is None:
-            continue            # no fill where nothing is out: only real causes are shaded
-        color = theme.LANE_COLOR[cause]
-        name = cause
-        kw = dict(fillcolor=theme.rgba(color, 0.32 if cause else 0.10))
-        if patterns and cause:
-            kw["fillpattern"] = dict(shape=theme.LANE_PATTERN[cause], size=7, solidity=0.25, fgcolor=color, bgcolor=theme.rgba(color, 0.18))
+    # Available: a calm grey wash under the line (lighter in the past).
+    for past in (True, False):
+        xs, ys = _rects([(X(a), X(b), 0, s.available) for a, b, s, p in segs if p == past and s.available > EPS])
+        if xs:
+            fig.add_trace(go.Scatter(x=xs, y=ys, fill="toself", mode="lines", line=dict(width=0),
+                                     fillcolor=t["avail_past"] if past else t["avail"], hoverinfo="skip", showlegend=False))
+
+    # Lost capacity by cause: REMIT part from R up to the maximum, ad-hoc part below it.
+    groups: dict[tuple[str, bool], list] = {}
+    gaps: list[tuple] = []
+    for a, b, s, past in segs:
+        parts = lost_parts(s.state)
+        r = max(0.0, min(s.state.remit_avail, T))
+        for p in parts:
+            key = theme.LANE_KEY[p.lane]
+            y0, y1 = (r, T) if p.lane != "Ad-hoc" else (s.available, r)
+            groups.setdefault((key, past), []).append((X(a), X(b), y0, y1))
+        if len(parts) == 2:
+            gaps.append((X(a), X(b), r))
+    for (key, past), rects in groups.items():
+        col = t["past"] if past else t[key]
+        wash = theme.rgba(col, .12 if past else .17)
+        xs, ys = _rects(rects)
         fig.add_trace(go.Scatter(
-            x=[_naive_local(t) for t, _ in poly], y=[v for _, v in poly], mode="lines",
-            line=dict(width=0, shape="hv"), fill="tozeroy", name=name, legendgroup=name,
-            showlegend=name not in shown, hoverinfo="skip", **kw,
+            x=xs, y=ys, fill="toself", mode="lines", line=dict(width=0), hoverinfo="skip", showlegend=False, fillcolor=wash,
+            fillpattern=dict(shape=theme.LANE_PATTERN[key], fgcolor=col, bgcolor=wash,
+                             size=5 if key == "adhoc" else 6, solidity=0.34 if key == "adhoc" else 0.3),
         ))
-        shown.add(name)
+    if gaps:   # 2px surface gap between the stacked REMIT and ad-hoc parts
+        xs, ys = [], []
+        for x0, x1, y in gaps:
+            xs += [x0, x1, None]
+            ys += [y, y, None]
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color=bg, width=2), hoverinfo="skip", showlegend=False))
 
-    fig.add_trace(go.Scatter(
-        x=pts["x"], y=pts["available"], mode="lines", name="Available", showlegend=False,
-        line=dict(color=theme.INK, width=2.2, shape="hv"),
-        customdata=list(zip(pts["pct"], pts["drivers"])),
-        hovertemplate="<b>%{y:.1f} GWh/d</b> · %{customdata[0]:.0f}% of nameplate<br>%{customdata[1]}<extra></extra>",
-    ))
-    ups = [s for s in series.segments if s.delta_prev > 1e-6]
-    downs = [s for s in series.segments if s.delta_prev < -1e-6]
-    for segs, sym in ((downs, "triangle-down"), (ups, "triangle-up")):
-        if segs:
-            fig.add_trace(go.Scatter(
-                x=[_naive_local(s.start) for s in segs], y=[s.available for s in segs], mode="markers",
-                marker=dict(symbol=sym, size=11, color=theme.INK, line=dict(color=bg, width=2)),
-                hoverinfo="skip", showlegend=False,
-            ))
-    cur = series.segment_at(now)
-    x_now = _naive_local(now)
-    # Fade the past: a veil in the row's own background colour drawn ABOVE the
-    # data left of now, so what is coming reads first and history stays legible.
-    fig.add_vrect(x0=_naive_local(start), x1=x_now, fillcolor=theme.rgba(bg, 0.58), line_width=0, layer="above")
-    fig.add_vline(x=x_now, line=dict(color=theme.INK_SOFT, width=1))
-    if cur is not None:
-        fig.add_annotation(x=x_now, y=cur.available, text=f"now {cur.available:.1f}", showarrow=False,
-                           xanchor="left", yanchor="bottom", xshift=6, yshift=4,
-                           font=dict(size=12, color=theme.INK), bgcolor=theme.rgba(bg, 0.9))
+    shapes.append(dict(type="line", xref="x", yref="y", x0=X(S), x1=X(E), y0=T, y1=T, line=dict(color=t["nameplate"], width=1)))
+    shapes.append(dict(type="line", xref="x", yref="y", x0=X(S), x1=X(E), y0=0, y1=0, line=dict(color=t["axis"], width=1)))
 
-    # No zoom/pan: the window is set by "Days ahead"; an accidental drag-zoom
-    # with the modebar hidden had no way back.
-    fig.update_yaxes(range=[-0.018 * tech, 1.14 * tech], gridcolor=theme.GRID, zeroline=False,
-                     showline=False, fixedrange=True, ticks="", nticks=4, tickfont=dict(size=11, color=theme.INK_SOFT))
-    fig.update_xaxes(type="date", range=[_naive_local(start), _naive_local(end)], showgrid=False, fixedrange=True,
-                     showline=True, linecolor="#cbd5e1", ticks="outside", ticklen=4, tickcolor="#cbd5e1",
-                     tickfont=dict(size=11, color=theme.INK_SOFT),
-                     tickformatstops=[dict(dtickrange=[None, 3600000 * 12], value="%H:%M\n%d %b"),
-                                      dict(dtickrange=[3600000 * 12, None], value="%d %b")])
+    # The availability line: ink ahead of now, grey behind it.
+    for past in (True, False):
+        xs, ys = [], []
+        for a, b, s, p in segs:
+            if p == past:
+                xs += [X(a), X(b)]
+                ys += [s.available, s.available]
+        if xs:
+            fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", hoverinfo="skip", showlegend=False,
+                                     line=dict(color=t["ink_past"] if past else t["ink"], width=1.5 if past else 2)))
+
+    # Numbered changes: marker above the plot, faint line down through it.
+    events = change_events(series, equipment) if events is None else events
+    if max_events is not None:
+        events = events[:max_events]
+    min_gap = (E - S) * 0.022
+    last = None
+    mx, my, mt = [], [], []
+    for ev in events:
+        shapes.append(dict(type="line", xref="x", yref="y", x0=X(ev.at), x1=X(ev.at), y0=0, y1=T,
+                           line=dict(color=theme.rgba(t["ink"], .2), width=1)))
+        at = ev.at if last is None or ev.at - last >= min_gap else last + min_gap
+        if at != ev.at:
+            shapes.append(dict(type="line", xref="x", yref="y", x0=X(at), x1=X(ev.at), y0=mark_y, y1=T,
+                               line=dict(color=theme.rgba(t["ink"], .5), width=1)))
+        last = at
+        mx.append(X(at))
+        my.append(mark_y)
+        mt.append(str(ev.n))
+    if mx:
+        fig.add_trace(go.Scatter(x=mx, y=my, mode="markers+text", text=mt, textposition="middle center",
+                                 textfont=dict(color=t["on_ink"], size=12 if wall else 10, family=theme.FONT),
+                                 marker=dict(size=20 if wall else 16, color=t["ink"]), cliponaxis=False,
+                                 hoverinfo="skip", showlegend=False))
+
+    # Now: line, label, point and value.
+    cur = series.segment_at(N)
+    annotations = []
+    if S < N < E:
+        shapes.append(dict(type="line", xref="x", yref="y", x0=X(N), x1=X(N), y0=0, y1=1.14 * T,
+                           line=dict(color=t["ink"], width=1.5)))
+        annotations.append(dict(x=X(N), y=mark_y, text="<b>Now</b>", showarrow=False, xanchor="right", xshift=-5,
+                                font=dict(size=13 if wall else 11, color=t["ink2"])))
+        if cur is not None:
+            v = cur.available
+            fig.add_trace(go.Scatter(x=[X(N)], y=[v], mode="markers", hoverinfo="skip", showlegend=False, cliponaxis=False,
+                                     marker=dict(size=9, color=t["ink"], line=dict(color=bg, width=2))))
+            high = v > 0.8 * T
+            annotations.append(dict(x=X(N), y=v, text=f"<b>{v:.1f}</b>", showarrow=False, xanchor="left", xshift=7,
+                                    yanchor="top" if high else "bottom", yshift=-5 if high else 5,
+                                    font=dict(size=15 if wall else 12, color=t["ink"]), bgcolor=theme.rgba(bg, .85)))
+    if not mini:
+        annotations.append(dict(xref="paper", x=0, y=mark_y, text="GWh/d", showarrow=False, xanchor="right", xshift=-2,
+                                font=dict(size=12 if wall else 10.5, color=t["ink3"])))
+
+    # Hover: one unified tooltip listing every cause at that moment.
+    pts = series.points
+    if series.segments and not pts.empty:
+        starts = pd.Series([s.start for s in series.segments])
+        idx = (starts.searchsorted(pts["date"], side="right") - 1).clip(0, len(series.segments) - 1)
+        cache: dict = {}
+        texts = []
+        for i, d in zip(idx, pts["date"]):
+            k = (int(i), bool(d < N))
+            if k not in cache:
+                cache[k] = _hover_text(series, equipment, series.segments[k[0]], t, k[1])
+            texts.append(cache[k])
+        fig.add_trace(go.Scatter(x=[X(d) for d in pts["date"]], y=pts["available"], mode="lines",
+                                 line=dict(width=0, color="rgba(0,0,0,0)"), customdata=texts,
+                                 hovertemplate="%{customdata}<extra></extra>", showlegend=False))
+
+    # Axes: the top edge is the maximum; dates once per site (show_x).
+    if span_days <= 120:
+        ticks = [g for g in gd if _loc(g).weekday() == 0]
+        text, last_m = [], None
+        for g in ticks:
+            m = _loc(g).strftime("%b")
+            text.append(f"Mon {_loc(g).day}" + (f" {m}" if m != last_m else ""))
+            last_m = m
+    else:
+        ticks = [g for g in gd if _loc(g).day == 1]
+        text = [_loc(g).strftime("%b %Y") if _loc(g).month == 1 else _loc(g).strftime("%b") for g in ticks]
+    fig.update_xaxes(type="date", range=[X(S), X(E)], showgrid=False, zeroline=False, fixedrange=True,
+                     tickvals=[X(g) for g in ticks], ticktext=text, showticklabels=show_x, ticks="",
+                     tickfont=dict(size=13 if wall else 11, color=t["ink3"]),
+                     showspikes=True, spikemode="across", spikesnap="cursor", spikecolor=t["ink"], spikethickness=1,
+                     spikedash="solid", hoverformat="%a %-d %b · %H:%M")
+    fig.update_yaxes(range=[-0.02 * T, 1.17 * T], tickvals=[0, T / 2, T], ticktext=["0", _tick(T / 2), _cap(T)],
+                     showgrid=False, zeroline=False, showline=False, fixedrange=True, ticks="",
+                     tickfont=dict(size=13 if wall else 11, color=t["ink3"]))
+    plot_h = 100 if mini else 150
+    b = 22 if show_x else 10
     fig.update_layout(
-        height=260 if wall else 205, margin=dict(l=34, r=8, t=6, b=26), showlegend=False,
-        hovermode="x unified", hoverlabel=dict(bgcolor=theme.SURFACE, bordercolor=theme.GRID, align="left",
-                                                font=dict(family=theme.FONT, size=12, color=theme.INK)),
-        plot_bgcolor=bg, paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family=theme.FONT, size=16 if wall else 12, color=theme.INK),
+        height=plot_h + 4 + b, margin=dict(l=50 if wall else 40, r=10, t=4, b=b), showlegend=False,
+        shapes=shapes, annotations=annotations, hovermode="x unified",
+        hoverlabel=dict(bgcolor=t["card"], bordercolor=t["rule"], align="left",
+                        font=dict(family=theme.FONT, size=12, color=t["ink"])),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family=theme.FONT, size=12, color=t["ink"]),
         transition=dict(duration=0), dragmode=False,
     )
     return fig
 
 
-def panel_table(series: PanelSeries) -> pd.DataFrame:
-    rows = []
-    for s in series.segments:
-        remit = [f"{short_thread(d.id)} ({'P' if d.planned else 'U'})" for d in s.state.drivers if d.binding and d.source == "remit"]
-        adhoc = [d.id for d in s.state.drivers if d.binding and d.source == "adhoc"]
-        rows.append({
-            "From": fmt_local(s.start), "To": fmt_local(s.end), "Available GWh/d": round(s.available, 2),
-            "% nameplate": round(s.state.pct, 0), "Change": round(s.delta_prev, 2) if abs(s.delta_prev) > 1e-6 else None,
-            "REMIT": ", ".join(remit), "Ad-hoc": ", ".join(adhoc),
-        })
-    return pd.DataFrame(rows)
+# ---------------------------------------------------------------------------
+# Headline block (now · cause · next) and Plant tiles
+# ---------------------------------------------------------------------------
+
+def _next_html(events: list[ChangeEvent], series: PanelSeries) -> str:
+    if not events:
+        days = max(1, (series.window[1] - series.now).days)
+        return f"<div class='next muted'>No change in the next {days} days</div>"
+    ev = events[0]
+    return (f"<div class='next'>Next <b>{'▼' if ev.delta < 0 else '▲'} {ev.available:.1f}</b><br>"
+            f"{day_label(ev.at)} {time_label(ev.at)} <span class='muted'>· {rel_label(ev.at, series.now)}</span></div>")
 
 
-def _status_html(state) -> str:
-    f = state.flags()
-    parts = [lane for lane, key in (("Planned REMIT", "remit_planned"), ("Unplanned REMIT", "remit_unplanned"),
-                                    ("Ad-hoc", "adhoc")) if f[key]]
-    if not parts:
-        return "<span class='r2-status'><i class='sw sw-none'></i>No outage</span>"
-    return " ".join(f"<span class='r2-status'><i class='sw {theme.LANE_CLASS[p]}'></i>{p}</span>" for p in parts)
+def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state, next_html: str) -> str:
+    cfg = equipment.get(series.site, series.direction)
+    T = series.tech
+    lost = set(state.lost_units)
+    units = [dict(id=u.id, label=u.label, gwhd=u.gwhd_lost, st="adhoc" if u.id in lost else "on") for u in cfg.units]
+    uniform = len({u["gwhd"] for u in units}) == 1
+    r_red = T - max(0.0, min(state.remit_avail, T))
+    remit_parts = [p for p in lost_parts(state) if p.lane != "Ad-hoc"]
+    rkey = theme.LANE_KEY[remit_parts[0].lane] if remit_parts else "planned"
+    est = 0
+    if r_red > EPS and units:
+        if uniform:     # REMITs are GWh/d only: convert to the nearest whole units, marked ≈
+            k = int(round(r_red / units[0]["gwhd"])) if units[0]["gwhd"] else 0
+            for u in reversed(units):
+                if k <= 0:
+                    break
+                if u["st"] == "on":
+                    u["st"], k, est = rkey, k - 1, est + 1
+        else:
+            m = next((u for u in units if u["st"] == "on" and abs(u["gwhd"] - r_red) <= 0.15 * u["gwhd"]), None)
+            if m:
+                m["st"], est = rkey, 1
+    on = [u for u in units if u["st"] == "on"]
+    tiles = "".join(
+        f"<div class='r2-unit r2-unit--{u['st']}' style='flex:{'1 1 0' if uniform else str(u['gwhd']) + ' 1 0;min-width:78px'}'>"
+        f"<span>{'≈ ' if u['st'] in ('planned', 'unplanned') else ''}{u['label']}</span></div>" for u in units)
+    noun = cfg.unit_noun or "unit"
+    head = (f"{len(on)} of {len(units)} {noun}s running" if uniform
+            else (" + ".join(u["label"] for u in on) or "Nothing") + " running")
+    sub = f"{state.available:.1f} / {_cap(T)} GWh/d" + (" · ≈ estimated from REMIT" if est else "")
+    if state.cap is not None and state.available <= state.cap + EPS:
+        sub += f" · rate capped at {state.cap:.1f}"
+    note = "<div class='note'>Placeholder unit values</div>" if any(u.placeholder for u in cfg.units) else ""
+    return (f"<div class='r2-kpi'><div class='lab'>{series.direction} · plant</div><div class='plant'>{head}</div>"
+            f"<div class='r2-units'>{tiles}</div><div class='sub'>{sub}</div>{note}{next_html}</div>")
 
 
-def _numbers_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls) -> str:
-    site, direction = series.site, series.direction
-    cfg = equipment.get(site, direction)
+def kpi_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, events: list[ChangeEvent]) -> str:
     cur = series.segment_at(series.now)
-    tech = series.tech
     if cur is None:
-        return f"<div class='r2-num'><div class='dir'>{direction}</div><div class='val'>—</div></div>"
-    pct = cur.state.pct
-    plant = controls.show_as == "Plant" and cfg.plant_view
-    if plant:
-        big = f"<div class='val val--text'>{plant_terms(cur.state, equipment, site, direction)}</div>"
-        sub = f"{cur.available:.1f} of {tech:g} GWh/d · {pct:.0f}%"
+        return f"<div class='r2-kpi'><div class='lab'>{series.direction}</div><div class='val'>—</div></div>"
+    nxt = _next_html(events, series)
+    if controls.show_as == "Plant" and equipment.get(series.site, series.direction).plant_view:
+        return _plant_html(series, equipment, cur.state, nxt)
+    parts = lost_parts(cur.state)
+    if parts:
+        cause = "".join(
+            f"<div class='cause'>{theme.swatch(theme.LANE_KEY[p.lane])}<span>{p.lane} "
+            f"<span class='ids'>{part_ids(p, series, equipment, cur.state)}</span></span></div>" for p in parts)
     else:
-        big = f"<div class='val'>{cur.available:.1f}<span class='unit'>GWh/d</span></div>"
-        sub = f"of {tech:g} · {pct:.0f}%"
-    ph = "<div class='note'>placeholder unit values</div>" if plant and any(u.placeholder for u in cfg.units) else ""
-    return (
-        f"<div class='r2-num'><div class='dir'>{direction}</div>{big}<div class='of'>{sub}</div>"
-        f"<div class='r2-meter' role='meter' aria-valuemin='0' aria-valuemax='{tech:g}' aria-valuenow='{cur.available:.1f}'"
-        f" aria-label='{site_label(site)} {direction} available'><span style='width:{max(0, min(100, pct)):.1f}%'></span></div>"
-        f"<div class='r2-stline'>{_status_html(cur.state)}</div>{ph}</div>"
-    )
+        cause = "<div class='cause muted'>✓ <span>Full capacity</span></div>"
+    return (f"<div class='r2-kpi'><div class='lab'>{series.direction}</div>"
+            f"<div class='val'>{cur.available:.1f}<span class='of'>/ {_cap(series.tech)} GWh/d</span></div>{cause}{nxt}</div>")
 
 
-def _short(ts) -> str:
-    t = pd.Timestamp(ts).tz_convert(LONDON)
-    return t.strftime("%a&nbsp;%d&nbsp;%b") + " " + t.strftime("%H:%M")   # time may wrap; the date never splits
+# ---------------------------------------------------------------------------
+# Coming up
+# ---------------------------------------------------------------------------
 
-
-def _upcoming_html(series: PanelSeries, limit: int = 4) -> str:
-    future = [s for s in series.segments if s.start > series.now and abs(s.delta_prev) > 1e-6]
+def upcoming_html(series: PanelSeries, events: list[ChangeEvent], limit: int = 4) -> str:
     days = max(1, (series.window[1] - series.now).days)
-    if not future:
-        return f"<div class='r2-up'><div class='hd'>Coming up</div><div class='none'>No changes in the next {days} days.</div></div>"
-    rows = []
-    for s in future[:limit]:
-        glyph = "▼" if s.delta_prev < 0 else "▲"
-        cls = "dn" if s.delta_prev < 0 else "upv"
-        why = "; ".join(short_thread(d.id) if d.source == "remit" else d.id for d in s.state.drivers if d.binding) \
-            or ("outage ends" if s.delta_prev > 0 else "")
-        rows.append(f"<li><span class='g {cls}'>{glyph}</span><span class='v'>{s.available:.1f}</span>"
-                    f"<span class='t'>{_short(s.start)}</span><span class='w'>{why}</span></li>")
-    more = f"<div class='more'>+ {len(future) - limit} more</div>" if len(future) > limit else ""
-    return f"<div class='r2-up'><div class='hd'>Coming up</div><ul>{''.join(rows)}</ul>{more}</div>"
+    if not events:
+        return (f"<div class='r2-up'><div class='hd'><span>Coming up</span></div>"
+                f"<p class='none'>No changes in the next {days} days.</p></div>")
+    items = "".join(
+        f"<li><span class='num'>{e.n}</span><span class='when'><b>{day_label(e.at)}</b> {time_label(e.at)}</span>"
+        f"<span class='chg'><i>{'▼' if e.delta < 0 else '▲'}</i>{e.available:.1f}</span><span class='why'>{e.why}</span></li>"
+        for e in events[:limit])
+    more = f"<div class='more'>+ {len(events) - limit} more</div>" if len(events) > limit else ""
+    n = len(events)
+    return (f"<div class='r2-up'><div class='hd'><span>Coming up</span><span>{n} change{'s' if n != 1 else ''}</span></div>"
+            f"<ol>{items}</ol>{more}</div>")
 
 
-def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, wall: bool = False) -> None:
-    """One site/direction row: numbers | wide chart | coming up. Rows share
-    column widths and date range, so timelines line up down the page."""
+def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, wall: bool = False,
+                      show_x: bool = True) -> None:
+    """Headline block | wide chart | Coming up. Rows share column widths and
+    the time window, so the charts line up down the page."""
     key = f"card-{series.site.lower()}-{series.direction.lower()}"
     mode = "plant" if controls.show_as == "Plant" else "values"
-    plot_bg = theme.PLOT_BG.get(series.site, theme.SURFACE)
-    fig = panel_figure(series, equipment, True, wall, plot_bg)
-    numbers = (_numbers_html(series, equipment, controls)
-               + f"<p class='r2-sr'>{narrate_panel(series, equipment, mode)}</p>")
+    events = change_events(series, equipment)
+    fig = panel_figure(series, equipment, wall=wall, show_x=show_x, events=events)
+    head = kpi_html(series, equipment, controls, events) + f"<p class='r2-sr'>{narrate_panel(series, equipment, mode)}</p>"
     with st.container(key=key):
-        c1, c2, c3 = st.columns([0.95, 4.9, 1.35], gap="medium", vertical_alignment="top")
+        widths = [1, 4.6, 1.5] if wall else [1, 3.85, 1.46]
+        c1, c2, c3 = st.columns(widths, gap="medium", vertical_alignment="top")
         with c1:
-            st.markdown(numbers, unsafe_allow_html=True)
+            st.markdown(head, unsafe_allow_html=True)
         with c2:
             st.plotly_chart(fig, width="stretch", config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
                             key=f"fig-{key}")
         with c3:
-            st.markdown(_upcoming_html(series), unsafe_allow_html=True)
+            st.markdown(upcoming_html(series, events, 2 if wall else 4), unsafe_allow_html=True)

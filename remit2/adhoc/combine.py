@@ -227,10 +227,13 @@ def combined_state_at(
     avail = min(ru, cap)
     avail = max(0.0, min(float(avail), tech))
     cap_binding = cap < ru - EPS
+    # What the level would be without the unit losses: an ad-hoc only binds if it
+    # actually takes something away (not when a REMIT already holds the level at 0).
+    without_units = max(0.0, min(float(r_avail), cap, tech))
 
     for a in contributing:
         if a.kind == "unit_out":
-            binding = (not cap_binding) and unit_loss > EPS
+            binding = (not cap_binding) and unit_loss > EPS and without_units - avail > EPS
             reduction = equipment.gwhd_lost(site, direction, a.units)
         else:
             binding = cap_binding and abs(float(a.resulting_avail_gwhd) - cap) <= EPS
@@ -250,6 +253,31 @@ def _adhoc_label(a: AdhocRecord, equipment: EquipmentConfig) -> str:
     if a.kind == "rate_cap":
         return f"{ident}: rate capped at {float(a.resulting_avail_gwhd):g} GWh/d"
     return ident
+
+
+@dataclass
+class LostPart:
+    """One slice of lost capacity, for shading: REMIT part = T − R, ad-hoc part = R − Avail."""
+    lane: str
+    amount: float
+    ids: list[str]
+    labels: list[str]
+
+
+def lost_parts(state: State) -> list[LostPart]:
+    """Capacity that is out, split by cause (REMIT first, then ad-hoc below it).
+    Sizes come from the values, so overlapping causes are both shown."""
+    t = state.tech
+    r = max(0.0, min(state.remit_avail, t))
+    parts: list[LostPart] = []
+    if t - r > EPS:
+        remit = [d for d in state.drivers if d.source == "remit" and d.binding]
+        lane = LANE_UNPLANNED if any(not d.planned for d in remit) else LANE_PLANNED
+        parts.append(LostPart(lane, t - r, [d.id for d in remit], [d.label for d in remit]))
+    if r - state.available > EPS:
+        ad = [d for d in state.drivers if d.source == "adhoc" and d.binding]
+        parts.append(LostPart(LANE_ADHOC, r - state.available, [d.id for d in ad], [d.label for d in ad]))
+    return parts
 
 
 # ---------------------------------------------------------------------------

@@ -82,31 +82,30 @@ def test_adhoc_create_and_cancel(server):
         pg.wait_for_timeout(3000)
         pg.get_by_role("button", name="New ad-hoc").click()
         dlg = pg.get_by_role("dialog")
-        dlg.get_by_text("Comp 2", exact=True).click()
-        dlg.get_by_text("Comp 3", exact=True).click()
+        dlg.get_by_text("Comp 2 · 7.5 GWh/d", exact=True).click()
+        dlg.get_by_text("Comp 3 · 7.5 GWh/d", exact=True).click()
         dlg.get_by_label("Notes (required)").fill("e2e: comps 2 and 3 out")
         pg.keyboard.press("Tab")
         pg.wait_for_timeout(1500)
+        assert dlg.get_by_text("Effect on Hornsea injection").count() == 1       # preview before saving
+        assert dlg.get_by_text("REMIT threshold").count() >= 1
+        pg.screenshot(path="/tmp/claude-0/-home-user-REMIT/f30ea6ac-edc2-5863-aead-2e35f003bc8f/scratchpad/e2e_dialog.png")
         dlg.get_by_role("button", name="Save ad-hoc").click()
         pg.wait_for_timeout(6000)
-        assert "1 active" in pg.locator(".r2-adhoc").inner_text()
+        assert "1 active" in pg.locator("[class*='st-key-r2chip'] button").first.inner_text()
         assert pg.get_by_text("Ad-hoc saved").count() == 1
-        card = pg.locator("[class*='st-key-card-atwick-injection'] .r2-stline").inner_text()
+        card = pg.locator("[class*='st-key-card-atwick-injection'] .r2-kpi").inner_text()
         assert "Ad-hoc" in card                                            # ad-hoc now drives Hornsea Injection
-        pg.get_by_text("Ad-hoc register (1 live)").click()
-        pg.wait_for_timeout(2000)
-        grid = pg.locator("[data-testid='stDataFrame']").first
-        box = grid.bounding_box()
-        pg.mouse.click(box["x"] + 18, box["y"] + 55)                    # selection checkbox of row 1
-        pg.wait_for_timeout(2500)
-        pg.get_by_role("button", name="Cancel entry").click()
+        assert "15.0" in card
+        row = pg.locator("[class*='st-key-rvrow-']").first               # register: actions on the row
+        row.get_by_role("button", name="Cancel").click()
         dlg = pg.get_by_role("dialog")
         dlg.get_by_label("Reason (required)").fill("test entry")
         pg.keyboard.press("Tab")
         pg.wait_for_timeout(1000)
         dlg.get_by_role("button", name="Cancel this ad-hoc").click()
         pg.wait_for_timeout(6000)
-        assert "0 active" in pg.locator(".r2-adhoc").inner_text()
-        assert "Ad-hoc" not in pg.locator("[class*='st-key-card-atwick-injection'] .r2-stline").inner_text()
+        assert "0 active" in pg.locator("[class*='st-key-r2chip'] button").first.inner_text()
+        assert "Ad-hoc" not in pg.locator("[class*='st-key-card-atwick-injection'] .r2-kpi").inner_text()
         assert pg.get_by_text("Traceback").count() == 0
         b.close()

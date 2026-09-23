@@ -2,6 +2,8 @@
 fastest human read) and Plant-view wording. Pure."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pandas as pd
 
 from ..core.timeutil import fmt_local
@@ -83,3 +85,50 @@ def narrate_panel(series: PanelSeries, equipment: EquipmentConfig, mode: str = "
         else:
             sent += f" Then {_q(after.available)} at {fmt_local(after.start)}{_cause(after)}."
     return sent
+
+
+# ---------------------------------------------------------------------------
+# Numbered changes (chart markers ↔ Coming up list) with reasons in words
+# ---------------------------------------------------------------------------
+
+def driver_name(d, equipment: EquipmentConfig, site: str, direction: str) -> str:
+    """'Planned REMIT ATW_1402' / 'Ad-hoc A-0001 (Comp 3)'."""
+    from ..core.capacity import short_thread
+    if d.source == "remit":
+        return f"{'Planned' if d.planned else 'Unplanned'} REMIT {short_thread(d.id)}"
+    labels = {u.id: u.label for u in equipment.get(site, direction).units}
+    units = f" ({', '.join(labels.get(u, u) for u in d.units)})" if d.units else ""
+    return f"Ad-hoc {d.id}{units}"
+
+
+def change_reason(prev: State, cur: State, delta: float, equipment: EquipmentConfig, site: str, direction: str) -> str:
+    a = {d.id: d for d in prev.drivers if d.binding}
+    b = {d.id: d for d in cur.drivers if d.binding}
+    bits = [driver_name(d, equipment, site, direction) + " ends" for i, d in a.items() if i not in b]
+    bits += [driver_name(d, equipment, site, direction) + (" starts" if delta < 0 else " still limits")
+             for i, d in b.items() if i not in a]
+    if bits:
+        return "; ".join(bits)
+    return "Outage ends" if delta > 0 else "Capacity reduced"
+
+
+@dataclass
+class ChangeEvent:
+    n: int
+    at: pd.Timestamp
+    available: float
+    delta: float
+    why: str
+
+
+def change_events(series: PanelSeries, equipment: EquipmentConfig) -> list[ChangeEvent]:
+    """Every future step in the window, numbered from 1 in time order."""
+    out: list[ChangeEvent] = []
+    segs = series.segments
+    for i in range(1, len(segs)):
+        s = segs[i]
+        if s.start <= series.now or s.start >= series.window[1] or abs(s.delta_prev) < 1e-6:
+            continue
+        out.append(ChangeEvent(len(out) + 1, s.start, s.available, s.delta_prev,
+                               change_reason(segs[i - 1].state, s.state, s.delta_prev, equipment, series.site, series.direction)))
+    return out
