@@ -66,3 +66,26 @@ def test_strip_has_six_wheels():
     assert out.count("<svg class='g-wheel") == 6
     assert "g-wheel--reduced" in out and out.count("g-wheel--full") == 5
     assert "Next <b>▼ 25%</b>" in out                   # planned REMIT tomorrow takes Injection to 7.5 of 30
+
+
+def _badges(fig):
+    tr = [t for t in fig.data if t.mode == "markers+text"]
+    return [] if not tr else list(tr[0].x)
+
+
+def test_wall_badges_only_for_listed_changes_and_never_touch():
+    """Ten storage changes a few hours apart (review B2 feedback): the wall
+    numbers only the changes it lists, and badges keep a gap between them."""
+    from remit2.ui.hero import panel_figure
+    rows = [mk_remit(f"ATW_13{i:02d}", "Atwick", "Storage", NOW + D + i * 6 * H, NOW + D + i * 6 * H + 3 * H,
+                     avail=3.0, unavail=0.47, planned=True, tech=3.47) for i in range(5)]
+    s = compute_combined_series(build_df_op(rows), Register(), EQ, "Atwick", "Storage", NOW - 7 * D, NOW + 30 * D, NOW)
+    ev = change_events(s, EQ)
+    assert len(ev) == 10
+    wall = panel_figure(s, EQ, wall=True, events=ev, badges=wh.WALL_LIST_N)
+    assert len(_badges(wall)) == 2
+    std = panel_figure(s, EQ, events=ev)
+    xs = [pd.Timestamp(x) for x in _badges(std)]
+    assert len(xs) == 10
+    span = s.window[1] - s.window[0]
+    assert all(b - a >= span * 22 / 900 * 0.999 for a, b in zip(xs, xs[1:]))

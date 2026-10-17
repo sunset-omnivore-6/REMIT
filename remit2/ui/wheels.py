@@ -31,6 +31,7 @@ FULL_AT = 0.9995            # Full at (effectively) 100%
 STALE_AFTER_MIN = 15        # data older than this greys the wheels and raises the wall banner
 WORD = {"full": "Full", "reduced": "Reduced", "severe": "Severe", "out": "Out", "stale": "Stale"}
 MEASURES = ("Withdrawal", "Injection", "Storage")
+WALL_LIST_N = 2             # changes listed under each wall chart; only these get numbered badges
 
 
 def state_of(available: float, tech: float, stale: bool = False) -> str:
@@ -254,7 +255,7 @@ def wall_cell_list(series: PanelSeries, events: list[ChangeEvent]) -> str:
     d = series.direction
     items = "".join(
         f"<li><span class='num'>{e.n}</span><b>{day_label(e.at)} {time_label(e.at)} &nbsp;{'▼' if e.delta < 0 else '▲'} "
-        f"{fq(e.available, d)}</b><span>{html.escape(e.why)}</span></li>" for e in events[:2])
+        f"{fq(e.available, d)}</b><span>{html.escape(e.why)}</span></li>" for e in events[:WALL_LIST_N])
     return f"<ol class='wb-up'>{items}</ol>"
 
 

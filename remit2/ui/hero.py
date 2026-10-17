@@ -117,7 +117,7 @@ def _hover_text(series: PanelSeries, equipment: EquipmentConfig, seg, t: dict, p
 
 def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool = False, show_x: bool = True,
                  mini: bool = False, max_events: int | None = None, events: list[ChangeEvent] | None = None,
-                 plot_h: int | None = None) -> go.Figure:
+                 plot_h: int | None = None, badges: int | None = None) -> go.Figure:
     t = theme.tokens(wall)
     T = series.tech
     S, E = series.window
@@ -200,15 +200,21 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool 
                                      line=dict(color=t["ink_past"] if past else t["ink"], width=1.5 if past else 2)))
 
     # Numbered changes: marker above the plot, faint line down through it.
+    # `badges` numbers only the first N (the wall numbers just the changes it
+    # lists); every change keeps its faint line. Badges are kept a badge width
+    # plus a gap apart at the plot's typical width, so close changes never merge.
     events = change_events(series, equipment) if events is None else events
     if max_events is not None:
         events = events[:max_events]
-    min_gap = (E - S) * 0.022
+    badge = 20 if wall else 16
+    min_gap = (E - S) * (badge + 6) / (540 if wall else 900)
     last = None
     mx, my, mt = [], [], []
-    for ev in events:
+    for i, ev in enumerate(events):
         shapes.append(dict(type="line", xref="x", yref="y", x0=X(ev.at), x1=X(ev.at), y0=0, y1=T,
                            line=dict(color=theme.rgba(t["ink"], .2), width=1)))
+        if badges is not None and i >= badges:
+            continue
         at = ev.at if last is None or ev.at - last >= min_gap else last + min_gap
         if at != ev.at:
             shapes.append(dict(type="line", xref="x", yref="y", x0=X(at), x1=X(ev.at), y0=mark_y, y1=T,
@@ -220,7 +226,7 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool 
     if mx:
         fig.add_trace(go.Scatter(x=mx, y=my, mode="markers+text", text=mt, textposition="middle center",
                                  textfont=dict(color=t["on_ink"], size=12 if wall else 10, family=theme.FONT),
-                                 marker=dict(size=20 if wall else 16, color=t["ink"]), cliponaxis=False,
+                                 marker=dict(size=badge, color=t["ink"], line=dict(color=bg, width=2)), cliponaxis=False,
                                  hoverinfo="skip", showlegend=False))
 
     # Now: line, label, point and value.

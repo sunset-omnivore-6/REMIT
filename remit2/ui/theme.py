@@ -247,13 +247,17 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
 .g-wheel {{ display:block; overflow:visible; flex:none; max-width:100%; height:auto; }}
 .g-wheel text {{ font-family:{FONT}; font-variant-numeric:tabular-nums; }}
 .g-ico {{ display:inline-block; flex:none; vertical-align:-2px; }}
-.g-strip {{ display:grid; grid-template-columns:1fr 1fr; margin:-8px -2.5rem 0; }}
-.g-site {{ padding:12px 2.5rem 14px; }}
-.g-site--atwick {{ background:{t['plot']['Atwick']}; }}
-.g-site--aldbrough {{ background:{t['plot']['Aldbrough']}; }}
-.g-hd {{ display:flex; align-items:baseline; gap:10px; font-size:13px; color:{t['ink2']}; margin-bottom:6px; }}
-.g-hd b {{ font-size:15px; font-weight:600; color:{t['ink']}; }}
-.g-row {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }}
+/* Each site is its own block: a page-coloured gutter between them, the site
+   named at section-heading size, and its three wheels packed together (not
+   spread across the half) so they group by site at any screen width. Panels
+   wear the site's band colour, the same as its section further down. */
+.g-strip {{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:-8px -2.5rem 12px; }}
+.g-site {{ padding:14px 2.5rem 16px; }}
+.g-site--atwick {{ background:{t['band']['Atwick']}; }}
+.g-site--aldbrough {{ background:{t['band']['Aldbrough']}; }}
+.g-hd {{ display:flex; align-items:baseline; gap:12px; font-size:13px; color:{t['ink2']}; margin-bottom:8px; }}
+.g-hd b {{ font-size:20px; font-weight:600; color:{t['ink']}; letter-spacing:-.005em; }}
+.g-row {{ display:grid; grid-template-columns:repeat(3,minmax(0,220px)); justify-content:start; gap:12px 20px; }}
 .g-unit {{ display:flex; flex-direction:column; align-items:center; text-align:center; min-width:0; gap:5px; }}
 .g-lab {{ font-size:13px; color:{t['ink2']}; }}
 .g-st {{ display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px; color:{t['ink']}; line-height:1.3; white-space:nowrap; }}
@@ -261,7 +265,7 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
 .g-st .g-why {{ color:{t['ink3']}; }}
 .g-next {{ font-size:12.5px; color:{t['ink2']}; font-variant-numeric:tabular-nums; white-space:nowrap; }}
 .g-next b {{ color:{t['ink']}; font-weight:600; }}
-.st-key-r2modebtn button {{ min-height:28px; padding:0 10px; border:1px solid {t['rule']}; background:{t['card']}; color:{t['ink2']}; white-space:nowrap; }}
+.st-key-r2modebtn button {{ min-height:28px; width:auto; padding:0 10px; border:1px solid {t['rule']}; background:{t['card']}; color:{t['ink2']}; white-space:nowrap; }}
 .st-key-r2modebtn button p {{ font-size:13px; }}
 
 /* ---- Misc ---- */
@@ -280,6 +284,7 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
   .r2-legend {{ border-left:0; padding-left:0; }}
   .r2-up {{ margin-top:0; }}
   .g-strip {{ grid-template-columns:1fr; margin-left:-16px; margin-right:-16px; }}
+  .g-row {{ grid-template-columns:repeat(3,minmax(0,1fr)); }}
   .g-site {{ padding:12px 16px 14px; }}
   .g-row {{ gap:4px; }}
   .g-st {{ font-size:12px; gap:4px; }} .g-st .g-why {{ display:none; }}

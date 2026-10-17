@@ -66,3 +66,11 @@
   5 minutes (only when the server is reachable again).
 - **Wall view / Standard view buttons**: toggle the mode without typing the URL —
   they set or clear `?mode=wall`, so a wall display can still be bookmarked.
+- **B2 feedback fixes**: the top strip groups each site's three wheels together
+  (columns up to 220px, left-aligned under the site name) instead of spreading
+  them across the half, names the site at section-heading size, and puts each site
+  on its band colour (the same as its section below) with a gutter between the
+  two. On the wall, only the changes listed under a chart get numbered badges
+  (the next two); every change keeps its faint line. Badges are spaced by their
+  real size plus a gap and carry a 2px surface ring, so close changes never merge.
+  The Wall view button no longer clips at wide widths.

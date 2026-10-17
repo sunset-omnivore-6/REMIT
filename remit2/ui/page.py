@@ -227,7 +227,8 @@ def _wall_board(data: d.RemitData, panels, equipment, now: pd.Timestamp) -> None
                     events = change_events(series, equipment)
                     with col:
                         st.markdown(wh.wall_cell_top(series, events, equipment, t, stale), unsafe_allow_html=True)
-                        st.plotly_chart(panel_figure(series, equipment, wall=True, show_x=True, events=events, plot_h=WALL_PLOT_H),
+                        st.plotly_chart(panel_figure(series, equipment, wall=True, show_x=True, events=events, plot_h=WALL_PLOT_H,
+                                                 badges=wh.WALL_LIST_N),
                                         width="stretch", config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
                                         key=f"wb-fig-{site}-{m}")
                         st.markdown(wh.wall_cell_list(series, events), unsafe_allow_html=True)
