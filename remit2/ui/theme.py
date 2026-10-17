@@ -25,6 +25,9 @@ LIGHT = dict(
     ink_past="#a3abb6", past="#8e98a5",
     planned="#0072B2", unplanned="#D55E00", adhoc="#009E73",
     good="#1f8f3a", warn="#b45309", bad="#c62828", focus="#1c2430",
+    # Glance-wheel states (review B2), validated with the cause colours: solid = how much, hatched = why.
+    st_full="#6b7787", st_reduced="#D9A600", st_edge="#7a5c00", st_severe="#C2185B", st_stale="#a3abb6",
+    wtrack="rgba(28,36,48,.085)", wtick="rgba(28,36,48,.34)", cut="#ffffff", wbg="#f1f6fb",
     band={"Atwick": "#e9eef2", "Aldbrough": "#f1ece3"},
     plot={"Atwick": "#f1f6fb", "Aldbrough": "#fcf4ea"},
 )
@@ -38,6 +41,8 @@ DARK = dict(
     # Re-stepped for dark: lighter blue so Planned never sinks into the ground.
     planned="#459cdd", unplanned="#e06f36", adhoc="#1dab80",
     good="#3fbf62", warn="#f0a340", bad="#ff6b6b", focus="#e8edf2",
+    st_full="#8796a8", st_reduced="#E6C15A", st_edge=None, st_severe="#C9427A", st_stale="#5d6773",
+    wtrack="rgba(232,237,242,.10)", wtick="rgba(232,237,242,.38)", cut="#0c1015", wbg="#18202a",
     band={"Atwick": "#111820", "Aldbrough": "#1a1612"},
     plot={"Atwick": "#18202a", "Aldbrough": "#221d17"},
 )
@@ -145,10 +150,10 @@ header[data-testid="stHeader"] {{ background:transparent; }}
 /* ---- Headline block: now · cause · next ---- */
 .r2-kpi {{ padding-top:4px; }}
 .r2-kpi .lab {{ font-size:{'15px' if wall else '13px'}; color:{t['ink2']}; }}
-.r2-kpi .val {{ font-size:{'44px' if wall else '28px'}; font-weight:600; line-height:1.15; letter-spacing:-.01em; margin-top:3px;
+.r2-kpi .val {{ font-size:17px; font-weight:600; line-height:1.25; letter-spacing:0; margin-top:2px;
   white-space:nowrap; color:{t['ink']}; font-variant-numeric:tabular-nums; }}
-.r2-kpi .of {{ font-size:{'15px' if wall else '13px'}; font-weight:400; color:{t['ink2']}; letter-spacing:0; margin-left:6px; }}
-.r2-kpi .cause {{ display:flex; align-items:center; gap:7px; font-size:{'15px' if wall else '13px'}; margin-top:8px; line-height:1.3; color:{t['ink']}; }}
+.r2-kpi .of {{ font-size:13px; font-weight:400; color:{t['ink2']}; letter-spacing:0; margin-left:5px; }}
+.r2-kpi .cause {{ display:flex; align-items:center; gap:7px; font-size:13px; margin-top:6px; line-height:1.3; color:{t['ink']}; }}
 .r2-kpi .cause + .cause {{ margin-top:4px; }}
 .r2-kpi .ids {{ color:{t['ink3']}; }}
 .r2-kpi .next {{ font-size:{'15px' if wall else '13px'}; color:{t['ink2']}; margin-top:9px; line-height:1.45; font-variant-numeric:tabular-nums; }}
@@ -238,6 +243,27 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
 .r2-thr--over .bar span {{ background:{t['warn']}; }}
 .r2-thr b {{ color:{t['ink']}; }}
 
+/* ---- Glance wheels (review B2) ---- */
+.g-wheel {{ display:block; overflow:visible; flex:none; max-width:100%; height:auto; }}
+.g-wheel text {{ font-family:{FONT}; font-variant-numeric:tabular-nums; }}
+.g-ico {{ display:inline-block; flex:none; vertical-align:-2px; }}
+.g-strip {{ display:grid; grid-template-columns:1fr 1fr; margin:-8px -2.5rem 0; }}
+.g-site {{ padding:12px 2.5rem 14px; }}
+.g-site--atwick {{ background:{t['plot']['Atwick']}; }}
+.g-site--aldbrough {{ background:{t['plot']['Aldbrough']}; }}
+.g-hd {{ display:flex; align-items:baseline; gap:10px; font-size:13px; color:{t['ink2']}; margin-bottom:6px; }}
+.g-hd b {{ font-size:15px; font-weight:600; color:{t['ink']}; }}
+.g-row {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }}
+.g-unit {{ display:flex; flex-direction:column; align-items:center; text-align:center; min-width:0; gap:5px; }}
+.g-lab {{ font-size:13px; color:{t['ink2']}; }}
+.g-st {{ display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px; color:{t['ink']}; line-height:1.3; white-space:nowrap; }}
+.g-st b {{ font-weight:600; }}
+.g-st .g-why {{ color:{t['ink3']}; }}
+.g-next {{ font-size:12.5px; color:{t['ink2']}; font-variant-numeric:tabular-nums; white-space:nowrap; }}
+.g-next b {{ color:{t['ink']}; font-weight:600; }}
+.st-key-r2modebtn button {{ min-height:28px; padding:0 10px; border:1px solid {t['rule']}; background:{t['card']}; color:{t['ink2']}; white-space:nowrap; }}
+.st-key-r2modebtn button p {{ font-size:13px; }}
+
 /* ---- Misc ---- */
 .r2-sr {{ position:absolute !important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }}
 .r2-banner {{ border-left:3px solid {t['rule']}; padding:.4rem .8rem; margin:.5rem 0; font-size:15px; color:{t['ink']}; }}
@@ -253,6 +279,11 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
   .st-key-r2live [data-testid="stHorizontalBlock"] {{ justify-content:flex-start; }}
   .r2-legend {{ border-left:0; padding-left:0; }}
   .r2-up {{ margin-top:0; }}
+  .g-strip {{ grid-template-columns:1fr; margin-left:-16px; margin-right:-16px; }}
+  .g-site {{ padding:12px 16px 14px; }}
+  .g-row {{ gap:4px; }}
+  .g-st {{ font-size:12px; gap:4px; }} .g-st .g-why {{ display:none; }}
+  .g-next {{ font-size:11px; white-space:normal; line-height:1.3; }}
   .st-key-r2toolbar [data-testid="stHorizontalBlock"] {{ flex-wrap:wrap; }}
   .st-key-r2toolbar [data-testid="stColumn"]:has(.r2-legend) {{ flex:1 1 100% !important; width:100% !important; order:10; height:auto !important; flex-basis:auto !important; margin-bottom:16px; }}
   .st-key-r2toolbar [data-testid="stColumn"]:has(.r2-legend) > div {{ height:auto !important; }}
@@ -266,28 +297,43 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
 
 WALL_EXTRA = """
 header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; }
-/* Six rows (3 per site) must fit 1920x1080: tighter rhythm, one-line 'next', two Coming-up items. */
-.block-container { padding-top:.9rem !important; }
-.r2-wallhead { padding-bottom:8px !important; }
-.r2-wtitle { font-size:24px !important; }
-.r2-clock b { font-size:34px !important; }
-[class*="st-key-site-"] { padding-top:8px !important; padding-bottom:4px !important; }
-[class*="st-key-site-"] [data-testid="stVerticalBlock"] { gap:.35rem !important; }
-[class*="st-key-card-"] { padding-top:6px !important; margin-top:0 !important; }
-.r2-sitehead h2 { font-size:22px !important; }
-.r2-kpi { padding-top:0 !important; }
-.r2-kpi .lab { font-size:14px !important; }
-.r2-kpi .val { font-size:34px !important; line-height:1.08 !important; margin-top:1px !important; }
-.r2-kpi .of { font-size:14px !important; }
-.r2-kpi .cause { font-size:14px !important; margin-top:4px !important; }
-.r2-kpi .next { font-size:14px !important; margin-top:4px !important; white-space:nowrap; }
-.r2-kpi .next br, .r2-kpi .next .rel { display:none; }
-.r2-kpi .next .sep { display:inline !important; }
-.r2-up { margin-top:0 !important; padding:6px 12px 5px !important; }
-.r2-up li { padding:4px 0 3px !important; }
-.r2-up .when, .r2-up .chg { font-size:14px !important; }
-.r2-up .why { font-size:12.5px !important; }
-.r2-up .more { display:none; }
+.block-container { padding:0 3rem 0 !important; }
+/* Wall board: 2x3 grid (sites x measures), sized for 1920x1080, no scrolling. */
+.st-key-wb [data-testid="stVerticalBlock"] { gap:.35rem !important; }
+.wb-head { height:76px; display:flex; align-items:center; justify-content:space-between; gap:28px; border-bottom:1px solid rgba(232,237,242,.1); margin:0 -3rem; padding:0 3rem; }
+.wb-title { font-size:13px; color:#9ea9b5; } .wb-title b { display:block; font-size:24px; font-weight:600; color:#e8edf2; letter-spacing:-.01em; margin-top:2px; }
+.wb-head .r2-legend { border-left:0; padding-left:0; font-size:13.5px; }
+.wb-keys { display:flex; gap:16px; font-size:13.5px; color:#9ea9b5; align-items:center; padding-left:18px; border-left:1px solid rgba(232,237,242,.13); }
+.wb-keys span { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.wb-mid { display:flex; align-items:center; }
+.wb-clock { display:flex; align-items:baseline; gap:14px; white-space:nowrap; color:#9ea9b5; font-size:14px; margin-right:150px; }
+.wb-clock > b { font-size:40px; font-weight:600; letter-spacing:-.02em; color:#e8edf2; font-variant-numeric:tabular-nums; }
+.wb-banner { display:flex; align-items:center; gap:10px; margin:0 -3rem; padding:10px 3rem; background:#3a2a06; color:#f3d48a; font-size:16px; font-weight:600; }
+.wb-banner span { font-weight:400; color:#e2c983; }
+[class*="st-key-wb-site-"] { margin:0 -3rem; padding:8px 3rem 12px; width:calc(100% + 6rem) !important; max-width:none !important; }
+.st-key-wb-site-atwick { background:#111820; } .st-key-wb-site-aldbrough { background:#1a1612; }
+.wb-sitename { display:flex; align-items:baseline; gap:12px; font-size:14px; color:#9ea9b5; margin-bottom:8px; }
+.wb-sitename b { font-size:22px; font-weight:600; color:#e8edf2; }
+[class*="st-key-wb-site-"] [data-testid="stColumn"] + [data-testid="stColumn"] { border-left:1px solid rgba(232,237,242,.09); padding-left:22px; }
+.wb-top { display:flex; align-items:center; gap:18px; margin-bottom:6px; }
+.wb-txt { min-width:0; }
+.wb-lab { font-size:16px; color:#9ea9b5; }
+.wb-val { font-size:30px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1.15; color:#e8edf2; }
+.wb-val span { font-size:15px; font-weight:400; color:#9ea9b5; margin-left:6px; letter-spacing:0; }
+.wb-txt .g-st { justify-content:flex-start; font-size:16px; margin-top:6px; color:#e8edf2; }
+.wb-next { font-size:15px; color:#9ea9b5; margin-top:5px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.wb-next b { color:#e8edf2; font-weight:600; }
+.wb-up { list-style:none; margin:0; padding:0; }
+.wb-up li { display:grid; grid-template-columns:20px auto minmax(0,1fr); gap:8px; align-items:center; font-size:13.5px; color:#9ea9b5; padding:2px 0; white-space:nowrap; }
+.wb-up li b { color:#e8edf2; font-weight:600; font-variant-numeric:tabular-nums; }
+.wb-up li span:last-child { overflow:hidden; text-overflow:ellipsis; }
+.wb-up .num { width:18px; height:18px; border-radius:50%; background:#e8edf2; color:#0c1015; font-size:10.5px; font-weight:600; display:grid; place-items:center; }
+.wb-foot { display:flex; justify-content:space-between; font-size:12.5px; color:#7c8794; padding-top:2px; }
+.st-key-wb-stale .js-plotly-plot { filter:grayscale(1); opacity:.55; }
+.st-key-wb-stale .wb-val, .st-key-wb-stale .wb-up li b { color:#9ea9b5; }
+.st-key-r2modebtn { position:fixed !important; top:20px; right:3rem; z-index:1000; width:auto !important; }
+.st-key-r2modebtn button { opacity:.55; } .st-key-r2modebtn button:hover { opacity:1; }
+.st-key-r2watch { display:none !important; }
 """
 
 

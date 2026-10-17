@@ -293,20 +293,11 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool 
 
 
 # ---------------------------------------------------------------------------
-# Headline block (now · cause · next) and Plant tiles
+# Row headline (value · cause with references) and Plant tiles. The level,
+# its state and the next change are on the glance wheel above the charts.
 # ---------------------------------------------------------------------------
 
-def _next_html(events: list[ChangeEvent], series: PanelSeries) -> str:
-    if not events:
-        days = max(1, (series.window[1] - series.now).days)
-        return f"<div class='next muted'>No change in the next {days} days</div>"
-    ev = events[0]
-    return (f"<div class='next'>Next <b>{'▼' if ev.delta < 0 else '▲'} {fq(ev.available, series.direction)}</b>"
-            f"<span class='sep'> · </span><br>{day_label(ev.at)} {time_label(ev.at)} "
-            f"<span class='muted rel'>· {rel_label(ev.at, series.now)}</span></div>")
-
-
-def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state, next_html: str) -> str:
+def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state) -> str:
     cfg = equipment.get(series.site, series.direction)
     T = series.tech
     lost = set(state.lost_units)
@@ -344,16 +335,15 @@ def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state, next_htm
         sub += f" · rate capped at {fq(state.cap, d)}"
     note = "<div class='note'>Placeholder unit values</div>" if any(u.placeholder for u in cfg.units) else ""
     return (f"<div class='r2-kpi'><div class='lab'>{series.direction} · plant</div><div class='plant'>{head}</div>"
-            f"<div class='r2-units'>{tiles}</div><div class='sub'>{sub}</div>{note}{next_html}</div>")
+            f"<div class='r2-units'>{tiles}</div><div class='sub'>{sub}</div>{note}</div>")
 
 
 def kpi_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, events: list[ChangeEvent]) -> str:
     cur = series.segment_at(series.now)
     if cur is None:
         return f"<div class='r2-kpi'><div class='lab'>{series.direction}</div><div class='val'>—</div></div>"
-    nxt = _next_html(events, series)
     if controls.show_as == "Plant" and equipment.get(series.site, series.direction).plant_view:
-        return _plant_html(series, equipment, cur.state, nxt)
+        return _plant_html(series, equipment, cur.state)
     parts = lost_parts(cur.state)
     if parts:
         cause = "".join(
@@ -363,7 +353,7 @@ def kpi_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls
         cause = "<div class='cause muted'>✓ <span>Full capacity</span></div>"
     return (f"<div class='r2-kpi'><div class='lab'>{series.direction}</div>"
             f"<div class='val'>{fq(cur.available, series.direction)}<span class='of'>/ {_cap(series.tech)} {unit_of(series.direction)}</span></div>"
-            f"{cause}{nxt}</div>")
+            f"{cause}</div>")
 
 
 # ---------------------------------------------------------------------------

@@ -48,3 +48,21 @@
   Storage REMIT threshold: any unpublished reduction > 0.001 TWh warns (and needs the
   acknowledgement tick). A stored equipment config without a Storage section falls
   back to the defaults for it. Wall screen compacted so six rows fit 1920×1080.
+- **Design review B2 — glance wheels (implemented)**: six wheels above the charts
+  (one panel per site on its plot tint), drawn as plain SVG in `remit2/ui/wheels.py`.
+  Solid colour = how much is left; the charts keep hatched cause colours = why.
+  States (agreed defaults): Full ≥ 99.95% (slate), Reduced 50% to just under 100%
+  (gold `#D9A600`, dark edge in light mode), **Severe below 50%** (raspberry
+  `#C2185B` / dark `#C9427A`, never red so it can't read as Unplanned), Out = 0
+  (raspberry-tinted track), **Stale after 15 minutes** without fresh data (grey
+  dashed ring). Each state also has a word and an icon. Gold replaced amber, which
+  collided with Unplanned vermillion for deuteranopes (ΔE 0.9). The **notch marks
+  the next change of any size** in the window. The % never reads 100 unless full,
+  nor 0 unless out. Rows lose the big number (the wheel carries it); the row
+  headline keeps a small value + cause with references.
+- **Wall board (B2)**: 2 sites × 3 measures, each cell = big wheel + level/state/next,
+  compact chart, next two changes; fits 1920×1080. Stale data greys the board and
+  raises a banner. A watchdog reloads the page if the app stops answering for
+  5 minutes (only when the server is reachable again).
+- **Wall view / Standard view buttons**: toggle the mode without typing the URL —
+  they set or clear `?mode=wall`, so a wall display can still be bookmarked.

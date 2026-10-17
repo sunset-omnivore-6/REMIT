@@ -59,7 +59,14 @@ def test_hero_renders(server, tmp_path):
         assert page.get_by_text("Ad-hoc:").count() >= 1
         assert page.get_by_text("New ad-hoc").count() == 1
         assert page.get_by_text("available now").count() == 6          # six narratives
+        assert page.locator(".g-strip .g-wheel").count() == 6           # glance wheels above the charts
         page.screenshot(path=str(tmp_path / "desktop.png"), full_page=True)
+        page.get_by_role("button", name="Wall view").click()             # the toggle sets ?mode=wall
+        page.wait_for_url("**mode=wall**", timeout=30000)
+        page.wait_for_function("document.querySelectorAll('.wb-top .g-wheel').length === 6", timeout=60000)
+        page.get_by_role("button", name="Standard view").click()
+        page.wait_for_function("document.querySelectorAll('.g-strip .g-wheel').length === 6", timeout=60000)
+        assert "mode=wall" not in page.url
         m = b.new_page(viewport={"width": 390, "height": 900})
         m.goto(server, wait_until="networkidle", timeout=120000)
         m.wait_for_selector(".js-plotly-plot", timeout=60000)
@@ -68,6 +75,8 @@ def test_hero_renders(server, tmp_path):
         w.goto(server + "/?mode=wall", wait_until="networkidle", timeout=120000)
         w.wait_for_selector(".js-plotly-plot", timeout=60000)
         assert w.get_by_text("New ad-hoc").count() == 0                 # wall mode hides controls
+        assert w.evaluate("document.querySelector('.wb-foot').getBoundingClientRect().bottom <= 1080")   # one screen
+        w.wait_for_function("typeof window.__r2watch !== 'undefined'", timeout=30000)                 # self-reload watchdog
         b.close()
 
 

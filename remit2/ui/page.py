@@ -1,10 +1,15 @@
 """Page composition (design review sheets 04–06).
 
-Desktop and phone: masthead (title + live status) → one ruled toolbar →
-Hornsea and Aldbrough bands (two rows each) → ad-hoc register → REMIT changes
-as tabs. The wall screen is the same pieces on the dark tokens, chosen by the
-URL: open the app with ?mode=wall on the wall display. It drops every control,
-shows a clock with the gas day and refreshes every minute.
+Desktop and phone: masthead (title + live status + Wall view) → one ruled
+toolbar → six glance wheels → Hornsea and Aldbrough bands (three rows each) →
+ad-hoc register → REMIT changes as tabs.
+
+Wall screen (review B2): a 2×3 board — sites as rows, measures as columns —
+on the dark tokens, with no controls beyond a faint "Standard view" button.
+Reached with the Wall view button or the URL ?mode=wall (the button sets it,
+so the link stays shareable). Refreshes every minute, greys itself out with a
+banner when data is older than 15 minutes, and reloads the page if the
+connection to the server is lost for more than 5 minutes.
 
 The body is a fragment that re-runs on a timer (paused while a dialog is open)
 so the 5-min data cache refreshes in place.
@@ -15,6 +20,7 @@ from datetime import timedelta
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from ..adhoc.model import DIRECTIONS
 from ..adhoc.narrate import change_events
@@ -25,17 +31,28 @@ from ..core.timeutil import LONDON
 from . import controls as ctl
 from . import data as d
 from . import forms, theme
-from .hero import day_label, render_panel_card, time_label
+from .hero import day_label, panel_figure, render_panel_card, time_label
 from .register_view import render_register, review_count
+from . import wheels as wh
 
 TITLE = "Hornsea &amp; Aldbrough availability"
-WALL_PLOT_H = 104         # three rows per site must fit 1920×1080
+WALL_PLOT_H = 122         # wall board charts: two sites × (wheel + chart + list) must fit 1920×1080
 LEDE = "Withdrawal, injection and storage capacity from published REMIT notices and ad-hoc plant changes."
 
 
 def is_wall() -> bool:
-    """The wall screen is chosen by URL, not by the device: <app url>/?mode=wall."""
+    """The wall screen is chosen by URL, not by the device: <app url>/?mode=wall.
+    The Wall view / Standard view buttons set and clear it."""
     return st.query_params.get("mode") == "wall"
+
+
+def _set_wall(on: bool) -> None:
+    if on:
+        st.query_params["mode"] = "wall"
+    elif "mode" in st.query_params:
+        del st.query_params["mode"]
+    st.session_state["r2_dialog_open"] = False
+    st.rerun()          # full-app rerun: the theme and refresh cadence follow the mode
 
 
 def _banner(text: str, level: str = "warn") -> None:
@@ -68,13 +85,18 @@ def _masthead(data: d.RemitData, now: pd.Timestamp) -> bool:
                         f"<p class='r2-lede'>{LEDE}</p>", unsafe_allow_html=True)
         with c2:
             with st.container(key="r2live"):
-                a, b = st.columns([1, 0.15], gap="small", vertical_alignment="center")
+                a, b, c = st.columns([1, 0.15, 0.5], gap="small", vertical_alignment="center")
                 with a:
                     st.markdown(f"<div class='r2-live r2-live--{mod}'><span class='dot'></span><b>{word}</b>"
                                 f"<span>{detail}</span></div>", unsafe_allow_html=True)
                 with b:
                     clicked = st.button("", icon=":material/refresh:", type="tertiary", key="r2_refresh",
                                         help="Refresh now — fetch the latest REMIT data")
+                with c:
+                    with st.container(key="r2modebtn"):
+                        if st.button("Wall view", icon=":material/tv:", key="r2_to_wall",
+                                     help="Switch to the wall screen: dark, large, no controls (link: ?mode=wall)"):
+                            _set_wall(True)
             st.markdown("<div class='r2-sub'>Refreshes every 5 minutes · UK times</div>", unsafe_allow_html=True)
     return clicked
 
@@ -181,14 +203,56 @@ def _changes_tabs(data: d.RemitData, panels, equipment, now) -> None:
                         f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 
 
-def _wall_head(data: d.RemitData, now: pd.Timestamp) -> None:
+def _wall_board(data: d.RemitData, panels, equipment, now: pd.Timestamp) -> None:
+    """2×3 ambient board: sites as rows, measures as columns. Each cell: big
+    wheel + value, state and next change; the 30-day chart; the next two changes."""
+    t = theme.tokens(True)
+    stale = wh.is_stale(data.fetched_at, now)
     mod, word, _ = _feed_status(data, now)
     loc = now.tz_convert(LONDON)
     gas_day = day_label(now - pd.Timedelta(hours=5)) if loc.hour < 5 else day_label(now)
-    st.markdown(
-        f"<div class='r2-wallhead'><div><div class='r2-kicker'>SSE gas storage · REMIT</div><div class='r2-wtitle'>{TITLE}</div></div>"
-        f"{theme.legend_html()}<div class='r2-clock'><b>{loc.strftime('%H:%M')}</b><span>{loc.strftime('%Z')} · gas day {gas_day}</span>"
-        f"<span class='r2-live r2-live--{mod}'><span class='dot'></span><b>{word}</b></span></div></div>", unsafe_allow_html=True)
+    with st.container(key="wb-stale" if stale else "wb"):
+        st.markdown(
+            f"<div class='wb-head'><div class='wb-title'>SSE gas storage · REMIT<b>{TITLE}</b></div>"
+            f"<div class='wb-mid'>{theme.legend_html()}{wh.state_keys(t)}</div>"
+            f"<div class='wb-clock'><b>{loc.strftime('%H:%M')}</b><span>{loc.strftime('%Z')} · gas day {gas_day}</span>"
+            f"<span class='r2-live r2-live--{mod}'><span class='dot'></span><b>{word}</b></span></div></div>"
+            + (wh.stale_banner(data.fetched_at, now, t) if stale else ""), unsafe_allow_html=True)
+        for site in ("Atwick", "Aldbrough"):
+            with st.container(key=f"wb-site-{site.lower()}"):
+                st.markdown(f"<div class='wb-sitename'><b>{site_label(site)}</b><span>{site} storage</span></div>",
+                            unsafe_allow_html=True)
+                for col, m in zip(st.columns(3, gap="medium"), wh.MEASURES):
+                    series = panels[(site, m)]
+                    events = change_events(series, equipment)
+                    with col:
+                        st.markdown(wh.wall_cell_top(series, events, equipment, t, stale), unsafe_allow_html=True)
+                        st.plotly_chart(panel_figure(series, equipment, wall=True, show_x=True, events=events, plot_h=WALL_PLOT_H),
+                                        width="stretch", config={"displayModeBar": False, "responsive": True, "scrollZoom": False},
+                                        key=f"wb-fig-{site}-{m}")
+                        st.markdown(wh.wall_cell_list(series, events), unsafe_allow_html=True)
+        upd = pd.Timestamp(data.fetched_at).tz_convert(LONDON).strftime("%H:%M") if data.fetched_at is not None else "—"
+        st.markdown("<div class='wb-foot'><span>Shading = capacity out, by cause · wheel colour = state · numbers on charts = next changes"
+                    f"</span><span>Data {upd} · refreshes every minute · UK times</span></div>", unsafe_allow_html=True)
+
+
+def _wall_exit() -> None:
+    with st.container(key="r2modebtn"):
+        if st.button("Standard view", icon=":material/close_fullscreen:", key="r2_to_std", help="Back to the standard page"):
+            _set_wall(False)
+
+
+def _watchdog() -> None:
+    """Wall self-recovery: every rerun (1 min) stamps a heartbeat in the page; a
+    small watcher installed once in the page reloads it when the heartbeat is
+    older than 5 minutes AND the server answers again (never onto an error page)."""
+    beat = int(pd.Timestamp.now(tz="UTC").timestamp())
+    with st.container(key="r2watch"):
+        components.html(
+            "<script>(function(){try{var P=window.parent;P.__r2beat=Date.now();if(!P.__r2watch){var s=P.document.createElement('script');"
+            "s.textContent=\"window.__r2watch=setInterval(function(){if(Date.now()-(window.__r2beat||0)>300000){"
+            "fetch(location.href,{cache:'no-store'}).then(function(r){if(r.ok)location.reload();}).catch(function(){});}},30000);\";"
+            f"P.document.head.appendChild(s);}}}}catch(e){{}}}})();</script><!-- beat {beat} -->", height=0)
 
 
 def _body() -> None:
@@ -197,7 +261,13 @@ def _body() -> None:
     data = d.load_remit()
     now = pd.Timestamp.now(tz="UTC")
     if wall:
-        _wall_head(data, now)
+        _wall_exit()
+        _watchdog()
+        if data.source == "none":
+            t = theme.tokens(True)
+            st.markdown(f"<div class='wb-head'><div class='wb-title'>SSE gas storage · REMIT<b>{TITLE}</b></div></div>"
+                        + wh.stale_banner(None, now, t), unsafe_allow_html=True)
+            return
     elif _masthead(data, now):
         st.session_state["r2_dialog_open"] = False
         st.cache_data.clear()
@@ -223,15 +293,19 @@ def _body() -> None:
     editor = d.is_editor(actor)
     if flash := st.session_state.pop("r2_flash", None):
         st.success(flash)
-    if not wall:
-        _toolbar(loaded, equipment, now, actor, editor, data.df_op)
-    controls = ctl.current()
     if wall:
+        controls = ctl.current()
         controls.show_as = "Values"
-    panels = d.compute_panels(data, register, version, controls.horizon_days, now)
-    _site_bands(panels, register, equipment, controls, now, wall)
-    if wall:
+        panels = d.compute_panels(data, register, version, 30, now)      # the wall always shows the next 30 days
+        _wall_board(data, panels, equipment, now)
         return
+    _toolbar(loaded, equipment, now, actor, editor, data.df_op)
+    controls = ctl.current()
+    panels = d.compute_panels(data, register, version, controls.horizon_days, now)
+    events = {key: change_events(series, equipment) for key, series in panels.items()}
+    st.markdown(wh.strip_html(panels, events, equipment, theme.tokens(False), stale=wh.is_stale(data.fetched_at, now)),
+                unsafe_allow_html=True)
+    _site_bands(panels, register, equipment, controls, now, wall)
 
     n_live = sum(1 for r in register.records if r.status(now) in ("active", "planned"))
     with st.expander(f"Ad-hoc register · {n_live} live", expanded=bool(st.session_state.get("r2_reg_open", True))):
@@ -239,7 +313,8 @@ def _body() -> None:
     _changes_tabs(data, panels, equipment, now)
     st.caption(f"Signed in as {actor}{' · editor' if editor else ' · viewer'}")
     st.markdown("<p class='r2-foot'>Shading marks capacity that is out, by cause — hatched as well as coloured; grey before now. "
-                "Numbers on the charts match the Coming up lists. For the wall display open this page with ?mode=wall.</p>",
+                "Numbers on the charts match the Coming up lists. Wheels: slate = full, gold = reduced, raspberry = below half. "
+                "For the wall display use Wall view (top right), or open the page with ?mode=wall.</p>",
                 unsafe_allow_html=True)
 
 
