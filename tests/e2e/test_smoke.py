@@ -60,6 +60,7 @@ def test_hero_renders(server, tmp_path):
         assert page.get_by_text("New ad-hoc").count() == 1
         assert page.get_by_text("available now").count() == 6          # six narratives
         assert page.locator(".g-strip .g-wheel").count() == 6           # glance wheels above the charts
+        assert page.locator(".g-site .g-verdict").count() == 2          # one site card each, with its verdict
         page.screenshot(path=str(tmp_path / "desktop.png"), full_page=True)
         page.get_by_role("button", name="Wall view").click()             # the toggle sets ?mode=wall
         page.wait_for_url("**mode=wall**", timeout=30000)

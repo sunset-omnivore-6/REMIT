@@ -66,6 +66,21 @@ def test_strip_has_six_wheels():
     assert out.count("<svg class='g-wheel") == 6
     assert "g-wheel--reduced" in out and out.count("g-wheel--full") == 5
     assert "Next <b>▼ 25%</b>" in out                   # planned REMIT tomorrow takes Injection to 7.5 of 30
+    assert out.count("class='g-verdict'") == 2          # one verdict per site card
+    assert wh.site_verdict(panels, "Atwick", LIGHT).endswith("1 reduced</span>")
+    assert wh.site_verdict(panels, "Aldbrough", LIGHT).endswith("All full</span>")
+    assert wh.site_verdict(panels, "Atwick", LIGHT, stale=True).endswith("Data stale</span>")
+
+
+def test_site_verdict_orders_worst_first():
+    df_op = build_df_op([mk_remit("A", "Atwick", "Withdrawal", NOW - D, NOW + D, avail=0.0, unavail=130.0),
+                         mk_remit("B", "Atwick", "Injection", NOW - D, NOW + D, avail=10.0, unavail=20.0),
+                         mk_remit("C", "Atwick", "Storage", NOW - D, NOW + D, avail=3.0, unavail=0.47, tech=3.47)])
+    panels = {("Atwick", m): compute_combined_series(df_op, Register(), EQ, "Atwick", m, NOW - D, NOW + 30 * D, NOW)
+              for m in wh.MEASURES}
+    v = wh.site_verdict(panels, "Atwick", LIGHT)
+    assert v.endswith("1 out · 1 severe · 1 reduced</span>")
+    assert wh.state_icon("out", LIGHT, 15) in v                  # icon of the worst state
 
 
 def _badges(fig):

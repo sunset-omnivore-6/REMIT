@@ -74,3 +74,14 @@
   (the next two); every change keeps its faint line. Badges are spaced by their
   real size plus a gap and carry a 2px surface ring, so close changes never merge.
   The Wall view button no longer clips at wide widths.
+- **Design review B3 — site cards (implemented)**: replaces the packed strip above.
+  Each site is one card: a 2px border in its site colour, header on the site's band
+  tint with the name in the site colour and a one-line verdict ("◆ 2 reduced",
+  "▲ 1 severe · ◆ 1 reduced", "✓ All full", "Data stale"), and its three wheels
+  spread across the full card. 24px gutter between cards. Site colours: Hornsea
+  violet `#5a308a`, Aldbrough umber `#724200` (Hornsea cool, Aldbrough warm, as the
+  bands) — ΔE 21 apart for normal and colour-blind vision, ≥ ΔE 18 from every cause
+  and state colour, ≥ 7:1 on white and the bands. 1.0's teal was rejected (ΔE 5 from
+  the ad-hoc green). Section headings take the site colour and a 4px bar. Phones:
+  cards stack, wheels get 10px gaps so next-change notches never touch. The wall
+  is unchanged.

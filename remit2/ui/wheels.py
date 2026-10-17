@@ -223,13 +223,31 @@ def glance_unit(series: PanelSeries, events: list[ChangeEvent], equipment, t: di
             f"{state_line(series, t, stale)}{next_line(series, events)}</div>")
 
 
+def site_verdict(panels: dict, site: str, t: dict, stale: bool = False) -> str:
+    """The site's answer in one line (review B3): the worst state's icon plus
+    counts, e.g. "2 reduced", "1 severe · 1 reduced", "All full"."""
+    if stale:
+        return f"<span class='g-verdict'>{state_icon('stale', t, 15)}Data stale</span>"
+    ks = []
+    for m in MEASURES:
+        s = panels[(site, m)]
+        cur = s.segment_at(s.now)
+        ks.append(state_of(cur.available if cur else 0.0, s.tech))
+    bad = [k for k in ("out", "severe", "reduced") if k in ks]
+    if not bad:
+        return f"<span class='g-verdict'>{state_icon('full', t, 15)}All full</span>"
+    words = " · ".join(f"{ks.count(k)} {WORD[k].lower()}" for k in bad)
+    return f"<span class='g-verdict'>{state_icon(bad[0], t, 15)}{words}</span>"
+
+
 def strip_html(panels: dict, events: dict, equipment, t: dict, *, stale: bool = False) -> str:
-    """Six wheels under the toolbar: one panel per site (on its plot tint), measures in row order."""
+    """Six wheels under the toolbar: one card per site (bordered in its site colour), measures in row order."""
     out = []
     for site in ("Atwick", "Aldbrough"):
         units = "".join(glance_unit(panels[(site, m)], events[(site, m)], equipment, t, stale=stale) for m in MEASURES)
         out.append(f"<section class='g-site g-site--{site.lower()}'><header class='g-hd'><b>{site_label(site)}</b>"
-                   f"<span>{site} storage</span></header><div class='g-row'>{units}</div></section>")
+                   f"<span>{site} storage</span>{site_verdict(panels, site, t, stale)}</header>"
+                   f"<div class='g-row'>{units}</div></section>")
     return f"<div class='g-strip'>{''.join(out)}</div>"
 
 

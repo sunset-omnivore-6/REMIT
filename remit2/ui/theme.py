@@ -30,6 +30,9 @@ LIGHT = dict(
     wtrack="rgba(28,36,48,.085)", wtick="rgba(28,36,48,.34)", cut="#ffffff", wbg="#f1f6fb",
     band={"Atwick": "#e9eef2", "Aldbrough": "#f1ece3"},
     plot={"Atwick": "#f1f6fb", "Aldbrough": "#fcf4ea"},
+    # Site colours (review B3): label places, never data. ≥ ΔE 18 from every cause/state
+    # colour, 21 apart (normal and CVD), ≥ 7:1 on white and the bands so they work as text.
+    site={"Atwick": "#5a308a", "Aldbrough": "#724200"},
 )
 
 DARK = dict(
@@ -45,6 +48,7 @@ DARK = dict(
     wtrack="rgba(232,237,242,.10)", wtick="rgba(232,237,242,.38)", cut="#0c1015", wbg="#18202a",
     band={"Atwick": "#111820", "Aldbrough": "#1a1612"},
     plot={"Atwick": "#18202a", "Aldbrough": "#221d17"},
+    site={"Atwick": "#5a308a", "Aldbrough": "#724200"},   # not drawn on the wall (it keeps its bands)
 )
 
 LANE_KEY = {"Planned REMIT": "planned", "Unplanned REMIT": "unplanned", "Ad-hoc": "adhoc"}
@@ -144,6 +148,8 @@ header[data-testid="stHeader"] {{ background:transparent; }}
 .r2-sitehead {{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 14px; }}
 .r2-sitehead h2 {{ font-size:{'24px' if wall else '20px'}; font-weight:600; color:{t['ink']}; margin:0; padding:0; letter-spacing:-.005em; }}
 .r2-sitemeta {{ font-size:{'14px' if wall else '13px'}; color:{t['ink2']}; }}
+.st-key-site-atwick .r2-sitehead h2 {{ color:{t['site']['Atwick']}; border-left:4px solid {t['site']['Atwick']}; padding-left:10px; }}
+.st-key-site-aldbrough .r2-sitehead h2 {{ color:{t['site']['Aldbrough']}; border-left:4px solid {t['site']['Aldbrough']}; padding-left:10px; }}
 [class*="st-key-card-"] {{ border-top:1px solid {t['rule2']}; padding-top:10px; margin-top:4px; }}
 [class*="st-key-card-"][class*="-withdrawal"] {{ border-top:0; }}
 
@@ -247,17 +253,22 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
 .g-wheel {{ display:block; overflow:visible; flex:none; max-width:100%; height:auto; }}
 .g-wheel text {{ font-family:{FONT}; font-variant-numeric:tabular-nums; }}
 .g-ico {{ display:inline-block; flex:none; vertical-align:-2px; }}
-/* Each site is its own block: a page-coloured gutter between them, the site
-   named at section-heading size, and its three wheels packed together (not
-   spread across the half) so they group by site at any screen width. Panels
-   wear the site's band colour, the same as its section further down. */
-.g-strip {{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:-8px -2.5rem 12px; }}
-.g-site {{ padding:14px 2.5rem 16px; }}
-.g-site--atwick {{ background:{t['band']['Atwick']}; }}
-.g-site--aldbrough {{ background:{t['band']['Aldbrough']}; }}
-.g-hd {{ display:flex; align-items:baseline; gap:12px; font-size:13px; color:{t['ink2']}; margin-bottom:8px; }}
-.g-hd b {{ font-size:20px; font-weight:600; color:{t['ink']}; letter-spacing:-.005em; }}
-.g-row {{ display:grid; grid-template-columns:repeat(3,minmax(0,220px)); justify-content:start; gap:12px 20px; }}
+/* Site cards (review B3): each site is one object. A 2px border in the site
+   colour does the grouping, so the wheels can spread across the full card.
+   Header on the site's band tint (as its section below): name in the site
+   colour, "Atwick storage", and the site verdict on the right. */
+.g-strip {{ display:grid; grid-template-columns:1fr 1fr; gap:24px; margin:6px 0 22px; }}
+.g-site {{ background:{t['card']}; border:2px solid; border-radius:10px; overflow:hidden; }}
+.g-site--atwick {{ border-color:{t['site']['Atwick']}; }}
+.g-site--aldbrough {{ border-color:{t['site']['Aldbrough']}; }}
+.g-hd {{ display:flex; align-items:center; gap:12px; padding:10px 20px; font-size:13px; color:{t['ink2']}; border-bottom:1px solid {t['rule2']}; }}
+.g-site--atwick .g-hd {{ background:{t['band']['Atwick']}; }}
+.g-site--aldbrough .g-hd {{ background:{t['band']['Aldbrough']}; }}
+.g-hd b {{ font-size:20px; font-weight:600; letter-spacing:-.005em; }}
+.g-site--atwick .g-hd b {{ color:{t['site']['Atwick']}; }}
+.g-site--aldbrough .g-hd b {{ color:{t['site']['Aldbrough']}; }}
+.g-verdict {{ margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-weight:600; color:{t['ink']}; white-space:nowrap; }}
+.g-row {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:14px 20px 16px; }}
 .g-unit {{ display:flex; flex-direction:column; align-items:center; text-align:center; min-width:0; gap:5px; }}
 .g-lab {{ font-size:13px; color:{t['ink2']}; }}
 .g-st {{ display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px; color:{t['ink']}; line-height:1.3; white-space:nowrap; }}
@@ -283,10 +294,9 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
   .st-key-r2live [data-testid="stHorizontalBlock"] {{ justify-content:flex-start; }}
   .r2-legend {{ border-left:0; padding-left:0; }}
   .r2-up {{ margin-top:0; }}
-  .g-strip {{ grid-template-columns:1fr; margin-left:-16px; margin-right:-16px; }}
-  .g-row {{ grid-template-columns:repeat(3,minmax(0,1fr)); }}
-  .g-site {{ padding:12px 16px 14px; }}
-  .g-row {{ gap:4px; }}
+  .g-strip {{ grid-template-columns:1fr; gap:14px; }}
+  .g-hd {{ padding:9px 14px; }}
+  .g-row {{ gap:10px; padding:12px 8px 14px; }}      /* room so neighbouring next-change notches never touch */
   .g-st {{ font-size:12px; gap:4px; }} .g-st .g-why {{ display:none; }}
   .g-next {{ font-size:11px; white-space:normal; line-height:1.3; }}
   .st-key-r2toolbar [data-testid="stHorizontalBlock"] {{ flex-wrap:wrap; }}
