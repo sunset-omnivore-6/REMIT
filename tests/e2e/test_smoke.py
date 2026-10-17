@@ -54,11 +54,11 @@ def test_hero_renders(server, tmp_path):
         page.goto(server, wait_until="networkidle", timeout=120000)
         page.wait_for_selector(".js-plotly-plot", timeout=60000)
         page.wait_for_timeout(4000)
-        assert page.locator(".js-plotly-plot").count() == 4
+        assert page.locator(".js-plotly-plot").count() == 6                # 3 per site: withdrawal, injection, storage
         assert page.get_by_text("Traceback").count() == 0
         assert page.get_by_text("Ad-hoc:").count() >= 1
         assert page.get_by_text("New ad-hoc").count() == 1
-        assert page.get_by_text("available now").count() == 4          # four narratives
+        assert page.get_by_text("available now").count() == 6          # six narratives
         page.screenshot(path=str(tmp_path / "desktop.png"), full_page=True)
         m = b.new_page(viewport={"width": 390, "height": 900})
         m.goto(server, wait_until="networkidle", timeout=120000)

@@ -35,3 +35,16 @@
   Dark cause colours are re-stepped, not reused: Planned `#459cdd`, Unplanned
   `#e06f36`, Ad-hoc `#1dab80` — all ≥ 5.4:1 against the dark bands/plots, CVD ΔE ≥ 10,
   normal-vision ΔE ≥ 16. Cause colours are only ever fills, never text.
+- **Storage capacity row (third chart per site)**: working gas capacity in TWh from
+  Storage REMITs (same 1.0 semantics: latest revision, Inactive clamp, minimum of
+  stated availabilities) plus ad-hoc cavern outages, same combine rule as the rates
+  (additive unless covered by a live REMIT thread; set union of caverns).
+  Nameplates 3.47 TWh (Hornsea) / 3.3 TWh (Aldbrough). **8 caverns at both sites,
+  equal split** (user decision): Hornsea 0.43375 TWh, Aldbrough 0.4125 TWh each.
+  Public sources differ (SSE: Atwick 8; Equinor: Aldbrough 9) — the count and sizes
+  live in `config/equipment.default.json` and can be corrected there.
+  Plant view for storage at both sites ("6 of 8 caverns in service"; REMITs → ≈ caverns).
+  Cavern ad-hocs reduce storage only (never withdrawal/injection). Units-only menu.
+  Storage REMIT threshold: any unpublished reduction > 0.001 TWh warns (and needs the
+  acknowledgement tick). A stored equipment config without a Storage section falls
+  back to the defaults for it. Wall screen compacted so six rows fit 1920×1080.

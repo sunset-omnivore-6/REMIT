@@ -23,7 +23,7 @@ def mk_remit(thread, site, cat, start, stop, *, avail=None, unavail=None, planne
         "publicationDateTime": (pub if pub is not None else start - H).strftime("%Y-%m-%dT%H:%M:%S.123Z"),
         "eventStart": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "eventStop": None if stop is None else stop.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "unitOfMeasurement": "GWh/d", "unavailableCapacity": unavail, "availableCapacity": avail,
+        "unitOfMeasurement": "TWh" if cat == "Storage" else "GWh/d", "unavailableCapacity": unavail, "availableCapacity": avail,
         "technicalCapacity": tech, "reasonForUnavailability": "test", "remarks": "",
         "balancingZone": "GB", "marketParticipant": "SSE", "marketParticipantCode": "X",
         "generationUnitEicCode": "EIC",

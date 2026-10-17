@@ -22,7 +22,7 @@ from ..core.operational import build_operational
 ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_PATH = os.path.join(tempfile.gettempdir(), "remit2_last_good_snapshot.pkl")
 FIXTURE = os.environ.get("REMIT2_FIXTURE")          # path to a captured/synthetic API payload (dev, tests)
-PANELS = [("Atwick", "Withdrawal"), ("Atwick", "Injection"), ("Aldbrough", "Withdrawal"), ("Aldbrough", "Injection")]
+PANELS = [(site, direction) for site in ("Atwick", "Aldbrough") for direction in ("Withdrawal", "Injection", "Storage")]
 
 
 @st.cache_resource(show_spinner=False)
@@ -117,7 +117,8 @@ def get_register(max_age_s: float = 30) -> Loaded:
 
 def get_equipment_live() -> EquipmentConfig:
     try:
-        return get_store().load_equipment(get_equipment())
+        # A stored config from before Storage existed falls back to the defaults for it.
+        return get_store().load_equipment(get_equipment()).with_defaults(get_equipment())
     except Exception:
         return get_equipment()
 

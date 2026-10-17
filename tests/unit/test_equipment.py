@@ -24,6 +24,11 @@ def test_unit_ids_unique_and_menus_match_spec():
         assert [u.label for u in c.units] == labels, key
         assert len({u.id for u in c.units}) == len(c.units)
         assert c.menu == ("units", "rate_cap")
+    for site, total in (("Atwick", 3.47), ("Aldbrough", 3.3)):          # storage: 8 equal caverns (agreed)
+        c = CFG.get(site, "Storage")
+        assert [u.label for u in c.units] == [f"Cavern {i}" for i in range(1, 9)]
+        assert c.menu == ("units",) and c.plant_view and c.unit_noun == "cavern"
+        assert abs(sum(u.gwhd_lost for u in c.units) - total) < 1e-9
     assert CFG.get("Atwick", "Injection").plant_view and CFG.get("Atwick", "Withdrawal").plant_view
     assert not CFG.get("Aldbrough", "Injection").plant_view and not CFG.get("Aldbrough", "Withdrawal").plant_view
 
@@ -40,3 +45,8 @@ def test_threshold_by_quarter():
     assert CFG.threshold_for(pd.Timestamp("2026-02-10T12:00Z")) == 27.5   # Q1
     assert CFG.threshold_for(pd.Timestamp("2026-03-31T23:30Z")) == 55.5   # local 1 Apr BST -> Q2
     assert CFG.threshold_for(pd.Timestamp("2026-11-10T12:00Z")) == 55.5   # Q4
+
+
+def test_storage_threshold_is_flat():
+    assert CFG.threshold_for(pd.Timestamp("2026-02-10T12:00Z"), "Storage") == 0.001
+    assert CFG.threshold_for(pd.Timestamp("2026-02-10T12:00Z"), "Withdrawal") == 27.5

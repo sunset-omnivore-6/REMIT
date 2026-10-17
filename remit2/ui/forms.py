@@ -11,13 +11,14 @@ import streamlit as st
 from ..adhoc.combine import combined_state_at, threshold_check
 from ..adhoc.model import AdhocRecord, EquipmentConfig, Register, new_record, validate_record
 from ..adhoc.store import StoreUnavailable, VersionConflict
+from ..adhoc.units import amount, q as fq, unit_of
 from ..core.capacity import short_thread
 from ..core.constants import site_label
 from ..core.timeutil import LONDON, fmt_local, iso_utc, parse_iso, to_utc
 from . import data as d
 
 SITES_UI = {"Hornsea": "Atwick", "Aldbrough": "Aldbrough"}
-DIRECTIONS = ["Injection", "Withdrawal"]
+DIRECTIONS = ["Injection", "Withdrawal", "Storage"]
 
 
 def _now_local_rounded() -> datetime:
@@ -86,21 +87,22 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
     site = SITES_UI[site_ui]
     cfg = equipment.get(site, direction)
     st.session_state.setdefault("af_kind", "Units out")
-    kind_ui = st.session_state["af_kind"]
+    can_rate = "rate_cap" in cfg.menu            # storage: cavern outages only
+    kind_ui = st.session_state["af_kind"] if can_rate else "Units out"
     units: list[str] = []
     resulting: float | None = None
     if kind_ui == "Units out":
         # Equipment as tiles: each shows what the unit is worth; the selection is dotted like the ad-hoc shading.
-        labels = {unit_tile_label(u): u.id for u in cfg.units}
+        labels = {unit_tile_label(u, direction): u.id for u in cfg.units}
         picked = st.pills("What’s out", list(labels), selection_mode="multi", key="af_units") or []
         units = [labels[l] for l in picked]
         if any(u.placeholder for u in cfg.units):
             st.caption("⚠ Placeholder unit values for this site — confirm before relying on the numbers.")
     else:
-        resulting = st.number_input("Resulting available capacity (GWh/d)", min_value=0.0,
+        resulting = st.number_input(f"Resulting available capacity ({unit_of(direction)})", min_value=0.0,
                                     max_value=float(cfg.nameplate_gwhd), value=float(cfg.nameplate_gwhd), step=0.5,
                                     key="af_rate", help="Enter what will be AVAILABLE, not the reduction")
-    if st.button("Rate change instead" if kind_ui == "Units out" else "Units out instead", type="tertiary", key="af_kind_btn"):
+    if can_rate and st.button("Rate change instead" if kind_ui == "Units out" else "Units out instead", type="tertiary", key="af_kind_btn"):
         st.session_state["af_kind"] = "Rate change" if kind_ui == "Units out" else "Units out"
         st.rerun(scope="fragment")
 
@@ -161,8 +163,8 @@ def new_adhoc_dialog(equipment: EquipmentConfig, register: Register, df_op: pd.D
             st.rerun()
 
 
-def unit_tile_label(u) -> str:
-    return f"{u.label} · {u.gwhd_lost:g} GWh/d"
+def unit_tile_label(u, direction: str) -> str:
+    return f"{u.label} · {amount(u.gwhd_lost, direction)} {unit_of(direction)}"
 
 
 def _preview(rec: AdhocRecord, thr, register: Register, equipment: EquipmentConfig, df_op: pd.DataFrame,
@@ -186,21 +188,30 @@ def _preview(rec: AdhocRecord, thr, register: Register, equipment: EquipmentConf
         t0 = rec.start_ts
         window = [s for s in series.segments if s.end > t0 and (rec.end_ts is None or s.start < rec.end_ts)]
         low = min(window, key=lambda s: s.available) if window else None
-        bits = [f"<b>{thr.resulting_avail:.1f}</b> at start (was {thr.baseline_avail:.1f})"]
+        dr = rec.direction
+        bits = [f"<b>{fq(thr.resulting_avail, dr)}</b> at start (was {fq(thr.baseline_avail, dr)})"]
         if low is not None and low.available < thr.resulting_avail - 1e-6:
             when = max(low.start, t0)
-            bits.append(f"lowest <b>{low.available:.1f}</b> from {day_label(when)} {time_label(when)}")
+            bits.append(f"lowest <b>{fq(low.available, dr)}</b> from {day_label(when)} {time_label(when)}")
         if rec.end_ts is not None:
             back = series.segment_at(rec.end_ts)
             if back is not None:
-                bits.append(f"<b>{back.available:.1f}</b> again from {day_label(rec.end_ts)} {time_label(rec.end_ts)}")
+                bits.append(f"<b>{fq(back.available, dr)}</b> again from {day_label(rec.end_ts)} {time_label(rec.end_ts)}")
         pct = min(100.0, 100.0 * thr.aggregate_after_gwhd / thr.threshold) if thr.threshold else 100.0
         over = "r2-thr--over" if thr.exceeds else ""
         st.markdown(
             f"<p class='r2-prevtxt'>{' · '.join(bits)}</p>"
             f"<div class='r2-thr {over}'><div class='bar'><span style='width:{pct:.1f}%'></span></div>"
-            f"<span>Unpublished reduction <b>{thr.aggregate_after_gwhd:.1f} of {thr.threshold:g} GWh/d</b> · "
-            f"{'above' if thr.exceeds else 'below'} the {thr.quarter} REMIT threshold</span></div>", unsafe_allow_html=True)
+            f"<span>{_threshold_text(thr, dr)}</span></div>", unsafe_allow_html=True)
+
+
+def _threshold_text(thr, direction: str) -> str:
+    u = unit_of(direction)
+    if direction == "Storage":       # any unpublished storage reduction should be a REMIT
+        return (f"Unpublished reduction <b>{fq(thr.aggregate_after_gwhd, direction)} {u}</b> · "
+                f"{'above' if thr.exceeds else 'within'} the storage REMIT threshold (any reduction over {thr.threshold:g} {u})")
+    return (f"Unpublished reduction <b>{fq(thr.aggregate_after_gwhd, direction)} of {thr.threshold:g} {u}</b> · "
+            f"{'above' if thr.exceeds else 'below'} the {thr.quarter} REMIT threshold")
 
 
 def _save_new(rec: AdhocRecord, actor: str, now: pd.Timestamp) -> None:
@@ -225,12 +236,12 @@ def edit_adhoc_dialog(rec: AdhocRecord, equipment: EquipmentConfig, actor: str) 
     st.markdown(f"**{rec.id}** · {site_label(rec.site)} · {rec.direction} · {'Units out' if rec.kind == 'unit_out' else 'Rate change'}")
     changes: dict = {}
     if rec.kind == "unit_out":
-        labels = {unit_tile_label(u): u.id for u in cfg.units}
+        labels = {unit_tile_label(u, rec.direction): u.id for u in cfg.units}
         cur = [l for l, i in labels.items() if i in rec.units]
         picked = st.pills("Units unavailable", list(labels), selection_mode="multi", default=cur, key=f"ef_units_{rec.id}") or []
         changes["units"] = [labels[l] for l in picked]
     else:
-        changes["resulting_avail_gwhd"] = float(st.number_input("Resulting available (GWh/d)", 0.0, float(cfg.nameplate_gwhd),
+        changes["resulting_avail_gwhd"] = float(st.number_input(f"Resulting available ({unit_of(rec.direction)})", 0.0, float(cfg.nameplate_gwhd),
                                                                 value=float(rec.resulting_avail_gwhd or 0), step=0.5, key=f"ef_rate_{rec.id}"))
     start_loc = parse_iso(rec.start).tz_convert(LONDON).to_pydatetime().replace(tzinfo=None)
     changes["start"] = iso_utc(_when(f"ef_start_{rec.id}", start_loc, "Start"))

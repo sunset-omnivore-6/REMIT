@@ -12,10 +12,11 @@ from ..adhoc.model import EquipmentConfig, Register
 from ..core.capacity import short_thread
 from ..core.constants import site_label
 from ..core.timeutil import fmt_local
+from ..adhoc.units import q as fq, unit_of
 from . import forms
 from .hero import day_label, time_label
 
-COLS = [0.62, 1.55, 0.55, 1.75, 1.45, 0.8, 1.9]
+COLS = [0.62, 1.5, 0.8, 1.7, 1.4, 0.8, 1.9]
 
 
 def _needs_review(r, equipment: EquipmentConfig, now: pd.Timestamp) -> bool:
@@ -39,7 +40,7 @@ def _what(r, equipment: EquipmentConfig) -> str:
         labels = {u.id: u.label for u in equipment.get(r.site, r.direction).units}
         what = ", ".join(labels.get(u, u) for u in r.units)
     else:
-        what = f"capped at {r.resulting_avail_gwhd:g} GWh/d"
+        what = f"capped at {r.resulting_avail_gwhd:g} {unit_of(r.direction)}"
     if r.covered_by_thread:
         what += f" · covered by {short_thread(r.covered_by_thread)}"
     return what
@@ -72,7 +73,7 @@ def render_register(register: Register, equipment: EquipmentConfig, now: pd.Time
         return
     with st.container(key="rvhead"):
         head = st.columns(COLS, vertical_alignment="bottom")
-        for c, h in zip(head, ["ID", "What’s out", "GWh/d", "When (UK)", "Status", "Entered by", ""]):
+        for c, h in zip(head, ["ID", "What’s out", "Impact", "When (UK)", "Status", "Entered by", ""]):
             c.markdown(f"<div class='r2-th'>{h}</div>", unsafe_allow_html=True)
     can = editor and store_ok
     for r in recs:
@@ -85,7 +86,7 @@ def render_register(register: Register, equipment: EquipmentConfig, now: pd.Time
             with c[1]:
                 _cell(f"{site_label(r.site)} · {r.direction}<br><span class='muted'>{html.escape(_what(r, equipment))}</span>")
             with c[2]:
-                _cell(f"−{imp:.1f}" if imp is not None else "—")
+                _cell(f"−{fq(imp, r.direction)} <span class='muted'>{unit_of(r.direction)}</span>" if imp is not None else "—")
             with c[3]:
                 _cell(_when(r))
             with c[4]:

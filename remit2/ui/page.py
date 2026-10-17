@@ -16,7 +16,9 @@ from datetime import timedelta
 import pandas as pd
 import streamlit as st
 
+from ..adhoc.model import DIRECTIONS
 from ..adhoc.narrate import change_events
+from ..adhoc.units import q as fq, unit_of
 from ..core.capacity import compute_recent_changes, short_thread
 from ..core.constants import site_label
 from ..core.timeutil import LONDON
@@ -27,7 +29,8 @@ from .hero import day_label, render_panel_card, time_label
 from .register_view import render_register, review_count
 
 TITLE = "Hornsea &amp; Aldbrough availability"
-LEDE = "Withdrawal and injection capacity from published REMIT notices and ad-hoc plant changes."
+WALL_PLOT_H = 104         # three rows per site must fit 1920×1080
+LEDE = "Withdrawal, injection and storage capacity from published REMIT notices and ad-hoc plant changes."
 
 
 def is_wall() -> bool:
@@ -120,7 +123,7 @@ def _toolbar(loaded, equipment, now, actor: str, editor: bool, df_op) -> None:
 
 
 def _site_meta(site: str, panels, register, now) -> str:
-    ids = {dr.id for direction in ("Withdrawal", "Injection") for s in panels[(site, direction)].segments
+    ids = {dr.id for direction in DIRECTIONS for s in panels[(site, direction)].segments
            if s.end > now for dr in s.state.drivers if dr.source == "remit"}
     act = sum(1 for r in register.records if r.site == site and r.status(now) == "active")
     pln = sum(1 for r in register.records if r.site == site and r.status(now) == "planned")
@@ -134,9 +137,10 @@ def _site_bands(panels, register, equipment, controls, now, wall: bool) -> None:
             st.markdown(f"<div class='r2-sitehead'><h2>{site_label(site)}</h2>"
                         f"<span class='r2-sitemeta'>{_site_meta(site, panels, register, now)}</span></div>",
                         unsafe_allow_html=True)
-            for direction in ("Withdrawal", "Injection"):
-                # Both rows share one time scale, so dates appear once, under injection.
-                render_panel_card(panels[(site, direction)], equipment, controls, wall, show_x=direction == "Injection")
+            for direction in DIRECTIONS:
+                # All rows share one time scale, so dates appear once, under the last row (storage).
+                render_panel_card(panels[(site, direction)], equipment, controls, wall, show_x=direction == DIRECTIONS[-1],
+                                  plot_h=WALL_PLOT_H if wall else None)
 
 
 def _changes_tabs(data: d.RemitData, panels, equipment, now) -> None:
@@ -144,7 +148,7 @@ def _changes_tabs(data: d.RemitData, panels, equipment, now) -> None:
     upcoming = []
     for (site, direction), series in panels.items():
         for e in change_events(series, equipment):
-            upcoming.append((e, f"{site_label(site)} · {direction}"))
+            upcoming.append((e, f"{site_label(site)} · {direction}", direction))
     upcoming.sort(key=lambda x: x[0].at)
     t1, t2 = st.tabs([f"Recent REMIT changes ({len(recent)})", f"Upcoming ({len(upcoming)})"])
     with t1:
@@ -170,8 +174,9 @@ def _changes_tabs(data: d.RemitData, panels, equipment, now) -> None:
         else:
             rows = "".join(
                 f"<tr><td>{day_label(e.at)} {time_label(e.at)}</td><td>{where}</td>"
-                f"<td><b>{'▼' if e.delta < 0 else '▲'} {e.available:.1f}</b> <span class='muted'>({e.delta:+.1f})</span></td>"
-                f"<td>{e.why}</td></tr>" for e, where in upcoming)
+                f"<td><b>{'▼' if e.delta < 0 else '▲'} {fq(e.available, dr)}</b> <span class='muted'>({'+' if e.delta > 0 else '−'}"
+                f"{fq(abs(e.delta), dr)}) {unit_of(dr)}</span></td>"
+                f"<td>{e.why}</td></tr>" for e, where, dr in upcoming)
             st.markdown("<table class='r2-t'><thead><tr><th>When (UK)</th><th>Site · type</th><th>Level after</th><th>Why</th></tr></thead>"
                         f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 

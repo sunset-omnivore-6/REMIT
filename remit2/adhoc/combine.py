@@ -22,6 +22,7 @@ import pandas as pd
 
 from ..core.capacity import capacity_at, short_thread
 from .model import AdhocRecord, EquipmentConfig, Register
+from .units import unit_of
 
 LANE_PLANNED = "Planned REMIT"
 LANE_UNPLANNED = "Unplanned REMIT"
@@ -251,7 +252,7 @@ def _adhoc_label(a: AdhocRecord, equipment: EquipmentConfig) -> str:
     if a.kind == "unit_out":
         return f"{ident}: {_unit_labels(equipment, a.site, a.direction, a.units)} out"
     if a.kind == "rate_cap":
-        return f"{ident}: rate capped at {float(a.resulting_avail_gwhd):g} GWh/d"
+        return f"{ident}: rate capped at {float(a.resulting_avail_gwhd):g} {unit_of(a.direction)}"
     return ident
 
 
@@ -393,7 +394,7 @@ def threshold_check(candidate: AdhocRecord, register: Register, equipment: Equip
     at its start instant) exceed the REMIT publication threshold?"""
     from ..core.timeutil import quarter_of
     t0 = candidate.start_ts
-    thr = equipment.threshold_for(t0)
+    thr = equipment.threshold_for(t0, candidate.direction)
     excl = {candidate.id} if candidate.id else set()
     before = combined_state_at(df_op, register, equipment, candidate.site, candidate.direction, t0, exclude_ids=excl)
     after = combined_state_at(df_op, register, equipment, candidate.site, candidate.direction, t0,
@@ -403,5 +404,5 @@ def threshold_check(candidate: AdhocRecord, register: Register, equipment: Equip
     else:
         impact = max(0.0, before.available - float(candidate.resulting_avail_gwhd or 0.0))
     aggregate_after = max(0.0, after.remit_avail - after.available)   # all unpublished reduction
-    return ThresholdResult(quarter_of(t0), thr, impact, aggregate_after,
+    return ThresholdResult("storage" if candidate.direction == "Storage" else quarter_of(t0), thr, impact, aggregate_after,
                            impact > thr or aggregate_after > thr, before.available, after.available)

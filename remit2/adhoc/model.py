@@ -15,10 +15,12 @@ from typing import Any, Literal
 import pandas as pd
 
 from ..core.timeutil import iso_utc, parse_iso, quarter_of
+from .units import unit_of
 
 SCHEMA_VERSION = 1
 Site = Literal["Atwick", "Aldbrough"]
-Direction = Literal["Injection", "Withdrawal"]
+Direction = Literal["Injection", "Withdrawal", "Storage"]
+DIRECTIONS = ("Withdrawal", "Injection", "Storage")
 Kind = Literal["unit_out", "rate_cap", "constraint"]
 KINDS_IMPLEMENTED = ("unit_out", "rate_cap")   # "constraint" reserved for the future
 
@@ -46,10 +48,11 @@ class SiteDirectionConfig:
 
 @dataclass(frozen=True)
 class EquipmentConfig:
-    thresholds: dict[str, float]            # {"Q1": 27.5, "Q2": 55.5, ...}
+    thresholds: dict[str, float]            # {"Q1": 27.5, "Q2": 55.5, ...} GWh/d, rates
     stale_after_days: int
     display: dict[str, str]                 # site -> display name
     table: dict[tuple[str, str], SiteDirectionConfig]
+    storage_threshold: float = 0.001        # TWh: any unpublished storage reduction should be a REMIT
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "EquipmentConfig":
@@ -57,7 +60,7 @@ class EquipmentConfig:
         display: dict[str, str] = {}
         for site, sd in d["sites"].items():
             display[site] = sd.get("display", site)
-            for direction in ("Injection", "Withdrawal"):
+            for direction in DIRECTIONS:
                 if direction not in sd:
                     continue
                 c = sd[direction]
@@ -76,7 +79,14 @@ class EquipmentConfig:
             stale_after_days=int(d.get("stale_after_days", 7)),
             display=display,
             table=table,
+            storage_threshold=float(d.get("remit_threshold_storage_twh", 0.001)),
         )
+
+    def with_defaults(self, default: "EquipmentConfig") -> "EquipmentConfig":
+        """Fill site/directions missing here (e.g. an older stored config with
+        no Storage section) from `default`."""
+        from dataclasses import replace
+        return replace(self, table={**default.table, **self.table}, display={**default.display, **self.display})
 
     @classmethod
     def load(cls, path: str | Path) -> "EquipmentConfig":
@@ -94,9 +104,11 @@ class EquipmentConfig:
     def gwhd_lost(self, site: str, direction: str, unit_ids: list[str] | set[str]) -> float:
         return float(sum(self.unit(site, direction, u).gwhd_lost for u in set(unit_ids)))
 
-    def threshold_for(self, ts: pd.Timestamp) -> float:
-        """REMIT publication threshold applying to an event starting at ts
-        (quarter of the local start date)."""
+    def threshold_for(self, ts: pd.Timestamp, direction: str | None = None) -> float:
+        """REMIT publication threshold for an event starting at ts: rates by the
+        quarter of the local start date (GWh/d); storage a flat TWh value."""
+        if direction == "Storage":
+            return self.storage_threshold
         return self.thresholds[quarter_of(ts)]
 
 
@@ -311,6 +323,8 @@ def validate_record(rec: AdhocRecord, equipment: EquipmentConfig, now: pd.Timest
     cfg = equipment.get(rec.site, rec.direction)
     if rec.kind not in KINDS_IMPLEMENTED:
         errs.append("Constraints are not available yet.")
+    elif {"unit_out": "units", "rate_cap": "rate_cap"}[rec.kind] not in cfg.menu:
+        errs.append(f"{'Rate changes' if rec.kind == 'rate_cap' else 'Unit outages'} are not available for {rec.direction.lower()}.")
     if rec.kind == "unit_out":
         known = {u.id for u in cfg.units}
         if not rec.units:
@@ -323,7 +337,7 @@ def validate_record(rec: AdhocRecord, equipment: EquipmentConfig, now: pd.Timest
     if rec.kind == "rate_cap":
         v = rec.resulting_avail_gwhd
         if v is None or not (0 <= float(v) < cfg.nameplate_gwhd):
-            errs.append(f"Resulting available must be between 0 and {cfg.nameplate_gwhd:g} GWh/d (below nameplate).")
+            errs.append(f"Resulting available must be between 0 and {cfg.nameplate_gwhd:g} {unit_of(rec.direction)} (below nameplate).")
     try:
         start = rec.start_ts
     except Exception:

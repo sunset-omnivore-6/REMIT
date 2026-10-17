@@ -153,6 +153,7 @@ header[data-testid="stHeader"] {{ background:transparent; }}
 .r2-kpi .ids {{ color:{t['ink3']}; }}
 .r2-kpi .next {{ font-size:{'15px' if wall else '13px'}; color:{t['ink2']}; margin-top:9px; line-height:1.45; font-variant-numeric:tabular-nums; }}
 .r2-kpi .next b {{ color:{t['ink']}; font-weight:600; }}
+.r2-kpi .next .sep {{ display:none; }}
 .r2-kpi .muted {{ color:{t['ink3']}; }}
 .r2-kpi .plant {{ font-size:17px; font-weight:600; margin-top:4px; line-height:1.3; color:{t['ink']}; }}
 .r2-kpi .sub {{ font-size:12px; color:{t['ink3']}; margin-top:6px; }}
@@ -265,6 +266,28 @@ table.r2-t .muted {{ color:{t['ink3']}; }}
 
 WALL_EXTRA = """
 header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; }
+/* Six rows (3 per site) must fit 1920x1080: tighter rhythm, one-line 'next', two Coming-up items. */
+.block-container { padding-top:.9rem !important; }
+.r2-wallhead { padding-bottom:8px !important; }
+.r2-wtitle { font-size:24px !important; }
+.r2-clock b { font-size:34px !important; }
+[class*="st-key-site-"] { padding-top:8px !important; padding-bottom:4px !important; }
+[class*="st-key-site-"] [data-testid="stVerticalBlock"] { gap:.35rem !important; }
+[class*="st-key-card-"] { padding-top:6px !important; margin-top:0 !important; }
+.r2-sitehead h2 { font-size:22px !important; }
+.r2-kpi { padding-top:0 !important; }
+.r2-kpi .lab { font-size:14px !important; }
+.r2-kpi .val { font-size:34px !important; line-height:1.08 !important; margin-top:1px !important; }
+.r2-kpi .of { font-size:14px !important; }
+.r2-kpi .cause { font-size:14px !important; margin-top:4px !important; }
+.r2-kpi .next { font-size:14px !important; margin-top:4px !important; white-space:nowrap; }
+.r2-kpi .next br, .r2-kpi .next .rel { display:none; }
+.r2-kpi .next .sep { display:inline !important; }
+.r2-up { margin-top:0 !important; padding:6px 12px 5px !important; }
+.r2-up li { padding:4px 0 3px !important; }
+.r2-up .when, .r2-up .chg { font-size:14px !important; }
+.r2-up .why { font-size:12.5px !important; }
+.r2-up .more { display:none; }
 """
 
 

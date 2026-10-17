@@ -18,6 +18,7 @@ import streamlit as st
 from ..adhoc.combine import LostPart, PanelSeries, lost_parts
 from ..adhoc.model import EquipmentConfig
 from ..adhoc.narrate import ChangeEvent, change_events, narrate_panel
+from ..adhoc.units import decimals, q as fq, unit_of
 from ..core.capacity import short_thread
 from ..core.timeutil import LONDON
 from . import theme
@@ -63,8 +64,8 @@ def _cap(v: float) -> str:
     return f"{v:g}" if abs(v - round(v)) > 1e-9 else str(int(round(v)))
 
 
-def _tick(v: float) -> str:
-    return str(int(round(v))) if abs(v - round(v)) < 1e-9 else f"{v:.1f}"
+def _tick(v: float, direction: str = "Withdrawal") -> str:
+    return str(int(round(v))) if abs(v - round(v)) < 1e-9 else f"{v:.{decimals(direction)}f}"
 
 
 def part_ids(part: LostPart, series: PanelSeries, equipment: EquipmentConfig, state) -> str:
@@ -102,19 +103,21 @@ def _gas_days(start, end) -> list[pd.Timestamp]:
 
 def _hover_text(series: PanelSeries, equipment: EquipmentConfig, seg, t: dict, past: bool) -> str:
     parts = lost_parts(seg.state)
-    head = f"<b>{seg.available:.1f}</b> of {_cap(series.tech)} GWh/d available" + (" · history" if past else "")
+    d = series.direction
+    head = f"<b>{fq(seg.available, d)}</b> of {_cap(series.tech)} {unit_of(d)} available" + (" · history" if past else "")
     if not parts:
         return head + "<br>Full capacity"
     rows = []
     for p in parts:
         col = t["past"] if past else t[theme.LANE_KEY[p.lane]]
         ids = part_ids(p, series, equipment, seg.state)
-        rows.append(f"<span style='color:{col}'>▬</span> {p.lane}{' · ' + ids if ids else ''}  <b>−{p.amount:.1f}</b>")
+        rows.append(f"<span style='color:{col}'>▬</span> {p.lane}{' · ' + ids if ids else ''}  <b>−{fq(p.amount, d)}</b>")
     return head + "<br>" + "<br>".join(rows)
 
 
 def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool = False, show_x: bool = True,
-                 mini: bool = False, max_events: int | None = None, events: list[ChangeEvent] | None = None) -> go.Figure:
+                 mini: bool = False, max_events: int | None = None, events: list[ChangeEvent] | None = None,
+                 plot_h: int | None = None) -> go.Figure:
     t = theme.tokens(wall)
     T = series.tech
     S, E = series.window
@@ -233,11 +236,11 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool 
             fig.add_trace(go.Scatter(x=[X(N)], y=[v], mode="markers", hoverinfo="skip", showlegend=False, cliponaxis=False,
                                      marker=dict(size=9, color=t["ink"], line=dict(color=bg, width=2))))
             high = v > 0.8 * T
-            annotations.append(dict(x=X(N), y=v, text=f"<b>{v:.1f}</b>", showarrow=False, xanchor="left", xshift=7,
+            annotations.append(dict(x=X(N), y=v, text=f"<b>{fq(v, series.direction)}</b>", showarrow=False, xanchor="left", xshift=7,
                                     yanchor="top" if high else "bottom", yshift=-5 if high else 5,
                                     font=dict(size=15 if wall else 12, color=t["ink"]), bgcolor=theme.rgba(bg, .85)))
-    if not mini:
-        annotations.append(dict(xref="paper", x=0, y=mark_y, text="GWh/d", showarrow=False, xanchor="right", xshift=-2,
+    if not mini and not wall:      # on the wall the headline states the unit; the plot is too short for both labels
+        annotations.append(dict(xref="paper", x=0, y=mark_y, text=unit_of(series.direction), showarrow=False, xanchor="right", xshift=-2,
                                 font=dict(size=12 if wall else 10.5, color=t["ink3"])))
 
     # Hover: one unified tooltip listing every cause at that moment.
@@ -272,10 +275,10 @@ def panel_figure(series: PanelSeries, equipment: EquipmentConfig, *, wall: bool 
                      tickfont=dict(size=13 if wall else 11, color=t["ink3"]),
                      showspikes=True, spikemode="across", spikesnap="cursor", spikecolor=t["ink"], spikethickness=1,
                      spikedash="solid", hoverformat="%a %-d %b · %H:%M")
-    fig.update_yaxes(range=[-0.02 * T, 1.17 * T], tickvals=[0, T / 2, T], ticktext=["0", _tick(T / 2), _cap(T)],
+    fig.update_yaxes(range=[-0.02 * T, 1.17 * T], tickvals=[0, T / 2, T], ticktext=["0", _tick(T / 2, series.direction), _cap(T)],
                      showgrid=False, zeroline=False, showline=False, fixedrange=True, ticks="",
                      tickfont=dict(size=13 if wall else 11, color=t["ink3"]))
-    plot_h = 100 if mini else 150
+    plot_h = plot_h or (100 if mini else 150)
     b = 22 if show_x else 10
     fig.update_layout(
         height=plot_h + 4 + b, margin=dict(l=50 if wall else 40, r=10, t=4, b=b), showlegend=False,
@@ -298,8 +301,9 @@ def _next_html(events: list[ChangeEvent], series: PanelSeries) -> str:
         days = max(1, (series.window[1] - series.now).days)
         return f"<div class='next muted'>No change in the next {days} days</div>"
     ev = events[0]
-    return (f"<div class='next'>Next <b>{'▼' if ev.delta < 0 else '▲'} {ev.available:.1f}</b><br>"
-            f"{day_label(ev.at)} {time_label(ev.at)} <span class='muted'>· {rel_label(ev.at, series.now)}</span></div>")
+    return (f"<div class='next'>Next <b>{'▼' if ev.delta < 0 else '▲'} {fq(ev.available, series.direction)}</b>"
+            f"<span class='sep'> · </span><br>{day_label(ev.at)} {time_label(ev.at)} "
+            f"<span class='muted rel'>· {rel_label(ev.at, series.now)}</span></div>")
 
 
 def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state, next_html: str) -> str:
@@ -313,7 +317,7 @@ def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state, next_htm
     rkey = theme.LANE_KEY[remit_parts[0].lane] if remit_parts else "planned"
     est = 0
     if r_red > EPS and units:
-        if uniform:     # REMITs are GWh/d only: convert to the nearest whole units, marked ≈
+        if uniform:     # REMITs are quantities only: convert to the nearest whole units, marked ≈
             k = int(round(r_red / units[0]["gwhd"])) if units[0]["gwhd"] else 0
             for u in reversed(units):
                 if k <= 0:
@@ -325,15 +329,19 @@ def _plant_html(series: PanelSeries, equipment: EquipmentConfig, state, next_htm
             if m:
                 m["st"], est = rkey, 1
     on = [u for u in units if u["st"] == "on"]
+    many = len(units) > 4          # e.g. 8 caverns: tiles carry just the number
     tiles = "".join(
-        f"<div class='r2-unit r2-unit--{u['st']}' style='flex:{'1 1 0' if uniform else str(u['gwhd']) + ' 1 0;min-width:78px'}'>"
-        f"<span>{'≈ ' if u['st'] in ('planned', 'unplanned') else ''}{u['label']}</span></div>" for u in units)
+        f"<div class='r2-unit r2-unit--{u['st']}' style='flex:{'1 1 0' if uniform else str(u['gwhd']) + ' 1 0;min-width:78px'}'"
+        f" title='{u['label']}'><span>{('≈' if many else '≈ ') if u['st'] in ('planned', 'unplanned') else ''}"
+        f"{u['label'].split()[-1] if many else u['label']}</span></div>" for u in units)
     noun = cfg.unit_noun or "unit"
-    head = (f"{len(on)} of {len(units)} {noun}s running" if uniform
-            else (" + ".join(u["label"] for u in on) or "Nothing") + " running")
-    sub = f"{state.available:.1f} / {_cap(T)} GWh/d" + (" · ≈ estimated from REMIT" if est else "")
+    verb = "in service" if noun == "cavern" else "running"
+    head = (f"{len(on)} of {len(units)} {noun}s {verb}" if uniform
+            else (" + ".join(u["label"] for u in on) or "Nothing") + f" {verb}")
+    d = series.direction
+    sub = f"{fq(state.available, d)} / {_cap(T)} {unit_of(d)}" + (" · ≈ estimated from REMIT" if est else "")
     if state.cap is not None and state.available <= state.cap + EPS:
-        sub += f" · rate capped at {state.cap:.1f}"
+        sub += f" · rate capped at {fq(state.cap, d)}"
     note = "<div class='note'>Placeholder unit values</div>" if any(u.placeholder for u in cfg.units) else ""
     return (f"<div class='r2-kpi'><div class='lab'>{series.direction} · plant</div><div class='plant'>{head}</div>"
             f"<div class='r2-units'>{tiles}</div><div class='sub'>{sub}</div>{note}{next_html}</div>")
@@ -354,7 +362,8 @@ def kpi_html(series: PanelSeries, equipment: EquipmentConfig, controls: Controls
     else:
         cause = "<div class='cause muted'>✓ <span>Full capacity</span></div>"
     return (f"<div class='r2-kpi'><div class='lab'>{series.direction}</div>"
-            f"<div class='val'>{cur.available:.1f}<span class='of'>/ {_cap(series.tech)} GWh/d</span></div>{cause}{nxt}</div>")
+            f"<div class='val'>{fq(cur.available, series.direction)}<span class='of'>/ {_cap(series.tech)} {unit_of(series.direction)}</span></div>"
+            f"{cause}{nxt}</div>")
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +377,7 @@ def upcoming_html(series: PanelSeries, events: list[ChangeEvent], limit: int = 4
                 f"<p class='none'>No changes in the next {days} days.</p></div>")
     items = "".join(
         f"<li><span class='num'>{e.n}</span><span class='when'><b>{day_label(e.at)}</b> {time_label(e.at)}</span>"
-        f"<span class='chg'><i>{'▼' if e.delta < 0 else '▲'}</i>{e.available:.1f}</span><span class='why'>{e.why}</span></li>"
+        f"<span class='chg'><i>{'▼' if e.delta < 0 else '▲'}</i>{fq(e.available, series.direction)}</span><span class='why'>{e.why}</span></li>"
         for e in events[:limit])
     more = f"<div class='more'>+ {len(events) - limit} more</div>" if len(events) > limit else ""
     n = len(events)
@@ -377,16 +386,16 @@ def upcoming_html(series: PanelSeries, events: list[ChangeEvent], limit: int = 4
 
 
 def render_panel_card(series: PanelSeries, equipment: EquipmentConfig, controls: Controls, wall: bool = False,
-                      show_x: bool = True) -> None:
+                      show_x: bool = True, plot_h: int | None = None) -> None:
     """Headline block | wide chart | Coming up. Rows share column widths and
     the time window, so the charts line up down the page."""
     key = f"card-{series.site.lower()}-{series.direction.lower()}"
     mode = "plant" if controls.show_as == "Plant" else "values"
     events = change_events(series, equipment)
-    fig = panel_figure(series, equipment, wall=wall, show_x=show_x, events=events)
+    fig = panel_figure(series, equipment, wall=wall, show_x=show_x, events=events, plot_h=plot_h)
     head = kpi_html(series, equipment, controls, events) + f"<p class='r2-sr'>{narrate_panel(series, equipment, mode)}</p>"
     with st.container(key=key):
-        widths = [1, 4.6, 1.5] if wall else [1, 3.85, 1.46]
+        widths = [1.2, 4.45, 1.45] if wall else [1, 3.85, 1.46]
         c1, c2, c3 = st.columns(widths, gap="medium", vertical_alignment="top")
         with c1:
             st.markdown(head, unsafe_allow_html=True)

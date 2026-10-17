@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "remit_threshold_gwhd": {"Q1": 27.5, "Q2": 55.5, "Q3": 55.5, "Q4": 55.5},
+  "remit_threshold_storage_twh": 0.001,
   "stale_after_days": 7,
   "sites": {
     "Atwick": {
@@ -26,6 +27,22 @@
           {"id": "VORTISEP", "label": "Vortisep", "gwhd_lost": 30.0, "placeholder": false},
           {"id": "PHASE6", "label": "Phase 6", "gwhd_lost": 100.0, "placeholder": false}
         ]
+      },
+      "Storage": {
+        "nameplate_gwhd": 3.47,
+        "menu": ["units"],
+        "plant_view": true,
+        "unit_noun": "cavern",
+        "units": [
+          {"id": "CAV1", "label": "Cavern 1", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV2", "label": "Cavern 2", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV3", "label": "Cavern 3", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV4", "label": "Cavern 4", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV5", "label": "Cavern 5", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV6", "label": "Cavern 6", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV7", "label": "Cavern 7", "gwhd_lost": 0.43375, "placeholder": false},
+          {"id": "CAV8", "label": "Cavern 8", "gwhd_lost": 0.43375, "placeholder": false}
+        ]
       }
     },
     "Aldbrough": {
@@ -49,6 +66,22 @@
         "units": [
           {"id": "TRAIN1", "label": "Train 1", "gwhd_lost": 143.89, "placeholder": true},
           {"id": "TRAIN2", "label": "Train 2", "gwhd_lost": 143.89, "placeholder": true}
+        ]
+      },
+      "Storage": {
+        "nameplate_gwhd": 3.3,
+        "menu": ["units"],
+        "plant_view": true,
+        "unit_noun": "cavern",
+        "units": [
+          {"id": "CAV1", "label": "Cavern 1", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV2", "label": "Cavern 2", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV3", "label": "Cavern 3", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV4", "label": "Cavern 4", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV5", "label": "Cavern 5", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV6", "label": "Cavern 6", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV7", "label": "Cavern 7", "gwhd_lost": 0.4125, "placeholder": false},
+          {"id": "CAV8", "label": "Cavern 8", "gwhd_lost": 0.4125, "placeholder": false}
         ]
       }
     }
